@@ -1,14 +1,26 @@
-# engine
-demoparser2>=0.30
-pandas>=2.0
-numpy>=1.24
-lightgbm>=4.0
-scikit-learn>=1.3
-pyarrow>=14.0
+# Pinned, not ranged.
+#
+# `pandas>=2.0` installed pandas 3.0.5 on the server — a major version jump
+# into a parser whose correctness is established by a test suite that was
+# written against these exact versions. It happened to match the development
+# machine, which was luck rather than design.
+#
+# Upgrade deliberately: change a pin, run `pytest`, then deploy.
 
-# web app. Everything else it needs — password hashing, session tokens,
-# SQLite — is in the standard library, on purpose.
-fastapi>=0.110
-uvicorn[standard]>=0.27
-python-multipart>=0.0.9
-zstandard>=0.22
+# engine
+demoparser2==0.42.0
+pandas==3.0.5
+numpy==2.5.2
+lightgbm==4.7.0
+scikit-learn==1.9.0
+pyarrow==25.0.1
+
+# web app. Everything else it needs — password hashing,
+# session tokens, SQLite — is in the standard library, on purpose.
+fastapi==0.141.1
+uvicorn==0.52.4
+python-multipart==0.0.32
+zstandard==0.25.0
+
+# tests
+pytest==9.1.1

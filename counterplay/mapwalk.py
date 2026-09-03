@@ -183,6 +183,10 @@ def main() -> int:
         except (KeyboardInterrupt, SystemExit):
             raise
         except BaseException as exc:
+            # BaseException because demoparser2 is Rust: a malformed file
+            # raises a PanicException, which does not inherit from Exception
+            # and would otherwise take the whole import down. One bad file
+            # should not stop the other six maps being read.
             print(f"  {f.name}: {type(exc).__name__}: {exc}")
             continue
         if len(x) == 0:

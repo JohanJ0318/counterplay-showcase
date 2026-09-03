@@ -170,6 +170,8 @@ def _utility(parser, round_of, tainted, credit, side_of) -> None:
     try:
         blind = parser.parse_event("player_blind")
     except Exception:
+        # Optional. Older demos do not carry this event, and a match without
+        # flash data is still a good match — every other figure is unaffected.
         blind = None
     if hasattr(blind, "itertuples"):
         for b in blind.itertuples(index=False):
@@ -349,13 +351,40 @@ def _match_score(rounds, roster):
         else:
             score_b += 1
 
-    # MR12: first to 13 takes it, unless it reaches 12-12, when overtime runs
-    # in MR3 blocks and the target rises by four each time.
+    # The FORMAT, read off the side swap rather than assumed.
+    #
+    # MR12 is first to 13 with the swap after round 12; MR15 is first to 16
+    # with the swap after 15. Assuming MR12 everywhere marked a pile of pro
+    # demos "finished" at scores MR12 cannot produce — 14-3, 14-5, 25-22 — and
+    # a unit test caught it, which is the entire reason the test exists.
+    #
+    # The swap is observable: team A is CT for a run of rounds and then is not.
+    swap = None
+    prev = None
+    for r in sorted(rounds, key=lambda q: q["round_num"]):
+        rn = r["round_num"]
+        on_ct = sum(1 for (r_n, sid), row in roster.items()
+                    if r_n == rn and sid in team_a and row["side"] == "ct")
+        on_t = sum(1 for (r_n, sid), row in roster.items()
+                   if r_n == rn and sid in team_a and row["side"] == "t")
+        if on_ct == on_t:
+            continue
+        now = on_ct > on_t
+        if prev is not None and now != prev:
+            swap = rn - 1
+            break
+        prev = now
+
+    # A swap at 15 means MR15; anything else is treated as MR12, which is
+    # every current competitive format.
+    win_at = 16 if swap == 15 else 13
+    ot_from = win_at - 1
+
     hi, lo = max(score_a, score_b), min(score_a, score_b)
-    if hi >= 13 and lo < 12:
+    if hi >= win_at and lo < ot_from:
         finished = True
     else:
-        target = 16
+        target = win_at + 3
         while lo >= target - 3 and hi < target:
             target += 4
         finished = hi >= target

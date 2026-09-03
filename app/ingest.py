@@ -231,11 +231,17 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
     with db.connect() as conn:
         # Re-parsing a match replaces it rather than appending. Without this a
         # retry doubles every round and the model trains on each of them twice.
-        conn.execute("DELETE FROM rounds WHERE match_key = ?", (match_key,))
-        conn.execute("DELETE FROM events WHERE match_key = ?", (match_key,))
-        conn.execute("DELETE FROM player_rounds WHERE match_key = ?", (match_key,))
-        conn.execute("DELETE FROM round_positions WHERE match_key = ?", (match_key,))
-        conn.execute("DELETE FROM matches WHERE match_key = ?", (match_key,))
+        #
+        # Cleared by DEMO as well as by key, so a demo parsed under an older
+        # key scheme does not leave orphaned rounds behind when it is parsed
+        # again. Clearing by key alone was what made the collision above
+        # destructive.
+        stale = [r["match_key"] for r in conn.execute(
+            "SELECT match_key FROM matches WHERE demo_id = ?", (demo_id,))]
+        for key in set(stale + [match_key]):
+            for table in ("rounds", "events", "player_rounds", "round_positions",
+                          "matches"):
+                conn.execute(f"DELETE FROM {table} WHERE match_key = ?", (key,))
 
         conn.execute(
             """INSERT INTO matches (demo_id, match_key, faceit_match_id, map_name,
@@ -417,7 +423,17 @@ def process(demo_row) -> tuple[bool, str]:
             # demo you need when you fix the parser, so it does not get deleted.
             raise IngestError(summary)
 
-        match_key = f"cp_{sha[:16]}"
+        # The demo id is part of the key, not just the file hash.
+        #
+        # A key derived from content alone means two teams who played each
+        # other and both upload the demo share one row — and `store()` clears
+        # by match_key before writing, so re-parsing one team's copy deletes
+        # the other team's match. That is not theoretical: it happened twice
+        # during deployment and took out a real 5-1 both times.
+        #
+        # Content still leads the key, so the same match is recognisable
+        # across teams by its prefix, but each team's parse owns its own rows.
+        match_key = f"cp_{sha[:16]}_{demo_id}"
         n = store(demo_id, match_key, rounds, events, players, position_blobs,
                   faceit_match_id=demo_row["faceit_match_id"],
                   competition=demo_row["competition"] or "",

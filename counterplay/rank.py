@@ -12,6 +12,28 @@ row are POST-event. The row for a death already has the dead player removed.
 Every situation label below therefore has to add that player back, and it must
 add them back to the side that actually lost them — which is why `state.py`
 carries `victim_side` rather than leaving it to be inferred here.
+
+NOT WIRED UP, AND THAT IS DELIBERATE.
+
+Nothing in the product imports this module. It is the decision-scoring
+engine — the win-probability model with isotonic calibration and an ECE gate —
+and it is switched off because the thing it needs does not exist yet: a corpus
+of collegiate rounds to train on. Pro and matchmaking rounds are the wrong
+population, and a model trained on them would produce confident numbers about
+a league it has never seen.
+
+Two ways this could go wrong later, which is why the note is here:
+
+  * A future reader finds an unimported module and deletes it as dead code.
+    It is not dead. It is waiting.
+  * A future reader wires it up because it looks finished. Before doing that,
+    check the ECE gate still refuses to publish when the model cannot beat its
+    own noise floor. That gate is the only thing standing between this product
+    and a plausible fabricated number, which is the one mistake it has never
+    made.
+
+The dashboard and the match report both say decision scoring is not available.
+Keep that true until the corpus says otherwise.
 """
 from __future__ import annotations
 
