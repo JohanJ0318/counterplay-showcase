@@ -97,6 +97,17 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border);
 /* The account name is the one nav item of unbounded length, and on a phone it
    pushed everything else off the edge. It truncates; the links never do. */
 .nav-links a.who{max-width:9rem;overflow:hidden;text-overflow:ellipsis}
+/* The section you are in, marked in the nav rather than left to be inferred. */
+.nav-links a.here{color:var(--purple);background:var(--purple-soft)}
+/* Section navigation: where you are INSIDE a section, on its own row, so the
+   primary nav never changes shape between one part of the product and another. */
+.subnav{background:var(--surface);border-bottom:1px solid var(--border)}
+.subnav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:42px;
+  display:flex;gap:4px;align-items:center;overflow-x:auto}
+.subnav a{color:var(--muted);font-size:.86rem;font-weight:500;padding:6px 11px;
+  border-radius:var(--r);white-space:nowrap}
+.subnav a:hover{color:var(--ink);background:var(--bg);text-decoration:none}
+.subnav a.here{color:var(--purple);background:var(--purple-soft)}
 @media(max-width:640px){
   .nav-in{flex-wrap:wrap;gap:6px}
   .nav-links{font-size:.82rem;gap:2px;width:100%}
@@ -279,6 +290,39 @@ def esc(v) -> str:
     return html.escape(str(v if v is not None else ""), quote=True)
 
 
+# THE PRIMARY NAVIGATION, DEFINED ONCE.
+#
+# The league site is generated separately, and it grew its own nav: clicking
+# "League" swapped Dashboard for "Your team", dropped Players and Trends
+# entirely, and reordered what was left. A person cannot learn a navigation
+# that rearranges itself when they move between two halves of one product.
+#
+# So the primary nav is data, and `league/gen/build.py` imports this list
+# rather than writing its own. Section-specific links (NECC standings, the
+# leaderboards) become a second bar underneath, which is where "where am I
+# inside this section" belongs — not mixed into "where can I go".
+PRIMARY_NAV = [
+    ("/dashboard", "Dashboard"),
+    ("/matches", "Matches"),
+    ("/players", "Players"),
+    ("/stats", "Team stats"),
+    ("/trends", "Trends"),
+    ("/league/", "League"),
+]
+
+
+def nav_links(current: str = "", account: str = "") -> str:
+    """The primary nav as HTML. `current` marks the section you are in."""
+    out = []
+    for href, label in PRIMARY_NAV:
+        here = ' aria-current="page"' if href == current else ""
+        cls = ' class="here"' if href == current else ""
+        out.append(f'<a href="{href}"{cls}{here}>{esc(label)}</a>')
+    if account:
+        out.append(f'<a class="who" href="/account">{esc(account)}</a>')
+    return "".join(out)
+
+
 def page(title: str, head: str, body: str, user=None) -> str:
     """Wrap page content in the shell. `head` is the banner, `body` the content."""
     if user is None:
@@ -286,17 +330,7 @@ def page(title: str, head: str, body: str, user=None) -> str:
                  '<a href="/login">Log in</a>'
                  '<a class="btn" href="/signup">Add your team</a>')
     else:
-        # Matches earns a nav slot because match reports are the headline
-        # feature and there was no link to one anywhere: the only route in was
-        # clicking the small grey team name in a page crumb.
-        links = ('<a href="/dashboard">Dashboard</a>'
-                 '<a href="/matches">Matches</a>'
-                 '<a href="/players">Players</a>'
-                 '<a href="/stats">Team stats</a>'
-                 '<a href="/trends">Trends</a>'
-                 '<a href="/league/">League</a>'
-                 f'<a class="who" href="/account">'
-                 f'{esc(user["name"] or user["email"])}</a>')
+        links = nav_links(account=user["name"] or user["email"])
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">

@@ -18,11 +18,23 @@ from __future__ import annotations
 
 import argparse
 import html
+import sys
 import json
 import math
 import re
 from collections import Counter, defaultdict
 from pathlib import Path
+
+# The app's primary navigation, imported rather than reimplemented. This site
+# is generated separately and used to carry its own nav, so moving between the
+# app and the league pages rearranged the menu under the reader.
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+try:
+    from app.theme import PRIMARY_NAV
+except Exception:                      # generated standalone, without the app
+    PRIMARY_NAV = [("/dashboard", "Dashboard"), ("/matches", "Matches"),
+                   ("/players", "Players"), ("/stats", "Team stats"),
+                   ("/trends", "Trends"), ("/league/", "League")]
 
 MIN_ROUNDS = 30          # below this a player's rates are marked thin
 
@@ -315,17 +327,17 @@ def assign_roles(model: dict):
 
 CSS = """
 :root{
-  --ground:#F7F6FA; --surface:#FFFFFF; --sunk:#F1EFF7;
+  --bg:#F7F6FA; --surface:#FFFFFF; --sunk:#F1EFF7;
   --ink:#191325; --muted:#655D77; --faint:#948CA6;
-  --rule:#E7E3F0; --rule-strong:#D6D0E4;
-  --accent:#5B21B6; --accent-ink:#5B21B6; --accent-soft:#F3EFFE;
-  --brass:#A65B0B; --brass-soft:#FDF3E4; --on-accent:#FFFFFF;
+  --border:#E7E3F0; --border-strong:#D6D0E4;
+  --purple:#5B21B6; --purple-soft:#F3EFFE;
+  --t:#A65B0B; --t-soft:#FDF3E4; --on-purple:#FFFFFF;
   --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
 *{box-sizing:border-box}
-body{margin:0;background:var(--ground);color:var(--ink);font-family:var(--f-body);
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
   font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1060px;margin:0 auto;padding:0 20px 80px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
@@ -333,16 +345,23 @@ h1{font-size:clamp(1.8rem,4.4vw,2.6rem);line-height:1.04;letter-spacing:-.026em;
 h2{font-size:1.28rem;letter-spacing:-.016em;font-weight:800}
 h3{font-size:1rem;font-weight:600}
 p{margin:0}
-a{color:var(--accent-ink);text-decoration:none}
+a{color:var(--purple);text-decoration:none}
 a:hover{text-decoration:underline}
 .label{font-family:var(--f-mono);font-size:.66rem;font-weight:500;letter-spacing:.13em;
   text-transform:uppercase;color:var(--faint)}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
-nav.top{background:var(--surface);border-bottom:1px solid var(--rule)}
+nav.top{background:var(--surface);border-bottom:1px solid var(--border)}
 .nav-in{max-width:1060px;margin:0 auto;padding:14px 20px;display:flex;gap:16px;
   align-items:center;justify-content:space-between}
 .nav-links{display:flex;gap:4px;align-items:center;flex-wrap:wrap;
   justify-content:flex-end;font-size:.85rem;min-width:0}
+.nav-links a.here{color:var(--purple);background:var(--purple-soft)}
+.subnav{background:var(--surface);border-bottom:1px solid var(--border)}
+.subnav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:42px;
+  display:flex;gap:4px;align-items:center;overflow-x:auto}
+.subnav a{color:var(--muted);font-size:.86rem;font-weight:500;padding:6px 11px;
+  border-radius:6px;white-space:nowrap;text-decoration:none}
+.subnav a:hover{color:var(--ink);background:var(--bg)}
 .nav-links a{color:var(--muted);padding:6px 10px;border-radius:6px;
   white-space:nowrap;text-decoration:none}
 .nav-links a:hover{color:var(--ink);background:var(--bg)}
@@ -350,21 +369,21 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--rule)}
   .nav-links{width:100%;font-size:.78rem;gap:2px}}
 .mark{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em;font-size:1.06rem;
   color:var(--ink)}
-.mark em{font-style:normal;color:var(--accent-ink)}
-header.page{background:var(--surface);border-bottom:1px solid var(--rule)}
+.mark em{font-style:normal;color:var(--purple)}
+header.page{background:var(--surface);border-bottom:1px solid var(--border)}
 .head-in{max-width:1060px;margin:0 auto;padding:34px 20px 28px;display:flex;
   flex-direction:column;gap:11px}
 .crumb{font-size:.86rem;color:var(--muted)}
 section{padding-top:38px;display:flex;flex-direction:column;gap:14px}
-.sec-head{border-top:1px solid var(--rule-strong);padding-top:11px;display:flex;
+.sec-head{border-top:1px solid var(--border-strong);padding-top:11px;display:flex;
   flex-direction:column;gap:5px}
 .lede{color:var(--muted);font-size:.92rem;max-width:70ch}
-.tbl-wrap{overflow-x:auto;border:1px solid var(--rule);background:var(--surface)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);background:var(--surface)}
 table{border-collapse:collapse;width:100%;font-size:.88rem}
 th{font-family:var(--f-mono);font-size:.63rem;font-weight:500;letter-spacing:.1em;
   text-transform:uppercase;color:var(--faint);text-align:left;padding:10px 13px;
-  border-bottom:1px solid var(--rule-strong);white-space:nowrap}
-td{padding:10px 13px;border-bottom:1px solid var(--rule);vertical-align:middle}
+  border-bottom:1px solid var(--border-strong);white-space:nowrap}
+td{padding:10px 13px;border-bottom:1px solid var(--border);vertical-align:middle}
 tr:last-child td{border-bottom:none}
 td.name{font-weight:600;font-family:var(--f-display);white-space:nowrap}
 td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
@@ -372,28 +391,28 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 th.num{text-align:right}
 .den{font-family:var(--f-mono);font-size:.72rem;color:var(--faint)}
 .thin{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--brass);border:1px solid var(--brass);padding:1px 5px}
+  color:var(--t);border:1px solid var(--t);padding:1px 5px}
 .role{font-family:var(--f-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
   padding:2px 7px;background:var(--sunk);color:var(--muted);white-space:nowrap}
-.role.awp{background:var(--brass-soft);color:var(--brass)}
-.role.entry{background:var(--accent-soft);color:var(--accent-ink)}
+.role.awp{background:var(--t-soft);color:var(--t)}
+.role.entry{background:var(--purple-soft);color:var(--purple)}
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
-  background:var(--rule);border:1px solid var(--rule)}
+  background:var(--border);border:1px solid var(--border)}
 .stat{background:var(--surface);padding:15px 17px;display:flex;flex-direction:column;gap:2px}
 .stat-n{font-family:var(--f-display);font-weight:800;font-size:1.5rem;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums}
 .maps{display:flex;flex-direction:column;gap:22px}
-.mapblock{border:1px solid var(--rule);background:var(--surface)}
+.mapblock{border:1px solid var(--border);background:var(--surface)}
 .maphead{display:flex;align-items:baseline;gap:12px;padding:14px 16px;
-  border-bottom:1px solid var(--rule-strong);flex-wrap:wrap}
+  border-bottom:1px solid var(--border-strong);flex-wrap:wrap}
 .maphead .score{font-family:var(--f-display);font-weight:800;font-size:1.1rem;
   font-variant-numeric:tabular-nums}
-.win{color:var(--accent-ink);font-weight:600}
-.note{border-left:3px solid var(--accent);background:var(--accent-soft);padding:14px 18px;
+.win{color:var(--purple);font-weight:600}
+.note{border-left:3px solid var(--purple);background:var(--purple-soft);padding:14px 18px;
   font-size:.9rem;max-width:72ch}
-footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--rule);font-size:.8rem;
+footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--border);font-size:.8rem;
   color:var(--faint);display:flex;flex-direction:column;gap:5px}
-:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
 """
 
 SHELL = """<!doctype html>
@@ -406,16 +425,11 @@ SHELL = """<!doctype html>
 <style>@@CSS@@</style></head><body>
 <nav class="top"><div class="nav-in">
   <a class="mark" href="index.html">Counter<em>play</em></a>
-  <span class="nav-links">
-    <a href="index.html">@@LEAGUE@@</a>
-    <a href="leaderboards.html">Leaderboards</a>
-    <!-- A coach who clicks League from inside the app had no way back: this
-         site is generated separately and linked nothing to the product it is
-         part of. -->
-    <a href="/dashboard">Your team</a>
-    <a href="/matches">Matches</a>
-    <a href="/stats">Team stats</a></span>
+  <span class="nav-links">@@NAV@@</span>
 </div></nav>
+<!-- Section navigation. The row above never changes between the app and here;
+     this row says where you are inside the league pages. -->
+<nav class="subnav"><div class="subnav-in">@@SUBNAV@@</div></nav>
 <header class="page"><div class="head-in">@@HEAD@@</div></header>
 <div class="wrap">@@BODY@@
 <footer>
@@ -426,8 +440,19 @@ SHELL = """<!doctype html>
 
 
 def page(path: Path, title: str, league: str, head: str, body: str):
+    # Which section page this is, so the section bar marks it. Team and match
+    # pages belong to the standings, which is where a reader came from.
+    here = "leaderboards.html" if path.name == "leaderboards.html" else "index.html"
+    subnav = "".join(
+        f'<a href="{h}"{" class='here'" if h == here else ""}>{esc(l)}</a>'
+        for h, l in (("index.html", f"{league} standings"),
+                     ("leaderboards.html", "Leaderboards")))
     out = SHELL
-    for token, value in (("@@CSS@@", CSS), ("@@TITLE@@", esc(title)),
+    nav = "".join(
+        f'<a href="{h}"{" class=\'here\'" if h == "/league/" else ""}>{esc(l)}</a>'
+        for h, l in PRIMARY_NAV)
+    for token, value in (("@@CSS@@", CSS), ("@@NAV@@", nav),
+                         ("@@SUBNAV@@", subnav), ("@@TITLE@@", esc(title)),
                          ("@@LEAGUE@@", esc(league)), ("@@HEAD@@", head),
                          ("@@BODY@@", body), ("@@MINR@@", str(MIN_ROUNDS))):
         out = out.replace(token, value)
@@ -503,7 +528,7 @@ def render(model: dict, out: Path):
                 '<tr><td class="name"><a href="t-%s.html">%s</a>%s</td>'
                 '<td class="num mono">%d</td><td class="num">%s</td>'
                 '<td class="num mono">%d</td><td class="num mono">%d</td>'
-                '<td class="num mono" style="color:var(--accent-ink)">%s%d</td></tr>'
+                '<td class="num mono" style="color:var(--purple)">%s%d</td></tr>'
                 % (esc(t["id"]), esc(t["name"]), elsewhere, len(dv["matches"]),
                    maps_fig, rw, rl, "+" if diff >= 0 else "", int(diff)))
         note = ("" if dname != UNDIVIDED else
@@ -762,7 +787,7 @@ def render(model: dict, out: Path):
                            int(num(ps, "Utility Damage")), int(num(ps, "Sniper Kills")),
                            int(num(ps, "MVPs"))))
                 tables.append(
-                    '<div class="tbl-wrap" style="border:none;border-top:1px solid var(--rule)">'
+                    '<div class="tbl-wrap" style="border:none;border-top:1px solid var(--border)">'
                     '<table><thead><tr><th>%s</th><th class="num">K-D-A</th>'
                     '<th class="num">ADR</th><th class="num">HS</th><th class="num">Entry</th>'
                     '<th class="num">Util dmg</th><th class="num">AWP</th><th class="num">MVP</th>'
