@@ -100,7 +100,7 @@ COMPARISON = [
     ("4v5 pre-plant, full buy", "25%", "3 / 12", "27%", "4 / 15", "-2 pts", False),
     ("Post-plant, man advantage", "67%", "6 / 9", "80%", "8 / 10", "-13 pts", False),
     ("Pistol rounds", "", "1 / 4", "", "3 / 4", "&mdash;", True),
-    ("Opening duel taken", "41%", "19 / 46", "59%", "27 / 46", "-17 pts", False),
+    ("Opening duel won", "41%", "19 / 46", "59%", "27 / 46", "-17 pts", False),
     ("Rounds won after losing the opener", "30%", "8 / 27", "47%", "9 / 19",
      "-18 pts", False),
 ]

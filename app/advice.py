@@ -198,7 +198,7 @@ def monday(team_id: int) -> dict:
                 "inside the same round, which is about the twenty seconds after "
                 "the kill rather than the kill itself.",
                 f"You win {you['opening_converted']} of {you['opening_took']} "
-                f"rounds after taking the opening duel",
+                f"rounds after winning the opening duel",
                 you["opening_converted"], you["opening_took"])
 
     # ---------------------------------------------------------------- economy

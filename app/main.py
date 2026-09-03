@@ -936,7 +936,7 @@ def match_report(request: Request, match_key: str):
       the match and watch them.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Side</th><th class="num">Won after losing it</th>
-        <th class="num">Won after taking it</th><th>Rounds they lost it</th></tr></thead>
+        <th class="num">Won after winning it</th><th>Rounds they lost it</th></tr></thead>
       <tbody>{"".join(od)}</tbody></table></div>
   </section>
 

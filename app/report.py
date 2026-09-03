@@ -764,7 +764,7 @@ def recurring_patterns(team_id: int) -> list[dict]:
     # side-based version only when there is nothing to infer a roster from.
     y = st["you"]
     if st["anchors"]["confident"] and y["rounds"]:
-        add("You win the round after taking the opening duel",
+        add("You win the round after winning the opening duel",
             y["opening_converted"], y["opening_took"],
             "The first kill of the round is the cheapest advantage there is. "
             "How often you convert it says more than aim does.")
@@ -787,7 +787,7 @@ def recurring_patterns(team_id: int) -> list[dict]:
 
     for side in ("ct", "t"):
         o = st["opening"][side]
-        add(f"Wins the round after taking the opening duel",
+        add(f"Wins the round after winning the opening duel",
             o["converted"], o["took"],
             "The first kill of the round is the cheapest advantage there is. "
             "How often it is converted says more about a team than its aim does.",
