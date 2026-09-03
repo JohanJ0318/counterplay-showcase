@@ -1,0 +1,116 @@
+{
+  "ar_baggage": {
+    "floor_split": -5.0,
+    "pos_x": -1316.0,
+    "pos_y": 1288.0,
+    "scale": 2.539062
+  },
+  "ar_shoots": {
+    "pos_x": -1368.0,
+    "pos_y": 1952.0,
+    "scale": 2.6875
+  },
+  "ar_shoots_night": {
+    "pos_x": -1368.0,
+    "pos_y": 1952.0,
+    "scale": 2.6875
+  },
+  "cs_italy": {
+    "pos_x": -2647.0,
+    "pos_y": 2592.0,
+    "scale": 4.6
+  },
+  "cs_office": {
+    "pos_x": -1838.0,
+    "pos_y": 1858.0,
+    "scale": 4.1
+  },
+  "de_ancient": {
+    "pos_x": -2953.0,
+    "pos_y": 2164.0,
+    "scale": 5.0
+  },
+  "de_ancient_night": {
+    "pos_x": -2953.0,
+    "pos_y": 2164.0,
+    "scale": 5.0
+  },
+  "de_ancient_v1": {
+    "pos_x": -2953.0,
+    "pos_y": 2164.0,
+    "scale": 5.0
+  },
+  "de_ancient_v2": {
+    "pos_x": -2953.0,
+    "pos_y": 2164.0,
+    "scale": 5.0
+  },
+  "de_anubis": {
+    "pos_x": -2796.0,
+    "pos_y": 3328.0,
+    "scale": 5.22
+  },
+  "de_cache": {
+    "pos_x": -2000.0,
+    "pos_y": 3250.0,
+    "scale": 5.5
+  },
+  "de_dust": {
+    "pos_x": -2850.0,
+    "pos_y": 4073.0,
+    "scale": 6.0
+  },
+  "de_dust2": {
+    "pos_x": -2476.0,
+    "pos_y": 3239.0,
+    "scale": 4.4
+  },
+  "de_inferno": {
+    "pos_x": -2087.0,
+    "pos_y": 3870.0,
+    "scale": 4.9
+  },
+  "de_inferno_s2": {
+    "pos_x": -2087.0,
+    "pos_y": 3870.0,
+    "scale": 4.9
+  },
+  "de_mirage": {
+    "pos_x": -3230.0,
+    "pos_y": 1713.0,
+    "scale": 5.0
+  },
+  "de_nuke": {
+    "floor_split": -495.0,
+    "pos_x": -3453.0,
+    "pos_y": 2887.0,
+    "scale": 7.0
+  },
+  "de_overpass": {
+    "pos_x": -4831.0,
+    "pos_y": 1781.0,
+    "scale": 5.2
+  },
+  "de_overpass_2v2": {
+    "pos_x": -4831.0,
+    "pos_y": 1781.0,
+    "scale": 5.2
+  },
+  "de_train": {
+    "floor_split": -50.0,
+    "pos_x": -2308.0,
+    "pos_y": 2078.0,
+    "scale": 4.082077
+  },
+  "de_vertigo": {
+    "floor_split": 11700.0,
+    "pos_x": -3168.0,
+    "pos_y": 1762.0,
+    "scale": 4.0
+  },
+  "workshop_preview": {
+    "pos_x": -2071.0,
+    "pos_y": 711.0,
+    "scale": 1.699219
+  }
+}

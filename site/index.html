@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Counterplay — Match analysis for league teams</title>
+<meta name="description" content="Counterplay reads your team's match demos and returns player stats, team stats, match reports and recurring patterns — every number with its denominator.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+:root{
+  --bg:#F7F6FA; --surface:#FFFFFF; --sunk:#F1EFF7;
+  --ink:#191325; --muted:#655D77; --faint:#948CA6;
+  --border:#E7E3F0; --border-strong:#D6D0E4;
+  --purple:#5B21B6;  --purple-soft:#F3EFFE;
+  --t:#A65B0B; --t-soft:#FDF3E4; --on-purple:#FFFFFF;
+  --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
+  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
+  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
+h1{font-size:clamp(2.2rem,5.6vw,3.6rem);line-height:1.02;letter-spacing:-.03em;font-weight:800}
+h2{font-size:clamp(1.4rem,3vw,2rem);line-height:1.1;letter-spacing:-.022em;font-weight:800}
+h3{font-size:1.05rem;font-weight:600;letter-spacing:-.008em}
+p{margin:0}
+a{color:var(--purple)}
+.label{font-family:var(--f-mono);font-size:.68rem;font-weight:500;letter-spacing:.14em;
+  text-transform:uppercase;color:var(--faint)}
+.mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
+.wrap{max-width:1040px;margin:0 auto;padding:0 22px}
+
+/* ---------- nav ---------- */
+nav{border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10}
+.nav-in{max-width:1040px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;
+  justify-content:space-between;gap:16px}
+.mark{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em;font-size:1.12rem;
+  text-decoration:none;color:var(--ink)}
+.mark em{font-style:normal;color:var(--purple)}
+.nav-links{display:flex;gap:18px;align-items:center}
+.nav-links a{font-size:.9rem;text-decoration:none;color:var(--muted)}
+.nav-links a:hover{color:var(--ink)}
+.nav-links a.btn-sm{background:var(--purple);color:var(--on-purple);padding:8px 14px;
+  font-weight:600;font-family:var(--f-display)}
+@media (max-width:620px){.nav-links a:not(.btn-sm){display:none}}
+
+/* ---------- hero ---------- */
+.hero{background:var(--surface);border-bottom:1px solid var(--border);overflow:hidden}
+.hero-in{max-width:1040px;margin:0 auto;padding:70px 22px 62px;display:grid;
+  grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:52px;align-items:center}
+@media (max-width:860px){.hero-in{grid-template-columns:1fr;gap:36px;padding:52px 22px 46px}}
+.hero-copy{display:flex;flex-direction:column;gap:22px}
+.eyebrow{display:inline-flex;align-items:center;gap:9px}
+.eyebrow .pip{width:7px;height:7px;background:var(--purple);border-radius:50%}
+.sub{font-size:1.14rem;color:var(--muted);max-width:52ch}
+.hero-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px}
+.btn{display:inline-block;background:var(--purple);color:var(--on-purple);
+  font-family:var(--f-display);font-weight:600;font-size:1rem;padding:13px 22px;
+  text-decoration:none;border:1px solid var(--purple)}
+.btn:hover{filter:brightness(1.07)}
+.btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--border-strong)}
+.btn-ghost:hover{border-color:var(--ink);filter:none}
+.hero-note{font-size:.86rem;color:var(--faint)}
+
+/* the receipt — the identity: every number carries its denominator */
+.receipt{border:1px solid var(--border);background:var(--bg);padding:20px;
+  display:flex;flex-direction:column;gap:0}
+.receipt-top{display:flex;justify-content:space-between;align-items:baseline;
+  padding-bottom:12px;border-bottom:1px solid var(--border-strong)}
+.rline{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;
+  padding:11px 0;border-bottom:1px solid var(--border)}
+.rline:last-of-type{border-bottom:none}
+.rline .what{font-size:.88rem;line-height:1.35}
+.rline .fig{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+.rline .pct{font-family:var(--f-display);font-weight:800;font-size:1.15rem;
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
+.rline .den{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);
+  font-variant-numeric:tabular-nums}
+.rline .thin{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.1em;
+  text-transform:uppercase;color:var(--t);border:1px solid var(--t);padding:1px 5px}
+.receipt-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-strong);
+  font-family:var(--f-mono);font-size:.66rem;color:var(--faint);line-height:1.5}
+.fade{opacity:0;transform:translateY(6px);animation:rise .5s ease forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){.fade{animation:none;opacity:1;transform:none}}
+
+/* ---------- sections ---------- */
+section{padding:64px 0}
+.sec-head{display:flex;flex-direction:column;gap:9px;margin-bottom:26px;max-width:64ch}
+.sec-head p{color:var(--muted)}
+
+.promise{background:var(--surface);border-top:1px solid var(--border);
+  border-bottom:1px solid var(--border)}
+.pgrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(232px,1fr));gap:1px;
+  background:var(--surface);border:1px solid var(--border)}
+.pcard{background:var(--surface);padding:22px;display:flex;flex-direction:column;gap:9px;
+  box-shadow:0 0 0 1px var(--border)}
+.pcard .label{color:var(--purple)}
+.pcard .top{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.badge{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.11em;text-transform:uppercase;
+  padding:2px 7px;border:1px solid var(--border-strong);color:var(--faint);white-space:nowrap}
+.badge.beta{border-color:var(--t);color:var(--t)}
+.badge.soon{border-style:dashed}
+.beta-block{border:1px solid var(--t);background:var(--t-soft);padding:24px 26px;
+  display:flex;flex-direction:column;gap:14px;max-width:70ch}
+.beta-block h3{font-size:1.1rem}
+.beta-block p{font-size:.97rem;color:var(--muted)}
+.beta-block .lead{color:var(--ink)}
+.beta-eg{background:var(--surface);border:1px solid var(--border);padding:14px 16px;
+  font-family:var(--f-mono);font-size:.82rem;line-height:1.7;color:var(--ink);
+  overflow-x:auto;white-space:nowrap}
+.beta-eg b{color:var(--purple);font-weight:500}
+.pcard p{font-size:.93rem;color:var(--muted);line-height:1.5}
+
+ol.steps{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
+ol.steps li{display:grid;grid-template-columns:auto 1fr;gap:20px;padding:20px 0;
+  border-bottom:1px solid var(--border)}
+ol.steps li:last-child{border-bottom:none}
+ol.steps .n{font-family:var(--f-mono);font-size:.76rem;color:var(--purple);
+  padding-top:4px;width:26px}
+ol.steps .body{display:flex;flex-direction:column;gap:6px}
+ol.steps p{color:var(--muted);font-size:.95rem}
+
+.why{border-left:3px solid var(--purple);background:var(--purple-soft);padding:24px 26px;
+  display:flex;flex-direction:column;gap:14px;max-width:70ch}
+.why p{font-size:1rem}
+.why strong{font-weight:600}
+
+.data ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;
+  max-width:66ch}
+.data li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:baseline;
+  color:var(--muted);font-size:.96rem}
+.data li .tick{font-family:var(--f-mono);color:var(--purple);font-size:.8rem}
+.data li strong{color:var(--ink);font-weight:600}
+
+.leagues{display:flex;flex-wrap:wrap;gap:8px}
+.leagues span{font-family:var(--f-mono);font-size:.74rem;letter-spacing:.04em;
+  border:1px solid var(--border-strong);padding:6px 11px;color:var(--muted)}
+
+.notyet{border:1px dashed var(--border-strong);padding:20px 22px;max-width:66ch;
+  display:flex;flex-direction:column;gap:9px}
+.notyet p{font-size:.93rem;color:var(--muted)}
+
+/* ---------- signup ---------- */
+.signup{background:var(--surface);border-top:1px solid var(--border)}
+form{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:640px;margin-top:8px}
+@media (max-width:620px){form{grid-template-columns:1fr}}
+.field{display:flex;flex-direction:column;gap:5px}
+.field.full{grid-column:1/-1}
+label{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;
+  color:var(--faint)}
+input,select{font-family:var(--f-body);font-size:.95rem;padding:11px 13px;
+  background:var(--bg);color:var(--ink);border:1px solid var(--border-strong);border-radius:0}
+input:focus,select:focus{outline:2px solid var(--purple);outline-offset:1px}
+button{grid-column:1/-1;justify-self:start;background:var(--purple);color:var(--on-purple);
+  font-family:var(--f-display);font-weight:600;font-size:1rem;padding:13px 24px;
+  border:1px solid var(--purple);cursor:pointer}
+button:hover{filter:brightness(1.07)}
+.formnote{grid-column:1/-1;font-size:.84rem;color:var(--faint)}
+#status{grid-column:1/-1;font-size:.92rem;padding:11px 14px;border-left:3px solid var(--purple);
+  background:var(--purple-soft);display:none}
+#status.show{display:block}
+
+footer{border-top:1px solid var(--border);padding:30px 0 56px;font-size:.85rem;color:var(--faint)}
+footer .fin{display:flex;flex-direction:column;gap:7px;max-width:70ch}
+footer a{color:var(--muted)}
+:focus-visible{outline:2px solid var(--purple);outline-offset:2px}
+</style>
+</head>
+<body>
+
+<nav><div class="nav-in">
+  <a class="mark" href="#top">Counter<em>play</em></a>
+  <div class="nav-links">
+    <a href="#features">What you get</a>
+    <a href="#numbers">The numbers</a>
+    <a href="#beta">Beta</a>
+    <a href="#data">Your demos</a>
+    <a href="/league/">League</a>
+    <a href="/login">Log in</a>
+    <a class="btn-sm" href="/signup">Add your team</a>
+  </div>
+</div></nav>
+
+<div class="hero" id="top"><div class="hero-in">
+  <div class="hero-copy">
+    <span class="eyebrow"><span class="pip"></span><span class="label">For NECC, NACE, ECAC, Playfly &amp; ESEA teams</span></span>
+    <h1>Your matches, actually read.</h1>
+    <p class="sub">Drop in your match demos and get back player stats, team stats, a report
+      per match, and the patterns your team repeats without noticing &mdash; each one counted,
+      with the rounds it came from printed beside it. Built for league teams, measured against
+      league teams.</p>
+    <div class="hero-cta">
+      <a class="btn" href="/signup">Add your team &mdash; free this season</a>
+      <a class="btn btn-ghost" href="sample-report.html">See a real report</a>
+    </div>
+    <p class="hero-note">No card. No install. You get a link before your next match.</p>
+  </div>
+
+  <div class="receipt" aria-label="Example of how figures are reported">
+    <div class="receipt-top">
+      <span class="label">Real lines, real matches</span>
+      <span class="label">observed / chances</span>
+    </div>
+    <div class="rline fade" style="animation-delay:.05s">
+      <span class="what">First blood inside the opening 20 seconds</span>
+      <span class="fig"><span class="pct">71%</span><span class="den">178 / 250</span></span>
+    </div>
+    <div class="rline fade" style="animation-delay:.13s">
+      <span class="what">Two of you hold T ramp at 12 seconds, Inferno</span>
+      <span class="fig"><span class="pct">92%</span><span class="den">24 / 26</span></span>
+    </div>
+    <div class="rline fade" style="animation-delay:.21s">
+      <span class="what">Rounds won when the group never gets past lobby, Nuke</span>
+      <span class="fig"><span class="pct">25%</span><span class="den">2 / 8</span></span>
+    </div>
+    <div class="rline fade" style="animation-delay:.29s">
+      <span class="what">Your first death is in top mid, T-side Mirage</span>
+      <span class="fig"><span class="den">8 / 34</span><span class="thin">thin</span></span>
+    </div>
+    <p class="receipt-foot">Every one of these came out of eleven real demos, and every
+      line in a report carries its denominator and the rounds it came from.</p>
+  </div>
+</div></div>
+
+<div class="wrap">
+
+  <section id="features">
+    <div class="sec-head">
+      <span class="label">What you get</span>
+      <h2>Five things, off one folder of demos.</h2>
+      <p>Upload a season's matches once. Everything below comes out of the same parse, so
+        there is nothing else to set up and nothing to keep in sync.</p>
+    </div>
+    <div class="pgrid">
+      <div class="pcard">
+        <div class="top"><span class="label">Per match</span></div>
+        <h3>Match reports</h3>
+        <p>One page per match: how the rounds actually went, where the score moved, and the
+          handful of moments worth pulling up at practice.</p>
+      </div>
+      <div class="pcard">
+        <div class="top"><span class="label">Per team</span></div>
+        <h3>Recurring patterns</h3>
+        <p>The things your team does over and over without deciding to &mdash; same site off the
+          same utility, same rotation trigger, same buy after the same loss. Counted across
+          every match, not eyeballed from one.</p>
+      </div>
+      <div class="pcard">
+        <div class="top"><span class="label">Per player</span></div>
+        <h3>Player stats</h3>
+        <p>Role as observed rather than as labelled, weapon breakdown, opening duels taken
+          and won, and where each player actually stands at freeze-end.</p>
+      </div>
+      <div class="pcard">
+        <div class="top"><span class="label">Per team</span></div>
+        <h3>Team stats</h3>
+        <p>Map pool with round records rather than just match records, side splits, economy
+          habits, and how often you convert the situations you get into.</p>
+      </div>
+      <div class="pcard">
+        <div class="top"><span class="label">Per moment</span><span class="badge soon">Building</span></div>
+        <h3>2D replay of the moments</h3>
+        <p>Top-down playback of the rounds a report flags &mdash; ten seconds either side, so you
+          watch the thing that mattered instead of scrubbing a whole demo to find it.</p>
+      </div>
+      <div class="pcard">
+        <div class="top"><span class="label">Per round</span><span class="badge beta">Beta</span></div>
+        <h3>Decision scoring</h3>
+        <p>Which decisions cost you rounds you were winning. The part nobody else does &mdash;
+          and the part still being calibrated. <a href="#beta">What "beta" means here &rarr;</a></p>
+      </div>
+    </div>
+  </section>
+
+  <section id="numbers">
+    <div class="sec-head">
+      <span class="label">The whole promise</span>
+      <h2>Every number has a denominator.</h2>
+      <p>Most analytics tools score your team against a population you have never played.
+        A collegiate roster measured against professionals comes back "below average at
+        everything" &mdash; true, useless, and slightly insulting. Counterplay does not do that.</p>
+    </div>
+    <div class="pgrid">
+      <div class="pcard">
+        <span class="label">No predictions</span>
+        <h3>Counted, not modelled</h3>
+        <p>Tendencies come from parsing demos and counting what happened. There is no
+          estimate anywhere in the scouting section, so there is nothing to be wrong about.</p>
+      </div>
+      <div class="pcard">
+        <span class="label">No borrowed baselines</span>
+        <h3>Only teams from the same server</h3>
+        <p>When your team is compared to another, both were in the same match, in the same
+          tier, against the same opposition. Any bias applies to both sides and cancels.</p>
+      </div>
+      <div class="pcard">
+        <span class="label">Small samples say so</span>
+        <h3>"Thin" instead of a fake rate</h3>
+        <p>Below eight chances you get raw counts and a warning label, never a percentage.
+          A rate off four rounds is noise wearing a percent sign.</p>
+      </div>
+      <div class="pcard">
+        <span class="label">Auditable</span>
+        <h3>Round numbers printed</h3>
+        <p>Every claim lists the rounds it came from. Open the demo, watch round 14, and
+          check us. If a line is wrong you can see that it is wrong.</p>
+      </div>
+    </div>
+  </section>
+
+  <section id="how" style="border-top:1px solid var(--border)">
+    <div class="sec-head">
+      <span class="label">How it works</span>
+      <h2>Three things, none of which are your job.</h2>
+    </div>
+    <ol class="steps">
+      <li><span class="n">01</span><div class="body">
+        <h3>Tell us who you are</h3>
+        <p>Team name, league, and your FACEIT team page. That is the whole setup.</p></div></li>
+      <li><span class="n">02</span><div class="body">
+        <h3>Drop in your demos</h3>
+        <p>Whatever you have &mdash; league matches, scrims, a whole season at once. Grab them
+          while they are fresh: platforms delete match demos after a few weeks, so the ones
+          worth keeping are the ones you save now.</p></div></li>
+      <li><span class="n">03</span><div class="body">
+        <h3>You get a link, and it stays current</h3>
+        <p>Stats, patterns and a report per match, updating as you add matches. Send the link
+          to your roster; no accounts for them to make, nothing for anyone to install.</p></div></li>
+    </ol>
+    <p style="margin-top:22px"><a class="btn btn-ghost" href="sample-report.html">See a full report &rarr;</a></p>
+  </section>
+
+  <section id="beta" style="border-top:1px solid var(--border)">
+    <div class="sec-head">
+      <span class="label">Beta &mdash; read this before you trust it</span>
+      <h2>Decision scoring, and what beta means.</h2>
+      <p>Everything else on this page is counting. This one is a model, so it gets its own
+        label and its own warning.</p>
+    </div>
+    <div class="beta-block">
+      <p class="lead">It answers a question no other Counter-Strike tool answers: not
+        <em>how did we play</em>, but <em>which decision cost us that round</em>.</p>
+      <div class="beta-eg">3v1 post-plant, Inferno, round 14 &mdash; peeked pit at 0:19
+        &middot; <b>cost 21 points of win probability</b></div>
+      <p>The engine estimates how often a situation like that one is won, then compares what
+        you did to what teams in the same tier actually did from the same spot. Rounds you
+        were comfortably winning and threw away surface first, because those are the ones
+        worth talking about.</p>
+      <p><strong>Why it is beta:</strong> the comparison is only as good as the pool it
+        compares against, and the league pool is still being built &mdash; by the teams using
+        this. Until it is big enough, decision scoring shows its sample size on every row and
+        stays out of anything that looks like a grade. If it says something that does not
+        match what you remember, tell us. That feedback is worth more to us than the
+        subscription would be.</p>
+    </div>
+  </section>
+
+  
+
+  <section id="data" class="data" style="border-top:1px solid var(--border)">
+    <div class="sec-head">
+      <span class="label">Your demos</span>
+      <h2>What we do with them, in plain language.</h2>
+      <p>If your athletics department or IT office asks, this section is the answer, and you
+        are welcome to forward it.</p>
+    </div>
+    <ul>
+      <li><span class="tick">&check;</span><span><strong>We parse them and keep the round data.</strong>
+        Positions, buys, outcomes &mdash; the numbers that build league baselines.</span></li>
+      <li><span class="tick">&check;</span><span><strong>Your team's report is yours.</strong>
+        We do not show one team's report to another team.</span></li>
+      <li><span class="tick">&check;</span><span><strong>We do not publish or sell demo files.</strong>
+        They are not redistributed, and they are not listed anywhere public.</span></li>
+      <li><span class="tick">&check;</span><span><strong>Baselines are aggregate.</strong>
+        League-wide reference numbers are situation rates by map, side and tier &mdash; not
+        profiles of individual players who never signed up.</span></li>
+      <li><span class="tick">&check;</span><span><strong>Leave and it stops.</strong>
+        Ask us to delete your team's data and we delete it, no conversation required.</span></li>
+    </ul>
+    <div class="notyet" style="margin-top:26px">
+      <span class="label">Not yet</span>
+      <p>Things this does not do today, so nobody finds out the hard way: no live in-game
+        overlay, no 3D replay, no practice servers, and no scouting of opponents whose demos
+        you do not have. There is also no ranking of you against professional teams &mdash; that
+        one is deliberate and it is not coming. If you need those, Skybox, Refrag and CS2.CAM
+        each do one of them well.</p>
+    </div>
+  </section>
+
+  
+</div>
+
+<div class="signup" id="signup"><div class="wrap"><section style="padding-top:56px">
+  <div class="sec-head">
+    <span class="label">Add your team</span>
+    <h2>Free for the season. Takes about a minute.</h2>
+    <p>Send us a few demos and we will come back with your first report. If it is not worth your time, tell us and we will stop.</p>
+  </div>
+  <form id="teamform" novalidate>
+    <div class="field full">
+      <label for="team">Team / program</label>
+      <input id="team" name="team" required autocomplete="organization" placeholder="Riverbend State">
+    </div>
+    <div class="field">
+      <label for="league">League</label>
+      <select id="league" name="league">
+        <option>NECC</option><option>NACE Starleague</option><option>ECAC</option>
+        <option>Playfly</option><option>ESEA</option><option>FACEIT League</option>
+        <option>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="role">Your role</label>
+      <select id="role" name="role">
+        <option>Coach</option><option>In-game leader</option><option>Player</option>
+        <option>Program director</option><option>Other</option>
+      </select>
+    </div>
+    <div class="field">
+      <label for="name">Your name</label>
+      <input id="name" name="name" required autocomplete="name">
+    </div>
+    <div class="field">
+      <label for="email">Email</label>
+      <input id="email" name="email" type="email" required autocomplete="email">
+    </div>
+    <div class="field full">
+      <label for="faceit">FACEIT team page (optional)</label>
+      <input id="faceit" name="faceit" inputmode="url" placeholder="https://www.faceit.com/en/teams/...">
+    </div>
+    <div class="field full">
+      <label for="next">Anything you are trying to fix? (optional)</label>
+      <input id="next" name="next" placeholder="We keep losing rounds we are winning">
+    </div>
+    <button type="submit">Send it</button>
+    <p class="formnote">One person reads these. You will get a reply from a human, not a
+      drip sequence.</p>
+    <p id="status" role="status"></p>
+  </form>
+</section></div></div>
+
+<div class="wrap"><footer><div class="fin">
+  <span><strong>Counterplay</strong> &mdash; match analysis for league Counter-Strike.</span>
+  <span>Not affiliated with Valve, FACEIT, ESEA, or any collegiate association.
+    Counter-Strike is a trademark of Valve Corporation.</span>
+  <span>Questions: <a href="mailto:CONTACT_EMAIL">CONTACT_EMAIL</a></span>
+</div></footer></div>
+
+<script>
+// ---------------------------------------------------------------------------
+// CONFIGURE THESE TWO LINES, THEN DEPLOY.
+//   FORM_ENDPOINT — a POST URL that accepts JSON (Formspree, Cloudflare Worker,
+//                   Google Apps Script). Leave empty to fall back to a mailto:
+//                   draft, which works with no backend at all.
+//   CONTACT_EMAIL — where the mailto fallback and the footer link point.
+// ---------------------------------------------------------------------------
+var FORM_ENDPOINT = "/api/lead";
+var CONTACT_EMAIL = "hello@counterplaycs.com";
+
+document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a) {
+  a.href = "mailto:" + CONTACT_EMAIL;
+  if (a.textContent.trim() === "CONTACT_EMAIL") a.textContent = CONTACT_EMAIL;
+});
+
+var form = document.getElementById("teamform");
+var status = document.getElementById("status");
+
+function say(message) {
+  status.textContent = message;
+  status.classList.add("show");
+}
+
+form.addEventListener("submit", function (event) {
+  event.preventDefault();
+  var data = Object.fromEntries(new FormData(form).entries());
+
+  if (!data.team || !data.name || !data.email) {
+    say("Team, name and email are needed — the rest is optional.");
+    return;
+  }
+
+  if (!FORM_ENDPOINT) {
+    var lines = Object.keys(data).map(function (k) { return k + ": " + data[k]; });
+    window.location.href =
+      "mailto:" + CONTACT_EMAIL +
+      "?subject=" + encodeURIComponent("Counterplay — " + data.team) +
+      "&body=" + encodeURIComponent(lines.join("\n"));
+    say("Opening your email app with the details filled in. Send it and we will reply.");
+    return;
+  }
+
+  say("Sending…");
+  fetch(FORM_ENDPOINT, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify(data)
+  })
+    .then(function (response) {
+      if (!response.ok) throw new Error(response.status);
+      form.reset();
+      say("Got it. You will hear back before your next match.");
+    })
+    .catch(function () {
+      say("That did not send. Email " + CONTACT_EMAIL + " and we will sort it out.");
+    });
+});
+</script>
+</body>
+</html>
