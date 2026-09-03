@@ -53,8 +53,13 @@ def esc(v) -> str:
 
 
 def _open(width: int, height: int, title: str, desc: str = "") -> str:
+    # min-width is the chart's own width, so a narrow screen scrolls the
+    # container instead of shrinking the picture. Without it the SVG obeys
+    # width:100%, renders at 289px on a phone, and takes 8.5px labels down to
+    # 2.4 — legible to nobody, on the device coaches actually use.
     return (f'<svg viewBox="0 0 {width} {height}" width="100%" '
-            f'style="max-width:{width}px;height:auto;display:block" '
+            f'style="max-width:{width}px;min-width:{width}px;height:auto;'
+            f'display:block" '
             f'role="img" aria-label="{esc(title)}" '
             f'xmlns="http://www.w3.org/2000/svg">'
             f'<title>{esc(title)}</title>'

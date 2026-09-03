@@ -911,6 +911,8 @@ def match_report(request: Request, match_key: str):
     body = f"""
   {match_nav}
 
+  {notes_block}
+
   <section>
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{r["n_rounds"]}</span>
@@ -964,8 +966,6 @@ def match_report(request: Request, match_key: str):
   </section>
 
   {where_block}
-
-  {notes_block}
 
   <section>
     <p class="note"><strong>Everything above is counted.</strong> Nothing on this
@@ -1495,28 +1495,35 @@ def stats_page(request: Request):
     # rather than having to trust it.
     plan = advice.monday(team["id"])
     if plan["items"]:
-        cards = []
-        for it in plan["items"]:
-            tag = ("keep doing this" if it["good"] else "worth changing")
+        def advice_card(it):
+            tag = "keep doing this" if it["good"] else "worth changing"
             cls = "on" if it["good"] else "t"
-            # Joined with a plain character, not an HTML entity: this string
-            # goes through esc(), which would turn "&middot;" into the literal
-            # text "&middot;" on the page.
-            where = " · ".join(x for x in
-                                    [it["map"], (it["side"] or "").upper()] if x)
-            cards.append(
+            side = (it["side"] or "").upper()
+            ev = "".join(f'<li>{esc(e)}</li>' for e in it["evidence"])
+            return (
                 f'<div class="card advice{" good" if it["good"] else ""}">'
                 f'<div style="display:flex;gap:9px;align-items:center;'
-                f'flex-wrap:wrap">'
-                f'<span class="pill {cls}">{tag}</span>'
-                + (f'<span class="den">{esc(where)}</span>' if where else "")
-                + f'</div>'
-                f'<h3>{esc(it["do"])}</h3>'
+                f'flex-wrap:wrap"><span class="pill {cls}">{tag}</span>'
+                + (f'<span class="pill {it["side"]}">{side}</span>' if side else "")
+                + f'</div><h3>{esc(it["do"])}</h3>'
                 f'<p class="lede">{esc(it["because"])}</p>'
-                f'<p class="den">{esc(it["evidence"])} &mdash; '
-                f'{it["rate"]:.0f}% against your {plan["baseline"]:.0f}% overall, '
-                f'a gap of {abs(it["gap"]):.0f} points across {it["of"]} rounds'
-                f'</p></div>')
+                f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
+                f'<p class="den">{it["rate"]:.0f}% against your '
+                f'{plan["baseline"]:.0f}% overall &mdash; a gap of '
+                f'{abs(it["gap"]):.0f} points across {it["of"]} rounds</p></div>')
+
+        # Grouped by map, because practice is planned one map at a time. The
+        # ranking still decides the order of the groups and of the cards inside
+        # them, so what matters most is still read first.
+        groups = []
+        for mp, items in plan["by_map"]:
+            head = (f'<div class="sec-head"><span class="label">'
+                    f'{"On " + esc(mp) if mp else "Across every map"}</span>'
+                    f'<h3>{len(items)} thing{"s" if len(items) != 1 else ""} '
+                    f'to work on</h3></div>')
+            groups.append(f'<div style="margin-bottom:22px">{head}'
+                          f'<div class="grid2">'
+                          f'{"".join(advice_card(i) for i in items)}</div></div>')
         monday_block = f"""
   <section>
     <div class="sec-head"><span class="label">Read this one first</span>
@@ -1526,7 +1533,7 @@ def stats_page(request: Request):
       sits from your own average of {plan['baseline']:.0f}%. Nothing here is
       predicted &mdash; the evidence is printed under each one, so you can disagree
       with the reasoning rather than having to take it on trust.</p>
-    <div class="grid2">{"".join(cards)}</div>
+    {"".join(groups)}
   </section>"""
     else:
         monday_block = ""
@@ -1621,7 +1628,6 @@ def stats_page(request: Request):
     # ONCE at the end with only those labeled. Drawing one per section put the
     # same Mirage picture on the page three times.
     shown_zones: dict[str, set] = {}
-    drawn: set[str] = set()      # a map is drawn once, beside its first table
     for kind, title, lede in POS_SECTIONS:
         sel = [q for q in pos if q["kind"] == kind]
         if not sel:
@@ -1645,15 +1651,19 @@ def stats_page(request: Request):
         for q in sel:
             shown_zones.setdefault(q["map"], set()).add(q["zone"])
 
-        # The map goes next to the table that names it. Each map is drawn once,
-        # in the first section that refers to it, because scrolling 1,800px to
-        # find out where "T ramp" is and then scrolling back is not reading.
+        # The map goes next to the table that names it — in EVERY section that
+        # names it, not just the first.
+        #
+        # Drawing each map once and marking it "done" moved the problem rather
+        # than solving it: all five figures piled into "Where your group ends
+        # up" and the two sections below it, which talk about the same places,
+        # got none. A reader at "Where your first death happens" needs the map
+        # there, and a second small copy of Mirage costs less than scrolling
+        # back for it.
         here = []
         for mp in dict.fromkeys(q["map"] for q in sel):
-            if mp in drawn:
-                continue
-            drawn.add(mp)
-            for pic in zone_pictures(mp, show=shown_zones.get(mp, set()), width=330):
+            for pic in zone_pictures(mp, show={q["zone"] for q in sel
+                                               if q["map"] == mp}, width=300):
                 floor = (f' <span class="pill">{esc(pic["level"])}</span>'
                          if pic["level"] else "")
                 here.append(

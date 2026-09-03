@@ -180,6 +180,17 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;
   overflow-x:auto}
 .chart svg{color:var(--ink)}
+/* Each chart sets its own min-width inline, at its natural size, so the
+   container scrolls rather than the picture shrinking. See charts._open. */
+.chart{-webkit-overflow-scrolling:touch}
+@media(max-width:620px){
+  .chart{padding:12px}
+  /* Says out loud that the picture is wider than the screen, because a chart
+     that scrolls with no hint looks like a chart that is cut off. */
+  .chart::after{content:"scroll sideways to see the whole match";
+    display:block;font-family:var(--f-mono);font-size:.62rem;color:var(--faint);
+    padding-top:8px}
+}
 .zonerow{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
 .zonefig{margin:0;flex:1 1 320px;min-width:0}
 .zonefig svg{width:100%;height:auto;border:1px solid var(--line);
