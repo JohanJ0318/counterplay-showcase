@@ -371,6 +371,22 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE grenades ADD COLUMN hit_own INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE grenades ADD COLUMN damage REAL NOT NULL DEFAULT 0;
     """),
+    (15, "utility outcomes", """
+        -- Outcome, not activity.
+        --
+        -- The first cut of this measured how much utility was thrown and how
+        -- much of it landed. Both are true and neither is a reason to change
+        -- anything: "62% of your flashes blinded somebody" does not tell a
+        -- coach what to do on Monday. What does is whether anyone died behind
+        -- the flash, and what the unthrown grenades cost.
+        ALTER TABLE grenades ADD COLUMN kills INTEGER NOT NULL DEFAULT 0;
+
+        -- Dollars, not counts. A flashbang and an incendiary are both "one
+        -- grenade" and one of them is three times the other, and the CT
+        -- incendiary is not even the same price as the T molotov.
+        ALTER TABLE player_rounds ADD COLUMN nades_value INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN nades_wasted INTEGER NOT NULL DEFAULT 0;
+    """),
 ]
 
 

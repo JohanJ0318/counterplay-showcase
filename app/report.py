@@ -228,7 +228,8 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
                             flashes_thrown, enemies_flashed, trade_kills,
                             traded_deaths, clutch_tried, clutch_won, multi_kills,
                             teammates_flashed, flash_assists, flash_kills,
-                            nades_thrown, nades_start, nades_unused
+                            nades_thrown, nades_start, nades_unused,
+                            nades_value, nades_wasted
                        FROM player_rounds WHERE match_key = ?
                    ORDER BY round_num""", match_key)
     if not pr:
@@ -273,7 +274,8 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
                   "clutch_won", "multi_kills"):
             a[f] += r[f] or 0
         for f in ("teammates_flashed", "flash_assists", "flash_kills",
-                  "nades_thrown", "nades_start", "nades_unused"):
+                  "nades_thrown", "nades_start", "nades_unused",
+                  "nades_value", "nades_wasted"):
             a[f] = a.get(f, 0) + (r[f] or 0)
 
     for a in agg.values():
@@ -305,6 +307,11 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
         # counting as a round where everything was thrown.
         a["unused_pct"] = (100.0 * a["nades_unused"] / a["nades_start"]
                            if a["nades_start"] else 0.0)
+        # Dollars per round, which is the form a coach can weigh against a
+        # rifle. A flashbang and a CT incendiary are both "one grenade" and one
+        # is three times the other.
+        a["wasted_per_round"] = (a["nades_wasted"] / a["rounds"]
+                                 if a["rounds"] else 0.0)
         a["role"], a["role_why"] = role_of(a)
 
     teams = []
@@ -353,7 +360,8 @@ def team_players(team_id: int) -> list[dict]:
                pr.enemies_flashed, pr.trade_kills, pr.traded_deaths,
                pr.clutch_tried, pr.clutch_won, pr.multi_kills,
                pr.teammates_flashed, pr.flash_assists, pr.flash_kills,
-               pr.nades_thrown, pr.nades_start, pr.nades_unused
+               pr.nades_thrown, pr.nades_start, pr.nades_unused,
+               pr.nades_value, pr.nades_wasted
           FROM player_rounds pr
           JOIN matches m  ON m.match_key = pr.match_key
           JOIN demos   d  ON d.id = m.demo_id
@@ -396,7 +404,8 @@ def team_players(team_id: int) -> list[dict]:
                   "clutch_won", "multi_kills"):
             a[f] += r[f] or 0
         for f in ("teammates_flashed", "flash_assists", "flash_kills",
-                  "nades_thrown", "nades_start", "nades_unused"):
+                  "nades_thrown", "nades_start", "nades_unused",
+                  "nades_value", "nades_wasted"):
             a[f] = a.get(f, 0) + (r[f] or 0)
         if r["side"] == "ct":
             a["ct_rounds"] += 1
@@ -439,6 +448,11 @@ def team_players(team_id: int) -> list[dict]:
         # counting as a round where everything was thrown.
         a["unused_pct"] = (100.0 * a["nades_unused"] / a["nades_start"]
                            if a["nades_start"] else 0.0)
+        # Dollars per round, which is the form a coach can weigh against a
+        # rifle. A flashbang and a CT incendiary are both "one grenade" and one
+        # is three times the other.
+        a["wasted_per_round"] = (a["nades_wasted"] / a["rounds"]
+                                 if a["rounds"] else 0.0)
         a["role"], a["role_why"] = role_of(a)
         # A rate off a handful of rounds is noise wearing a percent sign.
         a["thin"] = a["rounds"] < MIN_ROUNDS_FOR_ROLE
@@ -881,7 +895,8 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
                pr.clutch_tried, pr.clutch_won, pr.multi_kills, pr.util_damage,
                pr.flashes_thrown, pr.enemies_flashed,
                pr.teammates_flashed, pr.flash_assists, pr.flash_kills,
-               pr.nades_thrown, pr.nades_start, pr.nades_unused, r.ct_won,
+               pr.nades_thrown, pr.nades_start, pr.nades_unused,
+               pr.nades_value, pr.nades_wasted, r.ct_won,
                m.map_name, m.played_at, m.rounds AS match_rounds
           FROM player_rounds pr
           JOIN rounds  r ON r.match_key = pr.match_key
@@ -907,6 +922,7 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
             "flashes_thrown": 0, "enemies_flashed": 0,
             "teammates_flashed": 0, "flash_assists": 0, "flash_kills": 0,
             "nades_thrown": 0, "nades_start": 0, "nades_unused": 0,
+            "nades_value": 0, "nades_wasted": 0,
         })
         m["rounds"] += 1
         m["ct_rounds" if r["side"] == "ct" else "t_rounds"] += 1
@@ -925,7 +941,7 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
                   "multi_kills", "util_damage", "flashes_thrown",
                   "enemies_flashed", "teammates_flashed", "flash_assists",
                   "flash_kills", "nades_thrown", "nades_start",
-                  "nades_unused"):
+                  "nades_unused", "nades_value", "nades_wasted"):
             m[f] += r[f] or 0
 
     # Which side was this player on for most of each match, so the row can say
@@ -942,6 +958,8 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
         m["own_flash_pct"] = 100.0 * m["teammates_flashed"] / landed if landed else 0.0
         m["unused_pct"] = (100.0 * m["nades_unused"] / m["nades_start"]
                            if m["nades_start"] else 0.0)
+        m["wasted_per_round"] = (m["nades_wasted"] / m["rounds"]
+                                 if m["rounds"] else 0.0)
         m["opens"] = m["opening_kills"] + m["opening_deaths"]
         lost = m["match_rounds"] - m["won_rounds"]
         m["result"] = ("won" if m["won_rounds"] > lost
@@ -958,7 +976,8 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
             "opening_kills", "opening_deaths", "awp_kills",
             "flashes_thrown", "enemies_flashed", "teammates_flashed",
             "flash_assists", "flash_kills",
-            "nades_thrown", "nades_start", "nades_unused")}
+            "nades_thrown", "nades_start", "nades_unused",
+                  "nades_value", "nades_wasted")}
     tot["damage"] = sum(m["damage"] for m in matches)
     tot["adr"] = tot["damage"] / tot["rounds"] if tot["rounds"] else 0.0
     tot["kd"] = tot["kills"] / tot["deaths"] if tot["deaths"] else float(tot["kills"])
@@ -969,6 +988,8 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
     tot["own_flash_pct"] = 100.0 * tot["teammates_flashed"] / landed if landed else 0.0
     tot["unused_pct"] = (100.0 * tot["nades_unused"] / tot["nades_start"]
                          if tot["nades_start"] else 0.0)
+    tot["wasted_per_round"] = (tot["nades_wasted"] / tot["rounds"]
+                               if tot["rounds"] else 0.0)
     tot["role"], tot["role_why"] = role_of(tot)
 
     adrs = [m["adr"] for m in matches]

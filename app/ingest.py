@@ -301,9 +301,10 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                        clutch_tried, clutch_won, clutch_vs, multi_kills,
                        teammates_flashed, blind_enemy_secs, blind_team_secs,
                        flash_assists, flash_kills,
-                       nades_thrown, nades_start, nades_unused)
+                       nades_thrown, nades_start, nades_unused,
+                       nades_value, nades_wasted)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
-                           ?,?,?,?,?,?,?,?)""",
+                           ?,?,?,?,?,?,?,?,?,?)""",
                 [(match_key, int(r.round_num), str(r.steamid), str(r.name),
                   tier, str(r.side), int(r.kills), int(r.deaths), int(r.assists),
                   int(r.headshots), float(r.damage), int(r.opening_kill),
@@ -317,7 +318,8 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                   col(r, "blind_team_secs", float, 0.0),
                   col(r, "flash_assists"), col(r, "flash_kills"),
                   col(r, "nades_thrown"), col(r, "nades_start"),
-                  col(r, "nades_unused"))
+                  col(r, "nades_unused"), col(r, "nades_value"),
+                  col(r, "nades_wasted"))
                  for r in players.itertuples(index=False)])
 
         # Utility rows. Written before positions only because they are cheap;
@@ -327,14 +329,14 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
             conn.executemany(
                 """INSERT INTO grenades (match_key, round_num, seconds, kind,
                        steamid, side, x, y, z, life,
-                       hit_enemy, hit_own, damage)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       hit_enemy, hit_own, damage, kills)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 [(match_key, int(g["round_num"]), float(g["seconds"]),
                   str(g["kind"]), g["steamid"], g["side"],
                   float(g["x"]), float(g["y"]), float(g["z"]),
                   None if g["life"] is None else float(g["life"]),
                   int(g.get("hit_enemy", 0)), int(g.get("hit_own", 0)),
-                  float(g.get("damage", 0.0)))
+                  float(g.get("damage", 0.0)), int(g.get("kills", 0)))
                  for g in util["grenades"]])
         if util.get("blinds"):
             conn.executemany(

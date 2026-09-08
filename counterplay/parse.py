@@ -87,7 +87,8 @@ PLAYER_COLUMNS = ["match_id", "round_num", "steamid", "name", "tier", "side",
                   # kept apart, and so are the two things a flash can land on.
                   "teammates_flashed", "blind_enemy_secs", "blind_team_secs",
                   "flash_assists", "flash_kills",
-                  "nades_thrown", "nades_start", "nades_unused"]
+                  "nades_thrown", "nades_start", "nades_unused",
+                  "nades_value", "nades_wasted"]
 
 # Weapons whose damage is utility damage rather than aim.
 UTIL_WEAPONS = {"hegrenade", "molotov", "incgrenade", "inferno", "flashbang",
@@ -523,6 +524,7 @@ def parse_demo(path: str, tier: str = "premier"):
                 "teammates_flashed": 0, "blind_enemy_secs": 0.0,
                 "blind_team_secs": 0.0, "flash_assists": 0, "flash_kills": 0,
                 "nades_thrown": 0, "nades_start": 0, "nades_unused": 0,
+                "nades_value": 0, "nades_wasted": 0,
             }
 
     # --- events -----------------------------------------------------------

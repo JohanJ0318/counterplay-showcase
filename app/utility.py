@@ -72,7 +72,7 @@ def by_kind(team_id: int) -> dict:
     marks = ",".join("?" * len(keys))
     sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
     rows = db.query(f"""SELECT match_key, round_num, kind, side,
-                               hit_enemy, hit_own, damage
+                               hit_enemy, hit_own, damage, kills
                           FROM grenades WHERE match_key IN ({marks})""", *keys)
     out: dict = {}
     for r in rows:
@@ -81,7 +81,8 @@ def by_kind(team_id: int) -> dict:
             continue
         k = out.setdefault(r["kind"], {
             "thrown": 0, "hit_enemy": 0, "hit_own": 0, "hit_none": 0,
-            "blinded": 0, "blinded_own": 0, "damage": 0.0, "did_damage": 0})
+            "blinded": 0, "blinded_own": 0, "damage": 0.0, "did_damage": 0,
+            "kills": 0, "got_a_kill": 0})
         k["thrown"] += 1
         k["blinded"] += r["hit_enemy"] or 0
         k["blinded_own"] += r["hit_own"] or 0
@@ -91,6 +92,8 @@ def by_kind(team_id: int) -> dict:
             k["hit_none"] += 1
         k["damage"] += r["damage"] or 0.0
         k["did_damage"] += 1 if (r["damage"] or 0) else 0
+        k["kills"] += r["kills"] or 0
+        k["got_a_kill"] += 1 if (r["kills"] or 0) else 0
     return out
 
 
@@ -133,6 +136,9 @@ def flashes(team_id: int) -> dict | None:
             kills += int(b["died_blind"] or 0)
     return {
         "thrown": f["thrown"],
+        # The two that matter: how often a flash takes an opponent's sight,
+        # and how often somebody dies behind it. The rest is context.
+        "got_a_kill": f["got_a_kill"], "kills_from": f["kills"],
         "hit_enemy": f["hit_enemy"], "hit_own": f["hit_own"],
         "blinded": f["blinded"], "blinded_own": f["blinded_own"],
         "blinded_team": blinded_team, "blinded_self": blinded_self,
@@ -162,9 +168,11 @@ def unused(team_id: int) -> dict | None:
     marks = ",".join("?" * len(keys))
     sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
     rows = db.query(f"""SELECT match_key, round_num, side, steamid,
-                               nades_start, nades_thrown, nades_unused
+                               nades_start, nades_thrown, nades_unused,
+                               nades_value, nades_wasted
                           FROM player_rounds WHERE match_key IN ({marks})""", *keys)
     bought = thrown = left = 0
+    spent = wasted = 0
     rounds = set()
     died_holding = set()
     for r in rows:
@@ -177,12 +185,19 @@ def unused(team_id: int) -> dict | None:
         bought += r["nades_start"]
         thrown += r["nades_thrown"] or 0
         left += r["nades_unused"] or 0
+        spent += r["nades_value"] or 0
+        wasted += r["nades_wasted"] or 0
         if (r["nades_unused"] or 0) > 0:
             died_holding.add((r["match_key"], r["round_num"]))
     if not rounds:
         return None
     return {"bought": bought, "thrown": thrown, "unused": left,
-            "rounds": len(rounds), "rounds_holding": len(died_holding)}
+            "rounds": len(rounds), "rounds_holding": len(died_holding),
+            # Dollars. A flashbang is $200 and a CT incendiary is $600, so
+            # counting grenades treats a third of a rifle as the same waste as
+            # a tenth of one.
+            "spent": spent, "wasted": wasted,
+            "per_round": wasted / len(rounds) if rounds else 0.0}
 
 
 # -------------------------------------------------------------------- space
@@ -229,8 +244,8 @@ def space(team_id: int) -> dict | None:
         return None
     sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
 
-    out = {"molotovs": 0, "moved": 0, "empty": 0, "burned": 0,
-           "smokes": 0, "crossed": 0, "uncrossed": 0}
+    out = {"molotovs": 0, "moved": 0, "empty": 0, "burned": 0, "denied": 0,
+           "denied_secs": 0.0, "smokes": 0, "crossed": 0, "uncrossed": 0}
     cache: dict = {}
     for g in rows:
         mine = sides.get((g["match_key"], g["round_num"]))
@@ -276,6 +291,13 @@ def space(team_id: int) -> dict | None:
             out["empty"] += 1
             continue
         out["burned"] += 1
+        # Ground an opponent could not stand on: the seconds, summed across
+        # everyone the fire was actually on top of. A molotov that holds one
+        # player off a site for six seconds has done more than one that
+        # brushed three people for half a second each, and a count of
+        # molotovs cannot tell those apart.
+        step = float(secs[1] - secs[0]) if len(secs) > 1 else 0.125
+        out["denied_secs"] += float(inside.sum()) * step
         # Somebody was in it. Did they get out before it went out?
         #
         # "In it" means in it AS IT LANDS, not at any point in its life:
@@ -289,6 +311,7 @@ def space(team_id: int) -> dict | None:
         alive_end = (block["flags"][-1] & FLAG_ALIVE) != 0
         if bool((landing & alive_end & ~inside[-1]).any()):
             out["moved"] += 1
+        out["denied"] += 1
     return out
 
 

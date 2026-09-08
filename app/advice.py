@@ -313,16 +313,17 @@ def monday(team_id: int) -> dict:
 
     uu = _utility.unused(team_id)
     if uu and uu["bought"] >= MIN_UTILITY:
-        left = _pct(uu["unused"], uu["bought"])
+        left = _pct(uu["wasted"], uu["spent"]) if uu["spent"] else 0.0
         if left >= UNUSED_LIMIT:
             add("You are dying with the utility still on you",
-                f"{left:.0f}% of the grenades you buy die in somebody's hand. "
-                f"A grenade a dead player was holding cost the same as one that "
-                f"opened a site. The usual cause is saving it for a perfect "
-                f"moment the round never reaches.",
-                f"{uu['unused']} of {uu['bought']} grenades were still held when "
-                f"their owner died, across {uu['rounds_holding']} rounds",
-                uu["unused"], uu["bought"],
+                f"${uu['per_round']:.0f} of grenades a round die in somebody's "
+                f"hand, which is {left:.0f}% of what you spend on utility. Over "
+                f"a half that is a rifle nobody bought. The usual cause is "
+                f"saving a grenade for a perfect moment the round never reaches.",
+                f"${uu['wasted']:,} of ${uu['spent']:,} spent on utility was "
+                f"still in a hand when its owner died, across "
+                f"{uu['rounds_holding']} rounds",
+                uu["wasted"], uu["spent"],
                 stake=_round_stake("died_holding"))
 
     items = _merge_same_place(raw)

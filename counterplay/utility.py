@@ -45,6 +45,22 @@ NADE_ITEMS = {
     "Decoy Grenade": "decoy",
 }
 
+# What each one costs to buy, in CS2. A grenade that dies in a hand cost this
+# much and bought nothing, which is a sentence a coach can act on in a way that
+# "you died holding 1.4 grenades" is not.
+#
+# The two fire grenades are not the same price: the CT incendiary is $600 and
+# the T molotov is $400, so the inventory name is what sets the cost rather
+# than the kind they both map to.
+NADE_COST = {
+    "Flashbang": 200,
+    "High Explosive Grenade": 300,
+    "Smoke Grenade": 300,
+    "Molotov": 400,
+    "Incendiary Grenade": 600,
+    "Decoy Grenade": 50,
+}
+
 # The detonation event for each kind, and where it lands.
 NADE_EVENTS = (
     ("flashbang_detonate", "flash"),
@@ -164,7 +180,12 @@ def grenades(parser, round_of, tainted, freeze_by_round, side_of):
                 # Filled in by attribute(), once the blinds and the damage are
                 # known. A grenade that did nothing carries zeroes, which is
                 # the whole point of counting per grenade rather than per blind.
-                "hit_enemy": 0, "hit_own": 0, "damage": 0.0,
+                #
+                # `kills` is the one that matters: an opponent this grenade
+                # blinded who then died before it wore off. A flash that lands
+                # is activity; a flash somebody dies behind is the reason to
+                # throw it.
+                "hit_enemy": 0, "hit_own": 0, "damage": 0.0, "kills": 0,
             })
     rows.sort(key=lambda r: (r["round_num"], r["seconds"]))
     return rows
@@ -207,6 +228,8 @@ def attribute(grenade_rows, blind_rows, parser, round_of, tainted, side_of):
         if abs(best["tick"] - tick) > SAME_EVENT_TICKS:
             continue
         best["hit_own" if b["own_side"] else "hit_enemy"] += 1
+        if not b["own_side"] and b.get("died_blind"):
+            best["kills"] += 1
 
     # --- damage ----------------------------------------------------------
     df = _event(parser, "player_hurt")
@@ -382,16 +405,24 @@ def unused(parser, roster, freeze_by_round, end_by_round, deaths, tainted, credi
         items = getattr(r, "inventory", None)
         if items is None:
             continue
-        n = sum(1 for it in items if str(it) in NADE_ITEMS)
-        held[(int(r.tick), sid)] = n
+        names = [str(it) for it in items if str(it) in NADE_ITEMS]
+        # Count and value both, because the count is the honest denominator
+        # (a player with no grenades bought nothing) and the value is what a
+        # coach can act on.
+        held[(int(r.tick), sid)] = (len(names),
+                                    sum(NADE_COST.get(n, 0) for n in names))
 
     for (rn, sid) in roster:
         if rn in tainted:
             continue
-        start = held.get((int(freeze_by_round[rn]), sid))
-        if start is None:
+        bought = held.get((int(freeze_by_round[rn]), sid))
+        if bought is None:
+            continue
+        start, start_value = bought
+        if not start:
             continue
         credit(rn, sid, "nades_start", start)
+        credit(rn, sid, "nades_value", start_value)
         # Unused means STILL IN THE HAND OF A PLAYER WHO DIED.
         #
         # The first cut also counted grenades a survivor finished the round
@@ -407,10 +438,13 @@ def unused(parser, roster, freeze_by_round, end_by_round, deaths, tainted, credi
                 break
         if when is None:
             continue                       # survived; the grenades keep
-        left = held.get((when - DEATH_LOOKBACK_TICKS, sid))
-        if left is None:
+        remaining = held.get((when - DEATH_LOOKBACK_TICKS, sid))
+        if remaining is None:
             continue
+        left, left_value = remaining
         # Picking a dead teammate's grenades up off the floor is real, so a
         # player can die holding more than they started with. That is not
-        # utility they failed to use, so the count is capped at what they had.
+        # utility they failed to use, so both figures are capped at what they
+        # actually bought.
         credit(rn, sid, "nades_unused", min(left, start))
+        credit(rn, sid, "nades_wasted", min(left_value, start_value))
