@@ -182,10 +182,11 @@ def compress(src: Path, dest: Path) -> int:
 # ---------------------------------------------------------------- parsing
 
 def parse_to_frames(dem_path: Path, tier: str = "league"):
-    """Run the parser. Returns (rounds, events, players, positions, map_name)."""
+    """Run the parser. Returns (rounds, events, players, positions, utility, map)."""
     from counterplay.parse import parse_demo
     try:
-        rounds, events, players, position_blobs = parse_demo(str(dem_path), tier=tier)
+        (rounds, events, players, position_blobs,
+         util) = parse_demo(str(dem_path), tier=tier)
     except (KeyboardInterrupt, SystemExit):
         raise
     except BaseException as e:
@@ -197,7 +198,7 @@ def parse_to_frames(dem_path: Path, tier: str = "league"):
         raise IngestError(f"parse failed: {type(e).__name__}: {e}") from e
     if rounds is None or len(rounds) == 0:
         raise IngestError("parsed zero rounds")
-    return (rounds, events, players, position_blobs,
+    return (rounds, events, players, position_blobs, util,
             str(rounds["map_name"].iloc[0]))
 
 
@@ -216,7 +217,7 @@ def check(rounds, events) -> tuple[bool, str]:
 # ---------------------------------------------------------------- storing
 
 def store(demo_id: int, match_key: str, rounds, events, players=None,
-          position_blobs=None, *,
+          position_blobs=None, utility=None, *,
           faceit_match_id: str | None, competition: str, tier: str,
           played_at: str | None) -> int:
     """Write parsed frames. Replaces any previous parse of the same match_key."""
@@ -240,7 +241,7 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
             "SELECT match_key FROM matches WHERE demo_id = ?", (demo_id,))]
         for key in set(stale + [match_key]):
             for table in ("rounds", "events", "player_rounds", "round_positions",
-                          "matches"):
+                          "grenades", "blinds", "matches"):
                 conn.execute(f"DELETE FROM {table} WHERE match_key = ?", (key,))
 
         conn.execute(
@@ -297,8 +298,12 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                        opening_kill, opening_death, awp_kills,
                        util_damage, flashes_thrown, enemies_flashed,
                        trade_kills, traded_deaths,
-                       clutch_tried, clutch_won, clutch_vs, multi_kills)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                       clutch_tried, clutch_won, clutch_vs, multi_kills,
+                       teammates_flashed, blind_enemy_secs, blind_team_secs,
+                       flash_assists, flash_kills,
+                       nades_thrown, nades_start, nades_unused)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
+                           ?,?,?,?,?,?,?,?)""",
                 [(match_key, int(r.round_num), str(r.steamid), str(r.name),
                   tier, str(r.side), int(r.kills), int(r.deaths), int(r.assists),
                   int(r.headshots), float(r.damage), int(r.opening_kill),
@@ -306,8 +311,42 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                   col(r, "util_damage", float, 0.0), col(r, "flashes_thrown"),
                   col(r, "enemies_flashed"), col(r, "trade_kills"),
                   col(r, "traded_deaths"), col(r, "clutch_tried"),
-                  col(r, "clutch_won"), col(r, "clutch_vs"), col(r, "multi_kills"))
+                  col(r, "clutch_won"), col(r, "clutch_vs"), col(r, "multi_kills"),
+                  col(r, "teammates_flashed"),
+                  col(r, "blind_enemy_secs", float, 0.0),
+                  col(r, "blind_team_secs", float, 0.0),
+                  col(r, "flash_assists"), col(r, "flash_kills"),
+                  col(r, "nades_thrown"), col(r, "nades_start"),
+                  col(r, "nades_unused"))
                  for r in players.itertuples(index=False)])
+
+        # Utility rows. Written before positions only because they are cheap;
+        # both are enrichments, and a match with neither is still a match.
+        util = utility or {}
+        if util.get("grenades"):
+            conn.executemany(
+                """INSERT INTO grenades (match_key, round_num, seconds, kind,
+                       steamid, side, x, y, z, life,
+                       hit_enemy, hit_own, damage)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                [(match_key, int(g["round_num"]), float(g["seconds"]),
+                  str(g["kind"]), g["steamid"], g["side"],
+                  float(g["x"]), float(g["y"]), float(g["z"]),
+                  None if g["life"] is None else float(g["life"]),
+                  int(g.get("hit_enemy", 0)), int(g.get("hit_own", 0)),
+                  float(g.get("damage", 0.0)))
+                 for g in util["grenades"]])
+        if util.get("blinds"):
+            conn.executemany(
+                """INSERT INTO blinds (match_key, round_num, seconds,
+                       victim_steamid, victim_side, thrower_steamid,
+                       thrower_side, duration, own_side, died_blind)
+                   VALUES (?,?,?,?,?,?,?,?,?,?)""",
+                [(match_key, int(b["round_num"]), float(b["seconds"]),
+                  b["victim_steamid"], b["victim_side"],
+                  b["thrower_steamid"], b["thrower_side"],
+                  float(b["duration"]), int(b["own_side"]), int(b["died_blind"]))
+                 for b in util["blinds"]])
 
         if position_blobs:
             from counterplay.positions import HEADER
@@ -413,8 +452,8 @@ def process(demo_row) -> tuple[bool, str]:
         else:
             playable = source_file
 
-        rounds, events, players, position_blobs, map_name = parse_to_frames(
-            playable, tier=tier)
+        (rounds, events, players, position_blobs,
+         util, map_name) = parse_to_frames(playable, tier=tier)
         ok, summary = check(rounds, events)
         if not ok:
             # Marked failed with the reason, and the FILE IS KEPT. A bad parse
@@ -435,6 +474,7 @@ def process(demo_row) -> tuple[bool, str]:
         # across teams by its prefix, but each team's parse owns its own rows.
         match_key = f"cp_{sha[:16]}_{demo_id}"
         n = store(demo_id, match_key, rounds, events, players, position_blobs,
+                  util,
                   faceit_match_id=demo_row["faceit_match_id"],
                   competition=demo_row["competition"] or "",
                   tier=tier, played_at=demo_row["created_at"])
@@ -443,6 +483,9 @@ def process(demo_row) -> tuple[bool, str]:
         if position_blobs:
             kb = sum(len(b) for b in position_blobs.values()) / 1024
             note += f"; positions {len(position_blobs)} rounds, {kb:.0f} KB"
+        if util.get("grenades") or util.get("blinds"):
+            note += (f"; utility {len(util.get('grenades', []))} nades, "
+                     f"{len(util.get('blinds', []))} blinds")
         if external is not None:
             # Archive a compressed copy so `reparse_all` still works after the
             # original folder is cleared out. Off by default — see should_keep().

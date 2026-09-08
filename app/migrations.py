@@ -295,6 +295,82 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE map_zones ADD COLUMN label_y REAL;
         ALTER TABLE map_zones ADD COLUMN label_z REAL;
     """),
+    (13, "utility", """
+        -- WHAT WAS THROWN, AND WHAT IT DID.
+        --
+        -- The parser knew two things about utility: how many flashes a player
+        -- threw and how many opponents each one blinded. Everything a coach
+        -- asks next needs more than a count.
+        --
+        -- Two tables and eight columns, because utility asks three shapes of
+        -- question. "Who threw what" is a player-round number. "Did that flash
+        -- get someone killed" is one row per flash. "Did the molotov move
+        -- anybody" needs the place it landed, joined against positions, and a
+        -- count cannot carry a place.
+
+        -- One row per grenade that landed. `life` is how long a smoke or a
+        -- molotov occupied the ground; the instant kinds leave it NULL.
+        CREATE TABLE IF NOT EXISTS grenades (
+            id          INTEGER PRIMARY KEY,
+            match_key   TEXT    NOT NULL,
+            round_num   INTEGER NOT NULL,
+            seconds     REAL    NOT NULL,
+            kind        TEXT    NOT NULL,
+            steamid     TEXT,
+            side        TEXT,
+            x           REAL,
+            y           REAL,
+            z           REAL,
+            life        REAL
+        );
+        CREATE INDEX IF NOT EXISTS idx_grenades_round
+            ON grenades(match_key, round_num);
+        CREATE INDEX IF NOT EXISTS idx_grenades_kind ON grenades(kind);
+
+        -- One row per flash that blinded somebody. `own_side` is the finding,
+        -- not an error case: on a real match 37 of 85 flashes blinded the
+        -- thrower's own team.
+        CREATE TABLE IF NOT EXISTS blinds (
+            id               INTEGER PRIMARY KEY,
+            match_key        TEXT    NOT NULL,
+            round_num        INTEGER NOT NULL,
+            seconds          REAL    NOT NULL,
+            victim_steamid   TEXT,
+            victim_side      TEXT,
+            thrower_steamid  TEXT,
+            thrower_side     TEXT,
+            duration         REAL    NOT NULL DEFAULT 0,
+            own_side         INTEGER NOT NULL DEFAULT 0,
+            died_blind       INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE INDEX IF NOT EXISTS idx_blinds_round
+            ON blinds(match_key, round_num);
+
+        -- Per player per round. A demo parsed before this reads 0, which is
+        -- why every one of these is NOT NULL DEFAULT 0 rather than nullable:
+        -- "we have no data" and "they threw nothing" look identical in a sum,
+        -- so the honest denominator is rounds-with-utility-data, which
+        -- nades_start answers.
+        ALTER TABLE player_rounds ADD COLUMN teammates_flashed INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN blind_enemy_secs REAL NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN blind_team_secs REAL NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN flash_assists INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN flash_kills INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN nades_thrown INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN nades_start INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE player_rounds ADD COLUMN nades_unused INTEGER NOT NULL DEFAULT 0;
+    """),
+    (14, "grenade effect", """
+        -- What each grenade did, on the grenade's own row.
+        --
+        -- The first cut counted blind EVENTS as flashes that landed, and one
+        -- flashbang blinds everyone who can see it: a real season came back
+        -- with 731 landings from 356 flashes. "Did the flash work" is a
+        -- question about the grenade, so the answer belongs on the grenade.
+        ALTER TABLE grenades ADD COLUMN hit_enemy INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE grenades ADD COLUMN hit_own INTEGER NOT NULL DEFAULT 0;
+        ALTER TABLE grenades ADD COLUMN damage REAL NOT NULL DEFAULT 0;
+    """),
 ]
 
 

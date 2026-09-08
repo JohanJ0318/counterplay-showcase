@@ -54,6 +54,25 @@ GOOD_GAP = 15.0
 
 MAX_ITEMS = 8
 
+# Utility thresholds. Deliberately not tuned against this season's own numbers:
+# these are the points past which a coach would act, chosen before looking.
+#
+# A flash that blinds your own side happens to everybody. Half of them is a
+# habit. Measured across eleven real Premier matches the figure was 67%, which
+# is the reason this finding exists at all.
+OWN_FLASH_LIMIT = 40.0
+
+# Under a third of flashes blinding anybody means they are being thrown from
+# the wrong place, not thrown badly.
+LANDED_FLASH_FLOOR = 33.0
+
+# A fifth of a season's grenades never leaving anyone's hand.
+UNUSED_LIMIT = 20.0
+
+# Below this many grenades, a percentage of them is noise. Same reasoning as
+# MIN_ROUNDS, applied to a different denominator.
+MIN_UTILITY = 30
+
 
 def _pct(hit, of):
     return 100.0 * hit / of if of else 0.0
@@ -118,7 +137,7 @@ def monday(team_id: int) -> dict:
     raw: list[dict] = []
 
     def add(do, because, evidence, hit, of, *, mp=None, side=None, zone=None,
-            good=False):
+            good=False, stake=None):
         rate = _pct(hit, of)
         gap = rate - baseline
         raw.append({
@@ -129,7 +148,13 @@ def monday(team_id: int) -> dict:
             # Rounds at stake: how far off normal, times how many rounds it
             # covers. A big gap over few rounds and a small gap over many are
             # both real; this weighs them the way a coach would.
-            "stake": abs(gap) / 100.0 * of,
+            #
+            # `of` is rounds for every finding EXCEPT the utility ones, where
+            # it is grenades. Those pass their own stake, measured in the
+            # rounds the habit actually appeared in, so a season of 374
+            # flashes cannot outrank a season of 120 rounds by counting a
+            # different thing.
+            "stake": abs(gap) / 100.0 * of if stake is None else stake,
         })
 
     # ---------------------------------------------------------------- position
@@ -238,6 +263,67 @@ def monday(team_id: int) -> dict:
                     f"on {name.replace('de_', '')}, against {baseline:.0f}% "
                     f"overall",
                     s["won"], s["rounds"], mp=name, side=side)
+
+    # ---------------------------------------------------------------- utility
+    #
+    # Utility competes for the same eight slots as everything else rather than
+    # getting a section of its own. If the team's flashes are fine it never
+    # appears; if half of them blind their own entry it displaces a weaker
+    # positional finding, which is the correct outcome either way.
+    #
+    # These are the only three that are worth a Monday. "You threw 340
+    # grenades" is not advice, and a rate with no action attached is a
+    # statistic pretending to be one.
+    from . import utility as _utility
+    splits = _utility.round_splits(team_id)
+
+    def _round_stake(name):
+        """Rounds at stake for a habit, measured in rounds it happened in."""
+        hit, of = splits.get(name, (0, 0))
+        if not of:
+            return 0.0
+        return abs(_pct(hit, of) - baseline) / 100.0 * of
+
+    uf = _utility.flashes(team_id)
+    if uf and uf["thrown"] >= MIN_UTILITY:
+        own = _pct(uf["hit_own"], uf["thrown"])
+        if own >= OWN_FLASH_LIMIT:
+            add("Fix who your flashes land on",
+                f"{own:.0f}% of the flashes you throw blind someone on your own "
+                f"side. A flash that blinds your entry is worse than no flash: "
+                f"the site is still held and the man going in cannot see it. "
+                f"This is a pop-flash and a timing problem, and it is fixed in "
+                f"practice rather than in a match.",
+                f"{uf['hit_own']} of {uf['thrown']} flashes blinded a teammate "
+                f"or the thrower, for {uf['own_secs']:.0f} seconds against "
+                f"{uf['enemy_secs']:.0f} seconds of the opposition",
+                uf["hit_own"], uf["thrown"],
+                stake=_round_stake("own_flash"))
+        landed = _pct(uf["hit_enemy"], uf["thrown"])
+        if landed <= LANDED_FLASH_FLOOR:
+            add("Your flashes are not landing on anybody",
+                f"Only {landed:.0f}% of your flashes blind an opponent at all. "
+                f"That is not aim and it is not luck, it is where they are being "
+                f"thrown from and when. Pick two throws per map and drill them "
+                f"until they are the default.",
+                f"{uf['hit_enemy']} of {uf['thrown']} flashes blinded an "
+                f"opponent; {uf['wasted']} blinded nobody at all",
+                uf["hit_enemy"], uf["thrown"],
+                stake=_round_stake("enemy_flash"))
+
+    uu = _utility.unused(team_id)
+    if uu and uu["bought"] >= MIN_UTILITY:
+        left = _pct(uu["unused"], uu["bought"])
+        if left >= UNUSED_LIMIT:
+            add("You are dying with the utility still on you",
+                f"{left:.0f}% of the grenades you buy die in somebody's hand. "
+                f"A grenade a dead player was holding cost the same as one that "
+                f"opened a site. The usual cause is saving it for a perfect "
+                f"moment the round never reaches.",
+                f"{uu['unused']} of {uu['bought']} grenades were still held when "
+                f"their owner died, across {uu['rounds_holding']} rounds",
+                uu["unused"], uu["bought"],
+                stake=_round_stake("died_holding"))
 
     items = _merge_same_place(raw)
     items.sort(key=lambda x: -x["stake"])

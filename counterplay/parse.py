@@ -57,6 +57,8 @@ from pathlib import Path
 
 import pandas as pd
 
+from . import utility
+
 TICK_RATE = 64.0
 TEAM_T, TEAM_CT = 2, 3
 WIN_STATUS_PROBE = 2      # ticks before round_officially_ended to read the winner
@@ -80,7 +82,12 @@ PLAYER_COLUMNS = ["match_id", "round_num", "steamid", "name", "tier", "side",
                   "opening_kill", "opening_death", "awp_kills",
                   "util_damage", "flashes_thrown", "enemies_flashed",
                   "trade_kills", "traded_deaths",
-                  "clutch_tried", "clutch_won", "clutch_vs", "multi_kills"]
+                  "clutch_tried", "clutch_won", "clutch_vs", "multi_kills",
+                  # Utility, read by counterplay.utility. Thrown and landed are
+                  # kept apart, and so are the two things a flash can land on.
+                  "teammates_flashed", "blind_enemy_secs", "blind_team_secs",
+                  "flash_assists", "flash_kills",
+                  "nades_thrown", "nades_start", "nades_unused"]
 
 # Weapons whose damage is utility damage rather than aim.
 UTIL_WEAPONS = {"hegrenade", "molotov", "incgrenade", "inferno", "flashbang",
@@ -156,55 +163,6 @@ def _plant_ticks(parser, bounds) -> dict[int, int]:
                 out[rn] = int(tick)
                 break
     return out
-
-
-def _utility(parser, round_of, tainted, credit, side_of) -> None:
-    """Flashes thrown, and how many opponents each one actually blinded.
-
-    Thrown and landed are kept apart on purpose. A player who throws eight
-    flashes a half and blinds nobody has a different problem from one who
-    throws two and blinds four, and a single "utility" number hides which.
-    Blinding your own side is not counted as a success; it is the thing a coach
-    is trying to stop.
-    """
-    try:
-        blind = parser.parse_event("player_blind")
-    except Exception:
-        # Optional. Older demos do not carry this event, and a match without
-        # flash data is still a good match — every other figure is unaffected.
-        blind = None
-    if hasattr(blind, "itertuples"):
-        for b in blind.itertuples(index=False):
-            rn = round_of(b.tick)
-            if rn is None or rn in tainted:
-                continue
-            att = getattr(b, "attacker_steamid", None)
-            vic = getattr(b, "user_steamid", None)
-            if att is None or att != att or str(att) == str(vic):
-                continue
-            if side_of.get((rn, str(att))) == side_of.get((rn, str(vic))):
-                continue
-            credit(rn, att, "enemies_flashed")
-
-    # Thrown. Demos carry one of these two events depending on version, so
-    # whichever answers first is the one used.
-    for event_name in ("flashbang_detonate", "weapon_fire"):
-        try:
-            thrown = parser.parse_event(event_name)
-        except Exception:
-            continue
-        if not hasattr(thrown, "itertuples") or not len(thrown):
-            continue
-        for t in thrown.itertuples(index=False):
-            if event_name == "weapon_fire":
-                w = str(getattr(t, "weapon", "")).lower()
-                if w not in ("flashbang", "weapon_flashbang"):
-                    continue
-            rn = round_of(t.tick)
-            if rn is None or rn in tainted:
-                continue
-            credit(rn, getattr(t, "user_steamid", None), "flashes_thrown")
-        break
 
 
 def _trades_and_clutches(deaths, round_of, tainted, roster, credit,
@@ -562,6 +520,9 @@ def parse_demo(path: str, tier: str = "premier"):
                 "enemies_flashed": 0, "trade_kills": 0, "traded_deaths": 0,
                 "clutch_tried": 0, "clutch_won": 0, "clutch_vs": 0,
                 "multi_kills": 0,
+                "teammates_flashed": 0, "blind_enemy_secs": 0.0,
+                "blind_team_secs": 0.0, "flash_assists": 0, "flash_kills": 0,
+                "nades_thrown": 0, "nades_start": 0, "nades_unused": 0,
             }
 
     # --- events -----------------------------------------------------------
@@ -676,8 +637,11 @@ def parse_demo(path: str, tier: str = "premier"):
         hurt = parser.parse_event("player_hurt")
     except Exception:
         hurt = None
+    # Which side each player was on, per round. Hoisted out of the damage loop
+    # because utility needs it too, and a demo with no player_hurt rows used to
+    # leave it undefined.
+    side_of = {(rn, sid): r["side"] for (rn, sid), r in roster.items()}
     if hasattr(hurt, "itertuples"):
-        side_of = {(rn, sid): r["side"] for (rn, sid), r in roster.items()}
         for h in hurt.itertuples(index=False):
             rn = round_of(h.tick)
             if rn is None or rn in tainted:
@@ -695,7 +659,26 @@ def parse_demo(path: str, tier: str = "premier"):
             if str(getattr(h, "weapon", "")).lower() in UTIL_WEAPONS:
                 credit(rn, att, "util_damage", dmg)
 
-    _utility(parser, round_of, tainted, credit, side_of)
+    # --- utility -----------------------------------------------------------
+    #
+    # Grenades first, because the flash rows are the ones every other utility
+    # number is drawn from. Each of these degrades on its own: a demo missing
+    # an event loses that measure and nothing else.
+    grenade_rows = utility.grenades(parser, round_of, tainted,
+                                    freeze_by_round, side_of)
+    for g in grenade_rows:
+        credit(g["round_num"], g["steamid"], "nades_thrown")
+        if g["kind"] == "flash":
+            credit(g["round_num"], g["steamid"], "flashes_thrown")
+    blind_rows = utility.blinds(parser, round_of, tainted, freeze_by_round,
+                                side_of, deaths, credit)
+    # Which grenade did what. One flashbang blinds everyone who can see it, so
+    # counting blind events as "flashes that landed" doubles the number.
+    utility.attribute(grenade_rows, blind_rows, parser, round_of, tainted,
+                      side_of)
+    utility.unused(parser, roster, freeze_by_round, end_by_round, deaths,
+                   tainted, credit)
+
     _trades_and_clutches(deaths, round_of, tainted, roster, credit, ct_won_by_round)
 
     if tainted:
@@ -703,6 +686,9 @@ def parse_demo(path: str, tier: str = "premier"):
               f"{sorted(tainted)}")
         rounds_df = rounds_df[~rounds_df["round_num"].isin(tainted)].reset_index(drop=True)
         roster = {k: v for k, v in roster.items() if k[0] not in tainted}
+
+    grenade_rows = [g for g in grenade_rows if g["round_num"] not in tainted]
+    blind_rows = [b for b in blind_rows if b["round_num"] not in tainted]
 
     events_df = pd.DataFrame(events)
     # drop anything referencing a round we did not keep (warmup, aborted rounds,
@@ -714,6 +700,8 @@ def parse_demo(path: str, tier: str = "premier"):
     players_df = pd.DataFrame(
         [r for (rn, _), r in sorted(roster.items()) if rn in valid],
         columns=PLAYER_COLUMNS)
+    grenade_rows = [g for g in grenade_rows if g["round_num"] in valid]
+    blind_rows = [b for b in blind_rows if b["round_num"] in valid]
 
     # Positions last: it is the only step that can be skipped, and skipping it
     # must not change anything above.
@@ -754,7 +742,8 @@ def parse_demo(path: str, tier: str = "premier"):
                                    else int(reason in ("normal", "surrender")))
     rounds_df.attrs["end_reason"] = reason
 
-    return rounds_df, events_df, players_df, position_blobs
+    return (rounds_df, events_df, players_df, position_blobs,
+            {"grenades": grenade_rows, "blinds": blind_rows})
 
 
 def parse_directory(directory: str, tier: str = "premier"):
@@ -764,7 +753,7 @@ def parse_directory(directory: str, tier: str = "premier"):
     all_r, all_e, all_p = [], [], []
     for dem in sorted(Path(directory).glob("*.dem")):
         try:
-            r, e, pl, _pos = parse_demo(str(dem), tier=tier)
+            r, e, pl, _pos, _util = parse_demo(str(dem), tier=tier)
             all_r.append(r); all_e.append(e); all_p.append(pl)
             print(f"  parsed {dem.name}: {len(r)} rounds, {len(e)} events, "
                   f"{pl['steamid'].nunique() if len(pl) else 0} players")

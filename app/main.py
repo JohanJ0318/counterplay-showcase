@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import (advice, auth, charts, db, movement, report as report_mod,
-               sample as sample_page)
+               sample as sample_page, utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, page
@@ -1608,6 +1608,83 @@ def stats_page(request: Request):
             f'{report_mod.MIN_PATTERN_CHANCES} chances behind it, usually two '
             f'or three matches.</p>')
 
+    # ---- utility
+    #
+    # Four cards and one line, deliberately. A utility section big enough to
+    # deserve its own page would push everything below it off the screen, and
+    # the finer per-player numbers already have a home on each player's page.
+    # Every card carries its denominator, like every other rate here.
+    util = utility.summary(team["id"])
+    if util:
+        uf, uu, us = util["flashes"], util["unused"], util["space"]
+        cards = []
+
+        def ucard(big, label, den, tip=""):
+            info = ""
+            if tip:
+                tid = f"ut{len(cards)}"
+                info = (f'<span class="info" tabindex="0" role="button"'
+                        f' aria-describedby="{tid}" aria-label="What this means">i'
+                        f'<span class="tip" role="tooltip" id="{tid}">{esc(tip)}'
+                        f'</span></span>')
+            cards.append(
+                f'<div class="stat"><span class="stat-n">{big}</span>'
+                f'<span class="label">{esc(label)}{info}</span>'
+                f'<span class="den">{den}</span></div>')
+
+        hit_pct = 100.0 * uf["hit_enemy"] / uf["thrown"] if uf["thrown"] else 0
+        ucard(f"{hit_pct:.0f}%", "flashes blinded an opponent",
+              f'{uf["hit_enemy"]} / {uf["thrown"]}',
+              "Counted per flash, not per player blinded: one flashbang blinds "
+              "everyone who can see it, so counting the blinds instead would "
+              "roughly double the number.")
+        own_pct = 100.0 * uf["hit_own"] / uf["thrown"] if uf["thrown"] else 0
+        ucard(f"{own_pct:.0f}%", "flashes blinded your own side",
+              f'{uf["hit_own"]} / {uf["thrown"]}',
+              f'{uf["blinded_team"]} teammates and {uf["blinded_self"]} of '
+              f'yourselves, for {uf["own_secs"]:.0f} seconds against '
+              f'{uf["enemy_secs"]:.0f} seconds of theirs. One flash can blind '
+              "both sides, so this and the card beside it overlap. Blinding "
+              "your own entry is the one utility mistake that is entirely "
+              "yours to fix.")
+        if us and us["molotovs"]:
+            ucard(f'{us["moved"]}', "molotovs moved somebody",
+                  f'of {us["molotovs"]} thrown',
+                  "An opponent was standing inside the fire when it landed and "
+                  "outside it before it burned out, read from the position "
+                  f'samples. {us["empty"]} of your molotovs had nobody near them '
+                  "at any point.")
+        if uu and uu["bought"]:
+            ucard(f'{uu["rounds_holding"]}', "rounds you died holding utility",
+                  f'{uu["unused"]} grenades of {uu["bought"]} bought',
+                  "Grenades a player was still carrying at the moment they "
+                  "died. Grenades a survivor kept are not counted: carrying a "
+                  "smoke into the next round is not waste, and counting it as "
+                  "waste made rounds you won look like the problem.")
+
+        smoke_line = ""
+        if us and us["smokes"]:
+            smoke_line = (
+                f'<p class="den" style="margin-top:2px">An opponent walked '
+                f'through {us["crossed"]} of your {us["smokes"]} smokes. '
+                f'The other {us["uncrossed"]} nobody crossed while they were up '
+                f'&ndash; which is not the same as nobody wanting to.</p>')
+        kill_line = ""
+        if uf["kills"]:
+            kill_line = (f' {uf["kills"]} opponent'
+                         f'{"s" if uf["kills"] != 1 else ""} died while blind '
+                         f'from one of your flashes.')
+        utility_block = f"""
+  <section>
+    <div class="sec-head"><span class="label">What your grenades did</span>
+      <h2>Utility</h2></div>
+    <p class="lede">Counted per grenade, from the demo.{kill_line}</p>
+    <div class="stat-row">{"".join(cards)}</div>
+    {smoke_line}
+  </section>"""
+    else:
+        utility_block = ""
+
     # ---- positional patterns: where they actually play
     #
     # Grouped by what the pattern is ABOUT rather than sorted into one list.
@@ -1818,6 +1895,8 @@ def stats_page(request: Request):
     </div>
   </section>
 
+  {utility_block}
+
   {positional_block}
 
   <section>
@@ -1901,6 +1980,44 @@ def player_page(request: Request, steamid: str):
             f'<td class="num mono">{blind}</td>'
             f'<td class="num mono">{m["awp_kills"] or "&ndash;"}</td></tr>')
 
+    # ---- utility, as four cards rather than four more columns
+    #
+    # The match table below already carries fifteen columns. Utility gets a
+    # strip instead, because a season number for one player is not a thing you
+    # read match by match anyway.
+    if t["flashes_thrown"] or t["nades_start"]:
+        ucards = []
+        ucards.append(
+            f'<div class="stat"><span class="stat-n">{t["enemies_flashed"]}</span>'
+            f'<span class="label">opponents blinded</span>'
+            f'<span class="den">from {t["flashes_thrown"]} flashes</span></div>')
+        if t["flashes_landed"]:
+            ucards.append(
+                f'<div class="stat"><span class="stat-n">'
+                f'{t["own_flash_pct"]:.0f}%</span>'
+                f'<span class="label">of their blinds hit their own side</span>'
+                f'<span class="den">{t["teammates_flashed"]} of '
+                f'{t["flashes_landed"]}</span></div>')
+        ucards.append(
+            f'<div class="stat"><span class="stat-n">{t["flash_assists"]}</span>'
+            f'<span class="label">flashes that got someone killed</span>'
+            f'<span class="den">blinded, then died for it</span></div>')
+        if t["nades_start"]:
+            ucards.append(
+                f'<div class="stat"><span class="stat-n">'
+                f'{t["unused_pct"]:.0f}%</span>'
+                f'<span class="label">of their grenades died in hand</span>'
+                f'<span class="den">{t["nades_unused"]} of '
+                f'{t["nades_start"]} bought</span></div>')
+        util_block = f"""
+  <section>
+    <div class="sec-head"><span class="label">What they threw</span>
+      <h2>Utility</h2></div>
+    <div class="stat-row">{"".join(ucards)}</div>
+  </section>"""
+    else:
+        util_block = ""
+
     spread = p["best"] - p["worst"]
     body = f"""
   <section>
@@ -1917,6 +2034,8 @@ def player_page(request: Request, steamid: str):
     <p class="lede">Role: <strong>{esc(t["role"])}</strong>
       <span class="den">({esc(t["role_why"])})</span></p>
   </section>
+
+  {util_block}
 
   <section>
     <div class="sec-head"><span class="label">Every match, oldest first</span>
