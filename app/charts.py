@@ -191,7 +191,7 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 1040) -> str:
     parts.append(_text(width - pad_r, sy(final) - 8,
                        f'{"+" if final > 0 else ""}{final}',
                        size=11.5, fill=ACCENT, anchor="end", weight="700"))
-    parts.append(_text(pad_l, score_top - 6, "SCORE — AHEAD OR BEHIND",
+    parts.append(_text(pad_l, score_top - 6, "SCORE: AHEAD OR BEHIND",
                        size=8.5, weight="600"))
 
     # ---- half and overtime

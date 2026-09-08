@@ -75,7 +75,7 @@ ECONOMY = [
      "Armour plus SMGs. Twice you saved instead, both times after a "
      "three-player pistol loss."),
     ("Full save under $2,000 team economy", 92, "12 / 13",
-     "Disciplined &mdash; you rarely throw a round away on an eco rush."),
+     "Disciplined: you rarely throw a round away on an eco rush."),
     ("AWP on the second gun round", 82, "9 / 11",
      "Even when the first gun round was lost."),
     ("Utility carried forward from a lost round", 20, "3 / 15",
@@ -99,7 +99,7 @@ COMPARISON = [
     ("5v4 pre-plant, full buy", "50%", "7 / 14", "85%", "11 / 13", "-35 pts", False),
     ("4v5 pre-plant, full buy", "25%", "3 / 12", "27%", "4 / 15", "-2 pts", False),
     ("Post-plant, man advantage", "67%", "6 / 9", "80%", "8 / 10", "-13 pts", False),
-    ("Pistol rounds", "", "1 / 4", "", "3 / 4", "&mdash;", True),
+    ("Pistol rounds", "", "1 / 4", "", "3 / 4", "&ndash;", True),
     ("Opening duel won", "41%", "19 / 46", "59%", "27 / 46", "-17 pts", False),
     ("Rounds won after losing the opener", "30%", "8 / 27", "47%", "9 / 19",
      "-18 pts", False),
@@ -248,7 +248,7 @@ def render(user=None) -> str:
     <div class="sec-head"><span class="label">Where the rounds went</span>
       <h2>Map pool</h2></div>
     <p class="lede">Match record, then round record. The round record is the more
-      honest of the two &mdash; a 16&ndash;14 loss and a 16&ndash;2 loss are the same
+      honest of the two: a 16&ndash;14 loss and a 16&ndash;2 loss are the same
       line in a match record.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Map</th><th class="num">Matches won</th>
@@ -291,7 +291,7 @@ def render(user=None) -> str:
       servers and the same matches. That is the only reason these two columns can sit
       beside each other: whatever bias exists in the parsing applies to both sides
       equally and cancels. This is context for your own figures, not a dossier on
-      anyone &mdash; no opponent gets a page here, and no league-wide average is used.</p>
+      anyone: no opponent gets a page here, and no league-wide average is used.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Situation</th><th class="num">You</th>
         <th class="num">Opponents</th><th class="num">Gap</th></tr></thead>
@@ -305,7 +305,7 @@ def render(user=None) -> str:
     <div class="note">
       <p><strong>This section does not appear in a report today.</strong> It is the one
       part of the product that would be modeled rather than counted, and the model
-      needs a corpus of collegiate matches that does not exist yet &mdash; the demos
+      needs a corpus of collegiate matches that does not exist yet. The demos
       teams send in this season are what would build it.</p>
       <p style="margin-top:9px">It stays switched off rather than showing a number
       that came out of a simulator. When it does arrive it will carry its sample size
@@ -318,7 +318,7 @@ def render(user=None) -> str:
       <h2>What this report does not claim</h2></div>
     <div class="card" style="gap:0">{claims}</div>
     <p class="lede">This report is built from four demos. Four is enough to see habits
-      and not enough to see a whole team &mdash; treat it as a starting point for your
+      and not enough to see a whole team, so treat it as a starting point for your
       own review, not a substitute for it.</p>
   </section>
 
@@ -327,14 +327,14 @@ def render(user=None) -> str:
       <span class="label">Next match</span>
       <h2>Get this after every match, for free</h2>
       <p class="lede">Send in your league matches and this page rebuilds itself as the
-        season goes on. Free while the collegiate baselines are being built &mdash;
+        season goes on. Free while the collegiate baselines are being built:
         your demos are what make them exist, and league teams are the only ones who
         get measured against them.</p>
       <a class="btn" href="/signup">Add your team</a>
     </div>
   </section>"""
 
-    head = banner(f"{TEAM} — season report",
+    head = banner(f"{TEAM}: season report",
                   crumb=f'{esc(LEAGUE)} &middot; through week 4 &middot; '
                         f'{DEMOS} demos, {ROUNDS} rounds',
                   label="Sample report")

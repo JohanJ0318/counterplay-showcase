@@ -41,7 +41,7 @@ class Level(IntEnum):
 
     @property
     def label(self) -> str:
-        return {Level.NONE: "—", Level.CORE: "Core", Level.FULL: "Full"}[self]
+        return {Level.NONE: "–", Level.CORE: "Core", Level.FULL: "Full"}[self]
 
 
 @dataclass(frozen=True)
@@ -158,7 +158,7 @@ FEATURES: dict[str, Feature] = {
         ),
         Feature(
             "replay_2d", "2D replayer",
-            "Top-down playback of the rounds a report flags — ten seconds either "
+            "Top-down playback of the rounds a report flags: ten seconds either "
             "side, so you watch the thing that mattered.",
             core_from="free", full_from="team_t1",
             full_adds="Frame-by-frame scrubbing, utility trajectories, and any "

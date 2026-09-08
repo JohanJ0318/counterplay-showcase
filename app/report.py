@@ -35,7 +35,7 @@ def role_of(a: dict) -> tuple[str, str]:
     """A player's role and the figure behind it."""
     kills, rounds = a["kills"], a["rounds"]
     if rounds < MIN_ROUNDS_FOR_ROLE:
-        return "—", f"only {rounds} rounds"
+        return "–", f"only {rounds} rounds"
     if a["awp_kills"] >= 5 and kills and a["awp_kills"] / kills >= 0.20:
         return "AWP", f"{a['awp_kills']} of {kills} kills with the AWP"
     opens = a["opening_kills"] + a["opening_deaths"]
@@ -314,7 +314,7 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
 def rate(won: int, total: int) -> str:
     """A rate, or raw counts when the sample is too thin to carry a percentage."""
     if total == 0:
-        return '<span class="den">—</span>'
+        return '<span class="den">–</span>'
     if total < MIN_CHANCES:
         return (f'<span class="den">{won} / {total}</span> '
                 f'<span class="pill beta">thin</span>')

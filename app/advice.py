@@ -78,7 +78,7 @@ def _keep_copy(zone: str, side: str, share: float, rate: float,
     s = side.upper()
 
     if share >= 0.55:
-        return (f"This is your main {s} setup here and your best one — you take "
+        return (f"This is your main {s} setup here and your best one: you take "
                 f"{zone} in most rounds on this map and win {lead} points above "
                 f"your own average from it. The thing to protect is that it stays "
                 f"the default when a round goes wrong early.")
@@ -89,7 +89,7 @@ def _keep_copy(zone: str, side: str, share: float, rate: float,
     if share <= 0.30:
         return (f"Only {hit} of your {of} {s} rounds start this way, and they "
                 f"convert {lead} points better than the rest. Small sample, clear "
-                f"direction — worth trying deliberately rather than by accident.")
+                f"direction, worth trying deliberately rather than by accident.")
     if lead >= 30:
         return (f"The widest gap on this map, and it is in your favour. Whatever "
                 f"the read is when you hold {zone}, the rest of your {s} rounds "
@@ -145,7 +145,7 @@ def monday(team_id: int) -> dict:
         if p["kind"] == "death" and gap <= -MIN_GAP:
             add(f"Change how you take {p['zone']}",
                 f"When the first of you dies in {p['zone']} as {side}, the round "
-                f"is usually already gone. At that rate it is not bad luck — it "
+                f"is usually already gone. At that rate it is not bad luck. It "
                 f"is the same duel taken the same way.",
                 f"First death in {p['zone']} in {p['hit']} of {p['of']} {side} "
                 f"rounds; you win {p['won']} of those {p['hit']}",
@@ -183,7 +183,7 @@ def monday(team_id: int) -> dict:
         if _pct(you["opening_saved"], you["opening_lost"]) - baseline <= -MIN_GAP:
             add("Practice trading the opening duel",
                 "Losing the first duel is normal. Losing the round almost every "
-                "time you lose it is not — it means the second player is too far "
+                "time you lose it is not. It means the second player is too far "
                 "away to punish the trade, which is a spacing problem you can run "
                 "in practice rather than an aim problem you cannot.",
                 f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
@@ -217,7 +217,7 @@ def monday(team_id: int) -> dict:
         elif kind == "force" and rate < 20:
             add("Stop forcing, or force differently",
                 "A force buy trades economy for tempo. At this rate you are "
-                "getting neither — the round is lost and the next one is poorer "
+                "getting neither: the round is lost and the next one is poorer "
                 "for it. Either save properly or commit five players to the force "
                 "rather than two.",
                 f"You win {v['won']} of {v['n']} force-buy rounds",
@@ -231,7 +231,7 @@ def monday(team_id: int) -> dict:
                 continue
             if _pct(s["won"], s["rounds"]) - baseline <= -MIN_GAP:
                 add(f"Your {side.upper()} side needs a rebuild",
-                    "This is your weakest side here by a distance — one map's one "
+                    "This is your weakest side here by a distance: one map's one "
                     "side, well below what you manage everywhere else. That is a "
                     "set of defaults to change, not a run of bad games.",
                     f"You win {s['won']} of {s['rounds']} {side.upper()} rounds "
@@ -335,7 +335,7 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
         out.append({
             "do": f"{lost_full} full buys went down in this match",
             "because": "Worth watching those rounds together rather than "
-                       "separately — a repeated loss on a full buy is usually one "
+                       "separately, because a repeated loss on a full buy is usually one "
                        "habit, not four bad rounds.",
             "evidence": f"{won_full} of {won_full + lost_full} full buys won"})
     if took_open >= 4 and lost_after_open >= took_open * 0.5:

@@ -112,7 +112,7 @@ def build(out_path: str = "site/finish-zones.html", team_id: int | None = None) 
     n = len(cards)
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Counterplay &mdash; name the last zones</title>
+<title>Counterplay: name the last zones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?\
@@ -136,7 +136,7 @@ a wall has been split in two, because "three of you are in Apps" is not one
 sentence when Apps is two rooms. The larger piece kept its name; the piece that
 was separated from it is here, needing one of its own.</p>
 <p class="lede">Each picture is zoomed to the zone in question with the real map
-underneath. Everything around it is already named, so use those for bearings &mdash;
+underneath. Everything around it is already named, so use those for bearings;
 the one to name is the label reading <b>THIS ONE</b>.</p>
 <p class="lede">Leave anything you cannot place blank. A nameless zone is skipped
 rather than guessed at, and skipping one costs nothing but the rounds that pass

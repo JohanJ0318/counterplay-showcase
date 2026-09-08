@@ -307,7 +307,7 @@ def assign_roles(model: dict):
         for p in roster:
             a = p["agg"]
             if a.thin:
-                p["role"], p["role_why"] = "—", f"only {int(a.rounds)} rounds"
+                p["role"], p["role_why"] = "–", f"only {int(a.rounds)} rounds"
                 continue
             if a.sniper >= 8 and a.sniper_share >= 0.15:
                 p["role"] = "AWP"
@@ -467,7 +467,7 @@ def fig(value: str, den: str, thin=False) -> str:
 
 def player_row(p: dict, link=True) -> str:
     a = p["agg"]
-    role = p.get("role", "—")
+    role = p.get("role", "–")
     cls = {"AWP": "role awp", "Entry": "role entry"}.get(role, "role")
     nick = esc(p["nick"])
     if p.get("multi_team"):
@@ -564,7 +564,7 @@ def render(model: dict, out: Path):
     <div class="sec-head"><span class="label">Standings by round difference</span>
       <h2>Divisions</h2></div>
     <p class="lede">One table per division, because teams in different divisions never
-      play each other &mdash; a round difference built in Division 4 says nothing about a
+      play each other: a round difference built in Division 4 says nothing about a
       Division 1 side. Within a division, ranked by rounds won minus rounds lost, which
       says more than a match record does: a 13&ndash;11 loss and a 13&ndash;2 loss are the
       same line in a win column.</p>
@@ -574,7 +574,7 @@ def render(model: dict, out: Path):
     <div class="sec-head"><span class="label">Best in each division</span>
       <h2>Leaderboards</h2></div>
     <p class="lede">Top ten on ADR, K/D, kills per round, headshot share, opening-duel
-      success and utility damage &mdash; ranked inside each division.
+      success and utility damage, ranked inside each division.
       <a href="leaderboards.html">Open the leaderboards &rarr;</a></p>
   </section>
   <section>
@@ -583,7 +583,7 @@ def render(model: dict, out: Path):
       <thead><tr><th>Match</th><th>Maps</th><th>Division</th><th>Competition</th></tr></thead>
       <tbody>{''.join(recent)}</tbody></table></div>
   </section>"""
-    page(out / "index.html", f"{league} — Counterplay", league, head, body)
+    page(out / "index.html", f"{league} | Counterplay", league, head, body)
 
     # ---- leaderboards
     # Split by division for the same reason the standings are: a Division 4
@@ -674,21 +674,21 @@ def render(model: dict, out: Path):
     lb_body = f"""
   <section>
     <p class="lede">Top ten in each division, on each measure. Split by division because
-      a Division 4 player and a Division 1 player never share a server &mdash; ranking them
+      a Division 4 player and a Division 1 player never share a server. Ranking them
       in one table compares numbers built against different opposition, which is the
       thing this project exists not to do.</p>
     <p class="lede">Each board is ranked on its own denominator, and the Sample column
       says which one. A headshot share is a share of kills, not of rounds; an opening-duel
       rate is out of duels actually taken. Ranking those against a round count would put a
       player who went 2-for-2 on entries above one who went 40-for-60, so a player has to
-      clear a floor on the thing the board is actually measuring &mdash; {MIN_ROUNDS} rounds
+      clear a floor on the thing the board is actually measuring: {MIN_ROUNDS} rounds
       for the per-round measures, 20 deaths for K/D, 30 kills for headshots, 15 duels for
-      entries &mdash; or they are left out.</p>
+      entries. Anything under that is left out.</p>
     <p class="lede">Left out rather than shown with a warning label: a ranking with
       unrankable rows in it is just a list.</p>
   </section>
   {''.join(boards)}"""
-    page(out / "leaderboards.html", f"Leaderboards — {league} — Counterplay",
+    page(out / "leaderboards.html", f"Leaderboards | {league} | Counterplay",
          league, lb_head, lb_body)
 
     # ---- team pages
@@ -757,7 +757,7 @@ def render(model: dict, out: Path):
       <thead><tr><th>Opponent</th><th class="num">Maps won</th><th>Competition</th></tr></thead>
       <tbody>{''.join(mrows)}</tbody></table></div>
   </section>"""
-        page(out / f"t-{t['id']}.html", f"{t['name']} — Counterplay", league, head, body)
+        page(out / f"t-{t['id']}.html", f"{t['name']} | Counterplay", league, head, body)
 
     # ---- match pages
     for m in matches:
@@ -814,7 +814,7 @@ def render(model: dict, out: Path):
     <p class="note">These are FACEIT's own match statistics, not estimates. Round-by-round
       detail, economy and positioning need the match demo, which is a separate step.</p>
   </section>"""
-        page(out / f"m-{m['id']}.html", f"{' vs '.join(names)} — Counterplay", league, head, body)
+        page(out / f"m-{m['id']}.html", f"{' vs '.join(names)} | Counterplay", league, head, body)
 
     return len(teams), len(matches), len(players)
 

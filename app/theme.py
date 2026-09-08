@@ -118,7 +118,7 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border);
   font-weight:500}
 .nav-links a:hover{color:var(--ink);background:var(--bg);text-decoration:none}
 /* `.nav-links a` outranks `.btn`, so without this the call to action renders in
-   muted grey on the purple fill — the lowest-contrast text on the page, on the
+   muted grey on the purple fill, the lowest-contrast text on the page, on the
    one element that most needs reading. */
 .nav-links a.btn{color:var(--on-purple);background:var(--purple);padding:8px 16px}
 .nav-links a.btn:hover{color:var(--on-purple);background:var(--purple-deep)}
@@ -312,7 +312,7 @@ button:hover,.btn:hover{background:var(--purple-deep);border-color:var(--purple-
 /* A table of short labels beside a chart.
 
    An even split gave the table more room than its two columns of text needed
-   and left the chart 510px of a 540px picture — so the one thing on the page
+   and left the chart 510px of a 540px picture, so the one thing on the page
    that is meant to be seen at a glance arrived with a scrollbar. The chart now
    takes the larger share.
 
@@ -403,7 +403,7 @@ def page(title: str, head: str, body: str, user=None) -> str:
 <header class="page"><div class="head-in">{head}</div></header>
 <div class="wrap">{body}
 <footer>
-  <span>Counterplay &mdash; match analysis for league Counter-Strike.</span>
+  <span>Counterplay: match analysis for league Counter-Strike.</span>
   <span>Not affiliated with Valve, FACEIT, ESEA, or any collegiate association.</span>
 </footer>
 </div></body></html>"""

@@ -3,8 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Counterplay — Match analysis for league teams</title>
-<meta name="description" content="Counterplay reads your team's match demos and returns player stats, team stats, match reports and recurring patterns — every number with its denominator.">
+<title>Counterplay: Match analysis for league teams</title>
+<meta name="description" content="Counterplay reads your team's match demos and returns player stats, team stats, match reports and recurring patterns, every number with its denominator.">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
@@ -67,7 +67,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .btn-ghost:hover{border-color:var(--ink);filter:none}
 .hero-note{font-size:.86rem;color:var(--faint)}
 
-/* the receipt — the identity: every number carries its denominator */
+/* the receipt, and the identity: every number carries its denominator */
 .receipt{border:1px solid var(--border);background:var(--bg);padding:20px;
   display:flex;flex-direction:column;gap:0}
 .receipt-top{display:flex;justify-content:space-between;align-items:baseline;
@@ -192,11 +192,11 @@ footer a{color:var(--muted)}
     <span class="eyebrow"><span class="pip"></span><span class="label">For NECC, NACE, ECAC, Playfly &amp; ESEA teams</span></span>
     <h1>Your matches, actually read.</h1>
     <p class="sub">Drop in your match demos and get back player stats, team stats, a report
-      per match, and the patterns your team repeats without noticing &mdash; each one counted,
+      per match, and the patterns your team repeats without noticing. Each one is counted,
       with the rounds it came from printed beside it. Built for league teams, measured against
       league teams.</p>
     <div class="hero-cta">
-      <a class="btn" href="/signup">Add your team &mdash; free this season</a>
+      <a class="btn" href="/signup">Add your team, free this season</a>
       <a class="btn btn-ghost" href="sample-report.html">See a real report</a>
     </div>
     <p class="hero-note">No card. No install. You get a link before your next match.</p>
@@ -247,7 +247,7 @@ footer a{color:var(--muted)}
       <div class="pcard">
         <div class="top"><span class="label">Per team</span></div>
         <h3>Recurring patterns</h3>
-        <p>The things your team does over and over without deciding to &mdash; same site off the
+        <p>The things your team does over and over without deciding to: same site off the
           same utility, same rotation trigger, same buy after the same loss. Counted across
           every match, not eyeballed from one.</p>
       </div>
@@ -266,13 +266,13 @@ footer a{color:var(--muted)}
       <div class="pcard">
         <div class="top"><span class="label">Per moment</span><span class="badge soon">Building</span></div>
         <h3>2D replay of the moments</h3>
-        <p>Top-down playback of the rounds a report flags &mdash; ten seconds either side, so you
+        <p>Top-down playback of the rounds a report flags: ten seconds either side, so you
           watch the thing that mattered instead of scrubbing a whole demo to find it.</p>
       </div>
       <div class="pcard">
         <div class="top"><span class="label">Per round</span><span class="badge beta">Beta</span></div>
         <h3>Decision scoring</h3>
-        <p>Which decisions cost you rounds you were winning. The part nobody else does &mdash;
+        <p>Which decisions cost you rounds you were winning. The part nobody else does,
           and the part still being calibrated. <a href="#beta">What "beta" means here &rarr;</a></p>
       </div>
     </div>
@@ -284,7 +284,7 @@ footer a{color:var(--muted)}
       <h2>Every number has a denominator.</h2>
       <p>Most analytics tools score your team against a population you have never played.
         A collegiate roster measured against professionals comes back "below average at
-        everything" &mdash; true, useless, and slightly insulting. Counterplay does not do that.</p>
+        everything": true, useless, and slightly insulting. Counterplay does not do that.</p>
     </div>
     <div class="pgrid">
       <div class="pcard">
@@ -325,7 +325,7 @@ footer a{color:var(--muted)}
         <p>Team name, league, and your FACEIT team page. That is the whole setup.</p></div></li>
       <li><span class="n">02</span><div class="body">
         <h3>Drop in your demos</h3>
-        <p>Whatever you have &mdash; league matches, scrims, a whole season at once. Grab them
+        <p>Whatever you have: league matches, scrims, a whole season at once. Grab them
           while they are fresh: platforms delete match demos after a few weeks, so the ones
           worth keeping are the ones you save now.</p></div></li>
       <li><span class="n">03</span><div class="body">
@@ -338,7 +338,7 @@ footer a{color:var(--muted)}
 
   <section id="beta" style="border-top:1px solid var(--border)">
     <div class="sec-head">
-      <span class="label">Beta &mdash; read this before you trust it</span>
+      <span class="label">Beta: read this before you trust it</span>
       <h2>Decision scoring, and what beta means.</h2>
       <p>Everything else on this page is counting. This one is a model, so it gets its own
         label and its own warning.</p>
@@ -346,14 +346,14 @@ footer a{color:var(--muted)}
     <div class="beta-block">
       <p class="lead">It answers a question no other Counter-Strike tool answers: not
         <em>how did we play</em>, but <em>which decision cost us that round</em>.</p>
-      <div class="beta-eg">3v1 post-plant, Inferno, round 14 &mdash; peeked pit at 0:19
+      <div class="beta-eg">3v1 post-plant, Inferno, round 14, peeked pit at 0:19
         &middot; <b>cost 21 points of win probability</b></div>
       <p>The engine estimates how often a situation like that one is won, then compares what
         you did to what teams in the same tier actually did from the same spot. Rounds you
         were comfortably winning and threw away surface first, because those are the ones
         worth talking about.</p>
       <p><strong>Why it is beta:</strong> the comparison is only as good as the pool it
-        compares against, and the league pool is still being built &mdash; by the teams using
+        compares against, and the league pool is still being built by the teams using
         this. Until it is big enough, decision scoring shows its sample size on every row and
         stays out of anything that looks like a grade. If it says something that does not
         match what you remember, tell us. That feedback is worth more to us than the
@@ -372,13 +372,13 @@ footer a{color:var(--muted)}
     </div>
     <ul>
       <li><span class="tick">&check;</span><span><strong>We parse them and keep the round data.</strong>
-        Positions, buys, outcomes &mdash; the numbers that build league baselines.</span></li>
+        Positions, buys, outcomes: the numbers that build league baselines.</span></li>
       <li><span class="tick">&check;</span><span><strong>Your team's report is yours.</strong>
         We do not show one team's report to another team.</span></li>
       <li><span class="tick">&check;</span><span><strong>We do not publish or sell demo files.</strong>
         They are not redistributed, and they are not listed anywhere public.</span></li>
       <li><span class="tick">&check;</span><span><strong>Baselines are aggregate.</strong>
-        League-wide reference numbers are situation rates by map, side and tier &mdash; not
+        League-wide reference numbers are situation rates by map, side and tier, not
         profiles of individual players who never signed up.</span></li>
       <li><span class="tick">&check;</span><span><strong>Leave and it stops.</strong>
         Ask us to delete your team's data and we delete it, no conversation required.</span></li>
@@ -387,7 +387,7 @@ footer a{color:var(--muted)}
       <span class="label">Not yet</span>
       <p>Things this does not do today, so nobody finds out the hard way: no live in-game
         overlay, no 3D replay, no practice servers, and no scouting of opponents whose demos
-        you do not have. There is also no ranking of you against professional teams &mdash; that
+        you do not have. There is also no ranking of you against professional teams. That
         one is deliberate and it is not coming. If you need those, Skybox, Refrag and CS2.CAM
         each do one of them well.</p>
     </div>
@@ -446,7 +446,7 @@ footer a{color:var(--muted)}
 </section></div></div>
 
 <div class="wrap"><footer><div class="fin">
-  <span><strong>Counterplay</strong> &mdash; match analysis for league Counter-Strike.</span>
+  <span><strong>Counterplay</strong>: match analysis for league Counter-Strike.</span>
   <span>Not affiliated with Valve, FACEIT, ESEA, or any collegiate association.
     Counter-Strike is a trademark of Valve Corporation.</span>
   <span>Questions: <a href="mailto:CONTACT_EMAIL">CONTACT_EMAIL</a></span>
@@ -455,10 +455,10 @@ footer a{color:var(--muted)}
 <script>
 // ---------------------------------------------------------------------------
 // CONFIGURE THESE TWO LINES, THEN DEPLOY.
-//   FORM_ENDPOINT — a POST URL that accepts JSON (Formspree, Cloudflare Worker,
+//   FORM_ENDPOINT: a POST URL that accepts JSON (Formspree, Cloudflare Worker,
 //                   Google Apps Script). Leave empty to fall back to a mailto:
 //                   draft, which works with no backend at all.
-//   CONTACT_EMAIL — where the mailto fallback and the footer link point.
+//   CONTACT_EMAIL: where the mailto fallback and the footer link point.
 // ---------------------------------------------------------------------------
 var FORM_ENDPOINT = "/api/lead";
 var CONTACT_EMAIL = "hello@counterplaycs.com";
@@ -481,7 +481,7 @@ form.addEventListener("submit", function (event) {
   var data = Object.fromEntries(new FormData(form).entries());
 
   if (!data.team || !data.name || !data.email) {
-    say("Team, name and email are needed — the rest is optional.");
+    say("Team, name and email are needed; the rest is optional.");
     return;
   }
 
@@ -489,7 +489,7 @@ form.addEventListener("submit", function (event) {
     var lines = Object.keys(data).map(function (k) { return k + ": " + data[k]; });
     window.location.href =
       "mailto:" + CONTACT_EMAIL +
-      "?subject=" + encodeURIComponent("Counterplay — " + data.team) +
+      "?subject=" + encodeURIComponent("Counterplay: " + data.team) +
       "&body=" + encodeURIComponent(lines.join("\n"));
     say("Opening your email app with the details filled in. Send it and we will reply.");
     return;

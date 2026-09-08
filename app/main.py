@@ -122,7 +122,7 @@ def csrf_input(user) -> str:
 
 SIGNUP_INTRO = (
     "Free for the season. You get a link before your next match, and one person "
-    "reads every one of these — you will get a reply from a human.")
+    "reads every one of these, so you will get a reply from a human.")
 
 
 def signup_form(values: dict | None = None, error: str = "") -> str:
@@ -154,7 +154,7 @@ def signup_form(values: dict | None = None, error: str = "") -> str:
 def signup_get(request: Request):
     if current(request):
         return see_other("/dashboard")
-    return html_page("Add your team — Counterplay",
+    return html_page("Add your team | Counterplay",
                      banner("Add your team", label="Free this season"),
                      f'<section><p class="lede">{SIGNUP_INTRO}</p></section>'
                      + signup_form())
@@ -169,7 +169,7 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
               "email": email, "faceit_url": faceit_url}
 
     def fail(msg):
-        return HTMLResponse(page("Add your team — Counterplay",
+        return HTMLResponse(page("Add your team | Counterplay",
                                  banner("Add your team", label="Free this season"),
                                  signup_form(values, msg)), status_code=400)
 
@@ -237,13 +237,13 @@ def login_form(email: str = "", error: str = "") -> str:
 def login_get(request: Request):
     if current(request):
         return see_other("/dashboard")
-    return html_page("Log in — Counterplay", banner("Log in"), login_form())
+    return html_page("Log in | Counterplay", banner("Log in"), login_form())
 
 
 @app.post("/login")
 def login_post(request: Request, email: str = Form(""), password: str = Form("")):
     def fail(msg, code=400):
-        return HTMLResponse(page("Log in — Counterplay", banner("Log in"),
+        return HTMLResponse(page("Log in | Counterplay", banner("Log in"),
                                  login_form(email, msg)), status_code=code)
 
     if auth.too_many_attempts(email):
@@ -333,7 +333,7 @@ def dashboard(request: Request):
     status = ""
     if counts["parsed"] == 0:
         status = ('<p class="note">Nothing parsed yet. Upload demos below and the '
-                  'reports fill in. Grab them while they are fresh &mdash; platforms '
+                  'reports fill in. Grab them while they are fresh, because platforms '
                   'delete match demos after a few weeks.</p>')
 
     # Record and recent form, so the first screen after logging in is about the
@@ -342,7 +342,7 @@ def dashboard(request: Request):
     all_matches = report_mod.team_matches(team["id"]) if team else []
     done = [q for q in all_matches if q["result"]]
     wins = sum(1 for q in done if q["result"] == "W")
-    record = f"{wins}&ndash;{len(done) - wins}" if done else "&mdash;"
+    record = f"{wins}&ndash;{len(done) - wins}" if done else "&ndash;"
     pending = sum(1 for q in all_matches if q["status"] != "parsed")
     pending_note = (f'<span class="den" style="font-size:.5em"> +{pending}</span>'
                     if pending else "")
@@ -398,7 +398,7 @@ def dashboard(request: Request):
         <label>Match demos
           <input type="file" name="demo" accept=".dem,.zst" multiple required></label>
         <button type="submit">Upload</button>
-        <p class="den">Select as many as you like &mdash; a whole season at once is
+        <p class="den">Select as many as you like; a whole season at once is
           fine. <strong>.dem</strong> or <strong>.dem.zst</strong> (what FACEIT's
           download button gives you), up to 400&nbsp;MB each. The same match
           uploaded twice is stored once.</p>
@@ -409,7 +409,7 @@ def dashboard(request: Request):
     </div>
   </section>"""
 
-    return html_page("Dashboard — Counterplay",
+    return html_page("Dashboard | Counterplay",
                      banner("Dashboard", crumb=team_line), body, user)
 
 
@@ -495,7 +495,7 @@ async def upload(request: Request, csrf: str = Form(""),
 
     if counts["queued"] == 0 and counts["duplicate"] == 0 and details:
         return HTMLResponse(page(
-            "Upload — Counterplay", banner("Nothing was accepted"),
+            "Upload | Counterplay", banner("Nothing was accepted"),
             '<section><p class="warn">' +
             "<br>".join(esc(d) for d in details[:20]) +
             '</p><p><a class="btn" href="/dashboard">Back</a></p></section>',
@@ -513,7 +513,7 @@ def team_page(request: Request, slug: str):
         return redirect
     team = db.team_by_slug(slug)
     if team is None:
-        return HTMLResponse(page("Not found — Counterplay", banner("Not found"),
+        return HTMLResponse(page("Not found | Counterplay", banner("Not found"),
                                  '<section><p class="lede">No team by that '
                                  'name.</p></section>', user), status_code=404)
 
@@ -523,7 +523,7 @@ def team_page(request: Request, slug: str):
     if membership is None:
         # One team's report is never shown to another team. That promise is on
         # the marketing page, so it is enforced here rather than assumed.
-        return HTMLResponse(page("Not yours — Counterplay", banner("Not yours"),
+        return HTMLResponse(page("Not yours | Counterplay", banner("Not yours"),
                                  '<section><p class="lede">You are not on this '
                                  'team.</p></section>', user), status_code=403)
 
@@ -545,7 +545,7 @@ def team_page(request: Request, slug: str):
                    f'parsed.</strong> Uploading and parsing are separate steps: '
                    f'a match takes a few seconds to a few minutes to read, so it '
                    f'happens in the background rather than making you wait on '
-                   f'the upload. This page updates when it is done &mdash; '
+                   f'the upload. This page updates when it is done, so '
                    f'reload in a minute.</p>')
     elif counts["failed"] and not counts["parsed"]:
         explain = ('<p class="warn">Nothing parsed successfully yet. The status '
@@ -568,7 +568,7 @@ def team_page(request: Request, slug: str):
             elif m["match_key"] and m["us"] is not None:
                 score = f'<span class="mono">{m["us"]}&ndash;{m["them"]}</span>'
             else:
-                score = '<span class="den">&mdash;</span>'
+                score = '<span class="den">&ndash;</span>'
             name = (f'<a href="/match/{esc(m["match_key"])}">'
                     f'{esc(m["map"] or "match")}</a>' if m["match_key"]
                     else esc(m["map"] or m["filename"]))
@@ -585,7 +585,7 @@ def team_page(request: Request, slug: str):
                 f'</div></td>'
                 f'<td class="num">{score}</td>'
                 f'<td><span class="pill">{esc(m["status"])}</span></td>'
-                f'<td class="num mono">{m["rounds"] if m["rounds"] is not None else "&mdash;"}</td>'
+                f'<td class="num mono">{m["rounds"] if m["rounds"] is not None else "&ndash;"}</td>'
                 f'<td class="num mono">{size}</td>'
                 f'<td class="den">{esc(m["uploaded"])}{note}</td></tr>')
         demo_block = (explain +
@@ -619,7 +619,7 @@ def team_page(request: Request, slug: str):
       <h2>Demos</h2></div>
     {demo_block}
   </section>"""
-    return html_page(f"{team['name']} — Counterplay",
+    return html_page(f"{team['name']} | Counterplay",
                      banner(team["name"], crumb=esc(team["league"])), body, user)
 
 
@@ -679,7 +679,7 @@ def match_report(request: Request, match_key: str):
             opening = (f'{x["opening_loser"].upper()} lost it '
                        f'<span class="den">{x["opening_at"]:.0f}s</span>')
         else:
-            opening = "&mdash;"
+            opening = "&ndash;"
         trs.append(
             f'<tr><td class="num mono">{x["round_num"]}</td>'
             f'<td><span class="{cls}">{won}</span></td>'
@@ -688,7 +688,7 @@ def match_report(request: Request, match_key: str):
             f'<td class="num mono">{x["equip_t"]:,.0f}</td>'
             f'<td class="num mono">{x["deaths_ct"]}{DASH}{x["deaths_t"]}</td>'
             f'<td>{opening}</td>'
-            f'<td class="den">{"yes" if x["planted"] else "&mdash;"}</td></tr>')
+            f'<td class="den">{"yes" if x["planted"] else "&ndash;"}</td></tr>')
 
     od = []
     for side in ("ct", "t"):
@@ -728,10 +728,10 @@ def match_report(request: Request, match_key: str):
                 f'<td class="num mono">{a["kd"]:.2f}</td>'
                 f'<td class="num mono">{a["hs_pct"]:.0f}%</td>'
                 f'<td class="num mono">{a["opening_kills"]}/{a["opens"]}</td>'
-                f'<td class="num mono">{tk or "&mdash;"}</td>'
-                f'<td class="num mono">{f"{ct_w}/{ct_t}" if ct_t else "&mdash;"}</td>'
+                f'<td class="num mono">{tk or "&ndash;"}</td>'
+                f'<td class="num mono">{f"{ct_w}/{ct_t}" if ct_t else "&ndash;"}</td>'
                 f'<td class="num mono">{util:.0f}</td>'
-                f'<td class="num mono">{a["awp_kills"] or "&mdash;"}</td>'
+                f'<td class="num mono">{a["awp_kills"] or "&ndash;"}</td>'
                 f'<td class="num mono">{a["rounds"]}</td></tr>')
         pill = "pill ct" if team["side"] == "ct" else (
             "pill t" if team["side"] == "t" else "pill")
@@ -756,7 +756,7 @@ def match_report(request: Request, match_key: str):
   <section>
     <div class="sec-head"><span class="label">Both rosters, counted from the demo</span>
       <h2>Scoreboard</h2></div>
-    <p class="lede">Teams are the side each player started on &mdash; a demo carries no
+    <p class="lede">Teams are the side each player started on. A demo carries no
       team names, but players do not swap teams while sides swap every half. Roles come
       from what a player actually did; hover one to see the number behind it.</p>
     {"".join(sb_blocks)}
@@ -765,7 +765,7 @@ def match_report(request: Request, match_key: str):
     # How early the first duel lands, which is the number the timeline column
     # beside it is full of and nobody wants to average by eye.
     _fb = sorted(q["opening_at"] for q in r["rows"] if q.get("opening_at"))
-    first_blood_at = f"{_fb[len(_fb) // 2]:.0f}s" if _fb else "&mdash;"
+    first_blood_at = f"{_fb[len(_fb) // 2]:.0f}s" if _fb else "&ndash;"
 
     # ---- the match as a picture, not as twenty-nine rows
     #
@@ -819,9 +819,9 @@ def match_report(request: Request, match_key: str):
         rr = []
         for x in where["rounds"]:
             res = "win" if x["won"] else "loss"
-            went = esc(x["went"]) if x["went"] else "&mdash;"
-            at = f'{x["at"]:.0f}s' if x["at"] else "&mdash;"
-            died = esc(x["died_in"]) if x["died_in"] else "&mdash;"
+            went = esc(x["went"]) if x["went"] else "&ndash;"
+            at = f'{x["at"]:.0f}s' if x["at"] else "&ndash;"
+            died = esc(x["died_in"]) if x["died_in"] else "&ndash;"
             rr.append(
                 f'<tr><td class="num mono">{x["round_num"]}</td>'
                 f'<td><span class="pill {x["side"]}">{x["side"].upper()}</span></td>'
@@ -835,7 +835,7 @@ def match_report(request: Request, match_key: str):
       <h2>Where you went tonight</h2></div>
     <p class="lede">The reading the season page does, asked of this match alone.
       Where three of you got to together and held, and where the first of you
-      died &mdash; counted only in rounds where your side is known.</p>
+      died, counted only in rounds where your side is known.</p>
     <div class="grid2">{"".join(blocks)}</div>
     <div class="zonerow">{figs}</div>
     <details><summary>Round by round</summary>
@@ -932,7 +932,7 @@ def match_report(request: Request, match_key: str):
     <div class="sec-head"><span class="label">The first duel of the round</span>
       <h2>Opening duels</h2></div>
     <p class="lede">Who lost the first player, and what happened next. Counted from
-      the demo, not estimated &mdash; the round numbers are listed so you can open
+      the demo, not estimated. The round numbers are listed so you can open
       the match and watch them.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Side</th><th class="num">Won after losing it</th>
@@ -951,7 +951,7 @@ def match_report(request: Request, match_key: str):
 
   <section>
     <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
-    <p class="lede">Each bar is a round &mdash; above the line if you won it, as tall
+    <p class="lede">Each bar is a round: above the line if you won it, as tall
       as the equipment you brought to it. A tall bar pointing down is a full buy you
       lost; a stub pointing up is a round won on nothing. The grey line is the score
       difference as it moved.</p>
@@ -969,7 +969,7 @@ def match_report(request: Request, match_key: str):
 
   <section>
     <p class="note"><strong>Everything above is counted.</strong> Nothing on this
-      page is modeled, estimated or predicted &mdash; it is arithmetic over the
+      page is modeled, estimated or predicted. It is arithmetic over the
       rounds in this demo, with the denominator beside every rate. Anything under
       {report_mod.MIN_CHANCES} chances shows raw counts and a
       <span class="pill beta">thin</span> label instead of a percentage.</p>
@@ -1008,15 +1008,15 @@ def players_page(request: Request):
             thin = ' <span class="thin">thin</span>' if a["thin"] else ""
             # A side never played shows a dash, not a zero: "0" reads as
             # "terrible on T" when it means "never played T".
-            ct_adr = f'{a["ct_adr"]:.0f}' if a["ct_rounds"] else "&mdash;"
-            t_adr = f'{a["t_adr"]:.0f}' if a["t_rounds"] else "&mdash;"
+            ct_adr = f'{a["ct_adr"]:.0f}' if a["ct_rounds"] else "&ndash;"
+            t_adr = f'{a["t_adr"]:.0f}' if a["t_rounds"] else "&ndash;"
             # "105/97" read as a broken fraction. One flashbang can blind
             # three people, so this is a rate per flash, not a share of them.
             flash = (f'{a["blind_per_flash"]:.2f}'
-                     if a["flashes_thrown"] else "&mdash;")
+                     if a["flashes_thrown"] else "&ndash;")
             clutch = (f'{a["clutch_won"]}/{a["clutch_tried"]}'
-                      if a["clutch_tried"] else "&mdash;")
-            traded = (f'{a["traded_pct"]:.0f}%' if a["deaths"] else "&mdash;")
+                      if a["clutch_tried"] else "&ndash;")
+            traded = (f'{a["traded_pct"]:.0f}%' if a["deaths"] else "&ndash;")
             out.append(
                 f'<tr><td class="name">'
                 f'<a href="/player/{esc(a["steamid"])}">{esc(a["name"])}</a>{thin}</td>'
@@ -1031,7 +1031,7 @@ def players_page(request: Request):
                 f'<td class="num mono">{a["opening_kills"]}/{a["opens"]}</td>'
                 f'<td class="num mono">{traded}</td>'
                 f'<td class="num mono">{a["util_adr"]:.1f}</td>'
-                f'<td class="num mono">{a["awp_kills"] or "&mdash;"}</td></tr>')
+                f'<td class="num mono">{a["awp_kills"] or "&ndash;"}</td></tr>')
         return "".join(out)
 
     # Nine columns, not sixteen.
@@ -1074,7 +1074,7 @@ def players_page(request: Request):
             f'Seen once, in one of your matches</span>'
             f'<h2>Everyone else in your demos</h2></div>{note}'
             f'<p class="lede">Opponents, kept because their numbers are the context '
-            f'yours sit in &mdash; but they are not your team and they do not belong in '
+            f'yours sit in, but they are not your team and they do not belong in '
             f'the same table.</p>'
             f'<details><summary>Show {len(others)} other players</summary>'
             f'<div class="tbl-wrap"><table>{HEAD}'
@@ -1100,7 +1100,7 @@ def players_page(request: Request):
       player at 90 ADR as CT and 60 as T has a specific problem, and one averaged
       number hides it. Anyone under {report_mod.MIN_ROUNDS_FOR_ROLE} rounds is marked
       thin and gets no role. Trades, clutches, multi-kill rounds and flash
-      figures are on each player&rsquo;s own page &mdash; click a name.</p>
+      figures are on each player&rsquo;s own page; click a name.</p>
   </section>"""
     return html_page("Players", banner("Players", crumb=esc(team["name"]),
                                        label="Season player stats"), body, user)
@@ -1246,7 +1246,7 @@ def empty_state(what: str, team_name: str = "") -> str:
     <div class="grid2">
       <div class="card"><h3>FACEIT</h3>
         <p class="lede">Open the match room and use the download button. You get a
-          <code>.dem.zst</code> file, which is what this expects &mdash; no need to
+          <code>.dem.zst</code> file, which is what this expects, so there is no need to
           unpack it.</p></div>
       <div class="card"><h3>Valve matchmaking</h3>
         <p class="lede">In CS2: <b>Watch &rarr; Your Matches</b>, then Download beside
@@ -1254,7 +1254,7 @@ def empty_state(what: str, team_name: str = "") -> str:
     </div>
     <p class="note"><strong>Grab them while they are fresh.</strong> FACEIT and Valve
       both delete match demos after a few weeks. The ones worth keeping are the ones
-      you save now &mdash; a season you cannot download is a season this cannot
+      you save now. A season you cannot download is a season this cannot
       analyze.</p>
   </section>"""
 
@@ -1323,8 +1323,8 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
         word = ("better" if d > 3 else "worse" if d < -3 else "about the same")
         verdict = (
             f'<div class="note"><strong>Last three against everything before '
-            f'them:</strong> {r_avg:.0f}{unit} versus {b_avg:.0f}{unit} '
-            f'&mdash; {word}. Three matches is a small number and this is a '
+            f'them:</strong> {r_avg:.0f}{unit} versus {b_avg:.0f}{unit}, '
+            f'which is {word}. Three matches is a small number and this is a '
             f'difference, not a trend; treat it as a question to check rather '
             f'than an answer.</div>')
 
@@ -1347,7 +1347,7 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
     for m in reversed(series):
         if None in (m["adr"], m["traded_pct"], m["opening_pct"]):
             continue
-        res = "&mdash;"
+        res = "&ndash;"
         if m["result"]:
             cls = "win" if m["result"] == "W" else "loss"
             res = f'<span class="res {cls}">{m["result"]}</span>'
@@ -1388,7 +1388,7 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
   <section>
     <p class="note"><strong>Still counted, not modeled.</strong> Every point is one
       match's arithmetic. No line is fitted through them and no direction is
-      predicted &mdash; a trend you can see is a trend; a trend that needs a
+      predicted. A trend you can see is a trend; a trend that needs a
       regression to see is not one yet.</p>
   </section>"""
     return html_page("Trends", banner("Trends", crumb=esc(team["name"]),
@@ -1419,7 +1419,7 @@ def matches_page(request: Request):
         elif m["match_key"]:
             score = f'<span class="mono">{m["us"]}&ndash;{m["them"]}</span>'
         else:
-            score = '<span class="den">&mdash;</span>'
+            score = '<span class="den">&ndash;</span>'
 
         name = (f'<a href="/match/{esc(m["match_key"])}">{esc(m["map"] or "match")}</a>'
                 if m["match_key"] else esc(m["map"] or m["filename"]))
@@ -1432,7 +1432,7 @@ def matches_page(request: Request):
             f'<div class="den" style="font-weight:400" title="{esc(m["filename"])}">'
             f'{esc(m["tier"] or "")} &middot; uploaded {esc(m["uploaded"])}</div></td>'
             f'<td class="num">{score}</td>'
-            f'<td class="num mono">{m["rounds"] or "&mdash;"}</td>'
+            f'<td class="num mono">{m["rounds"] or "&ndash;"}</td>'
             f'<td class="num">{status}</td></tr>')
 
     played = [m for m in items if m["result"]]
@@ -1452,7 +1452,7 @@ def matches_page(request: Request):
     <div class="sec-head"><span class="label">Newest first</span>
       <h2>Every match you have sent in</h2></div>
     <p class="lede">Scores are the real result, followed through the side swap
-      rather than summed by side &mdash; CT and T are not teams, and a match that
+      rather than summed by side. CT and T are not teams, and a match that
       ends 13&ndash;9 reads as 16&ndash;6 if you add up the sides instead.
       A CS2 demo carries no match date, so the date shown is when the file was
       uploaded; the order is the true one.</p>
@@ -1509,7 +1509,7 @@ def stats_page(request: Request):
                 f'<p class="lede">{esc(it["because"])}</p>'
                 f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
                 f'<p class="den">{it["rate"]:.0f}% against your '
-                f'{plan["baseline"]:.0f}% overall &mdash; a gap of '
+                f'{plan["baseline"]:.0f}% overall, a gap of '
                 f'{abs(it["gap"]):.0f} points across {it["of"]} rounds</p></div>')
 
         # Grouped by map, because practice is planned one map at a time. The
@@ -1531,7 +1531,7 @@ def stats_page(request: Request):
     <p class="lede">Every line below is a conclusion drawn from something counted
       further down this page, ranked by how many rounds it covers and how far it
       sits from your own average of {plan['baseline']:.0f}%. Nothing here is
-      predicted &mdash; the evidence is printed under each one, so you can disagree
+      predicted. The evidence is printed under each one, so you can disagree
       with the reasoning rather than having to take it on trust.</p>
     {"".join(groups)}
   </section>"""
@@ -1548,7 +1548,7 @@ def stats_page(request: Request):
             cls = ("win" if f["result"] == "W" else
                    "loss" if f["result"] == "L" else "")
             score = (f'{f["us"]}{DASH}{f["them"]}' if f["us"] is not None
-                     else "&mdash;")
+                     else "&ndash;")
             cards.append(
                 f'<a class="formcard" href="/match/{esc(f["match_key"])}">'
                 f'<span class="res {cls}">{esc(f["result"] or "?")}</span>'
@@ -1557,8 +1557,8 @@ def stats_page(request: Request):
         form_block = (
             f'<section><div class="sec-head"><span class="label">'
             f'Newest first</span><h2>Recent form</h2></div>'
-            f'<p class="lede">Your last {len(form)} matches, with the real result '
-            f'&mdash; the score followed through the side swap, not rounds summed '
+            f'<p class="lede">Your last {len(form)} matches, with the real result: '
+            f'the score followed through the side swap, not rounds summed '
             f'by side. Click one to open its report.</p>'
             f'<div class="formrow">{"".join(cards)}</div></section>')
     else:
@@ -1605,7 +1605,7 @@ def stats_page(request: Request):
         patterns_block = (
             f'<p class="note">Nothing has happened often enough to call a pattern '
             f'yet. A line appears here once it has at least '
-            f'{report_mod.MIN_PATTERN_CHANCES} chances behind it &mdash; usually two '
+            f'{report_mod.MIN_PATTERN_CHANCES} chances behind it, usually two '
             f'or three matches.</p>')
 
     # ---- positional patterns: where they actually play
@@ -1619,7 +1619,7 @@ def stats_page(request: Request):
          "The furthest three of you get together and hold, inside the first "
          f"{int(movement.COMMIT_TO)} seconds. Corridors everyone walks through "
          "are not destinations, so they only appear here when the group never "
-         "got past them &mdash; which is itself worth seeing."),
+         "got past them, which is itself worth seeing."),
         ("setup", "Your default setup",
          f"Where two or more of you are standing {int(movement.SETUP_AT)} seconds "
          "in: after the round has taken shape, before contact decides it."),
@@ -1783,7 +1783,7 @@ def stats_page(request: Request):
             '<section><p class="warn"><strong>These are both sides, not just '
             'yours.</strong> A demo carries no team names, only which side each '
             'player was on. Telling your side from your opponents\' needs a player '
-            'who appears across several of your matches &mdash; upload one more and '
+            'who appears across several of your matches. Upload one more and '
             'this page switches to your rounds alone.</p></section>')
 
     body = f"""
@@ -1808,7 +1808,7 @@ def stats_page(request: Request):
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
     <p class="lede">Things that happened over and over, each one counted with the
-      number of chances it had. Nothing here is modeled or predicted &mdash; a line
+      number of chances it had. Nothing here is modeled or predicted. A line
       only appears once it has {report_mod.MIN_PATTERN_CHANCES} chances behind it,
       and anything under {report_mod.MIN_CHANCES} shows raw counts rather than a
       percentage.</p>
@@ -1880,8 +1880,8 @@ def player_page(request: Request, steamid: str):
         if m["rounds"] >= 10 and abs(delta) >= 25:
             flag = (f' <span class="thin">{"+" if delta > 0 else ""}{delta:.0f}</span>')
         clutch = (f'{m["clutch_won"]}/{m["clutch_tried"]}'
-                  if m["clutch_tried"] else "&mdash;")
-        blind = (f'{m["blind_per_flash"]:.2f}' if m["flashes_thrown"] else "&mdash;")
+                  if m["clutch_tried"] else "&ndash;")
+        blind = (f'{m["blind_per_flash"]:.2f}' if m["flashes_thrown"] else "&ndash;")
         rows.append(
             f'<tr><td class="name">'
             f'<a href="/match/{esc(m["match_key"])}">{esc(m["map_name"].replace("de_", ""))}</a>'
@@ -1894,12 +1894,12 @@ def player_page(request: Request, steamid: str):
             f'<td class="num mono">{m["kd"]:.2f}</td>'
             f'<td class="num mono">{m["hs_pct"]:.0f}%</td>'
             f'<td class="num mono">{m["opening_kills"]}/{m["opens"]}</td>'
-            f'<td class="num mono">{m["trade_kills"] or "&mdash;"}</td>'
+            f'<td class="num mono">{m["trade_kills"] or "&ndash;"}</td>'
             f'<td class="num mono">{clutch}</td>'
-            f'<td class="num mono">{m["multi_kills"] or "&mdash;"}</td>'
+            f'<td class="num mono">{m["multi_kills"] or "&ndash;"}</td>'
             f'<td class="num mono">{m["util_adr"]:.1f}</td>'
             f'<td class="num mono">{blind}</td>'
-            f'<td class="num mono">{m["awp_kills"] or "&mdash;"}</td></tr>')
+            f'<td class="num mono">{m["awp_kills"] or "&ndash;"}</td></tr>')
 
     spread = p["best"] - p["worst"]
     body = f"""
@@ -1915,7 +1915,7 @@ def player_page(request: Request, steamid: str):
         <span class="label">worst to best ADR</span></div>
     </div>
     <p class="lede">Role: <strong>{esc(t["role"])}</strong>
-      <span class="den">&mdash; {esc(t["role_why"])}</span></p>
+      <span class="den">({esc(t["role_why"])})</span></p>
   </section>
 
   <section>
@@ -1958,7 +1958,7 @@ def account(request: Request):
     body = f"""
   <section>
     <div class="card">
-      <h3>{esc(user["name"] or "—")}</h3>
+      <h3>{esc(user["name"] or "–")}</h3>
       <p class="lede">{esc(user["email"])} · {esc(user["role"])}</p>
       <p class="den">{"Team: " + esc(team["name"]) if team else "No team yet"}</p>
     </div>
@@ -1967,7 +1967,7 @@ def account(request: Request):
     <form method="post" action="/logout">{csrf_input(user)}
       <button class="btn ghost" type="submit">Log out</button></form>
   </section>"""
-    return html_page("Account — Counterplay", banner("Account"), body, user)
+    return html_page("Account | Counterplay", banner("Account"), body, user)
 
 
 # ---------------------------------------------------------------- lead form

@@ -267,7 +267,7 @@ def build(out_path: str = "site/zones.html", rounds_per_map: int = ROUNDS_PER_MA
 
     page = f"""<!doctype html><html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Counterplay — name the zones</title>
+<title>Counterplay: name the zones</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?\
@@ -280,12 +280,12 @@ family=JetBrains+Mono:wght@400;700&display=swap">
   <button class="ghost" onclick="copyJson()">Copy as JSON</button>
   <span id="status">loading…</span>
 </div>
-<p class="lede">Each picture is drawn from your own demos — every dot is somewhere a player
+<p class="lede">Each picture is drawn from your own demos: every dot is somewhere a player
 actually stood, so the shape is the real map. Numbered circles are the twenty busiest
 areas, found by clustering rather than by anyone typing coordinates. Amber rings are the
 bomb plant triggers, the one thing CS2 tells us for certain.</p>
 <p class="lede"><strong>Height counts.</strong> Two zones can share an x and y and still be
-different places. Where that happens the level column says <b>upper</b> or <b>lower</b> —
+different places. Where that happens the level column says <b>upper</b> or <b>lower</b>, meaning
 two floors of one location, like water under mid on Anubis.</p>
 <p class="lede">Type a name beside any number you recognise and press Save. Typing is kept
 in your browser as you go, so a reload will not lose it. Leave the rest blank; a nameless

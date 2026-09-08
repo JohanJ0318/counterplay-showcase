@@ -306,7 +306,7 @@ def positional_patterns(team_id: int) -> list[dict]:
                 add("commit", mp, side, z, d["n"], of, d["won"],
                     f"The furthest {COMMIT_PLAYERS} of you get together inside "
                     f"the first {int(COMMIT_TO)} seconds, and hold. Corridors "
-                    f"on the way do not count — this is where the group "
+                    f"on the way do not count; this is where the group "
                     f"actually arrives.",
                     f"usually by {med:.0f}s")
 
