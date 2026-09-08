@@ -1572,9 +1572,12 @@ def stats_page(request: Request):
     # makes, made visually.
     # Full names, not truncated. The label sits above its bar precisely so it
     # does not have to fit in a column.
+    # Every pattern, not the first seven. The cut was arbitrary and it dropped
+    # eco rounds off the bottom of the picture while leaving them in the table
+    # beside it — two views of the same list that disagreed about its length.
     patterns_chart = charts.bars(
-        [(p_["name"], p_["hit"], p_["of"]) for p_ in patterns[:7]],
-        width=540) if patterns else ""
+        [(p_["name"], p_["hit"], p_["of"]) for p_ in patterns],
+        width=600) if patterns else ""
     if patterns:
         # The explanation of each pattern used to sit under it as a paragraph.
         # Nine patterns meant nine paragraphs, and the page was mostly prose
@@ -1809,7 +1812,7 @@ def stats_page(request: Request):
       only appears once it has {report_mod.MIN_PATTERN_CHANCES} chances behind it,
       and anything under {report_mod.MIN_CHANCES} shows raw counts rather than a
       percentage.</p>
-    <div class="grid2" style="align-items:start">
+    <div class="grid-chart">
       <div>{patterns_block}</div>
       <div class="chart">{patterns_chart}</div>
     </div>

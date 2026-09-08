@@ -241,7 +241,9 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   .chart{padding:12px}
   /* Says out loud that the picture is wider than the screen, because a chart
      that scrolls with no hint looks like a chart that is cut off. */
-  .chart::after{content:"scroll sideways to see the whole match";
+  /* "the whole match" was written for the round timeline and then inherited by
+     every other chart, where there is no match to see. */
+  .chart::after{content:"scroll sideways to see the whole chart";
     display:block;font-family:var(--f-mono);font-size:.62rem;color:var(--faint);
     padding-top:8px}
 }
@@ -307,6 +309,21 @@ button:hover,.btn:hover{background:var(--purple-deep);border-color:var(--purple-
 .btn.ghost{font-size:.84rem;padding:7px 13px}
 
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
+/* A table of short labels beside a chart.
+
+   An even split gave the table more room than its two columns of text needed
+   and left the chart 510px of a 540px picture — so the one thing on the page
+   that is meant to be seen at a glance arrived with a scrollbar. The chart now
+   takes the larger share.
+
+   Two columns only above 1160px, which is where `.wrap` stops growing. Between
+   the two the split would squeeze the chart again, so below that width the
+   chart simply goes full width underneath, where it has more room than it
+   ever had beside the table. */
+.grid-chart{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
+@media(min-width:1160px){
+  .grid-chart{grid-template-columns:minmax(0,1fr) minmax(0,1.45fr)}
+}
 .maps{display:flex;flex-direction:column;gap:20px}
 
 footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);
