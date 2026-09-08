@@ -153,6 +153,24 @@ def _is_spawn(name: str) -> bool:
     return "spawn" in name.lower()
 
 
+def _traded_lookup(keys) -> dict:
+    """(match_key, round_num, steamid) -> was that death traded.
+
+    A player dies at most once in a CS2 round, so `traded_deaths` on their
+    player-round row is 0 or 1 and answers the question for that one death
+    without needing a per-death table.
+    """
+    if not keys:
+        return {}
+    marks = ",".join("?" * len(keys))
+    return {(r["match_key"], r["round_num"], r["steamid"]): bool(r["traded_deaths"])
+            for r in db.query(f"""SELECT match_key, round_num, steamid,
+                                         traded_deaths
+                                    FROM player_rounds
+                                   WHERE match_key IN ({marks})
+                                     AND traded_deaths > 0""", *keys)}
+
+
 def scan(team_id: int) -> dict:
     """Walk every round once, collecting the counts every pattern needs.
 
@@ -162,6 +180,7 @@ def scan(team_id: int) -> dict:
     anchors = team_anchors(team_id)
     sides = _side_by_round(team_id, anchors.get("anchors", {}))
     rows = _rounds_with_positions(team_id)
+    traded = _traded_lookup(_team_match_keys(team_id))
 
     commit: dict = {}
     setup: dict = {}
@@ -262,16 +281,23 @@ def scan(team_id: int) -> dict:
                 d["won"] += won
                 d["players"] += int(occ[at, z_i])
 
-        # ---- where the first of ours dies
+        # ---- where the first of ours dies, and whether anyone got him back
+        #
+        # The place alone says where a round starts going wrong. Whether the
+        # death was traded says whether it went wrong: the same first death,
+        # traded, leaves a 4v4, and untraded leaves a 4v5.
         died = alive[:-1] & ~alive[1:] & theirs[1:]
         if died.any():
             t_i, p_i = np.argwhere(died)[0]
             z = int(gid[t_i + 1, p_i])
             if z:
                 d = death.setdefault(mp, {}).setdefault(side, {}).setdefault(
-                    z, {"n": 0, "won": 0})
+                    z, {"n": 0, "won": 0, "traded": 0})
                 d["n"] += 1
                 d["won"] += won
+                sid = str(int(_sids[p_i]))
+                d["traded"] += int(traded.get(
+                    (r["match_key"], r["round_num"], sid), False))
 
     return {"commit": commit, "setup": setup, "death": death, "seen": seen,
             "names": {m: (cache[m][2] if cache.get(m) else {}) for m in cache}}
@@ -288,7 +314,7 @@ def positional_patterns(team_id: int) -> list[dict]:
     names = raw["names"]
     out: list[dict] = []
 
-    def add(kind, mp, side, zone, hit, of, won, detail, extra=""):
+    def add(kind, mp, side, zone, hit, of, won, detail, extra="", traded=None):
         if of < MIN_PATTERN_CHANCES or hit / of < MIN_ZONE_SHARE:
             return
         out.append({
@@ -296,6 +322,12 @@ def positional_patterns(team_id: int) -> list[dict]:
             "zone": names.get(mp, {}).get(zone, f"zone {zone}"),
             "hit": hit, "of": of, "pct": 100.0 * hit / of,
             "won": won, "win_pct": (100.0 * won / hit) if hit else 0.0,
+            # Only a first death can be traded, so this is None for the other
+            # two kinds rather than zero. Zero would render as "traded 0 of 14"
+            # under a setup, which is not a thing that can happen.
+            "traded": traded,
+            "traded_pct": (100.0 * traded / hit) if traded is not None and hit
+                          else 0.0,
             "detail": detail, "extra": extra})
 
     for mp, per_side in raw["commit"].items():
@@ -325,9 +357,14 @@ def positional_patterns(team_id: int) -> list[dict]:
         for side, zones in per_side.items():
             of = raw["seen"][mp][side]
             for z, d in zones.items():
+                tr = d.get("traded", 0)
                 add("death", mp, side, z, d["n"], of, d["won"],
-                    "The first of you to die, dies here. Where a round starts "
-                    "going wrong is more useful than how often it does.")
+                    "The first of you to die, dies here, and whether anybody "
+                    "got him back. Where a round starts going wrong is more "
+                    "useful than how often it does, and a first death that is "
+                    "traded leaves a 4v4 rather than a 4v5.",
+                    f"traded {tr} of {d['n']}",
+                    traded=tr)
 
     return sorted(out, key=lambda p: (-p["hit"], p["map"]))
 
@@ -352,6 +389,7 @@ def match_positions(match_key: str, team_id: int) -> dict:
     """
     anchors = team_anchors(team_id).get("anchors", {})
     sides = _side_by_round(team_id, anchors)
+    traded = _traded_lookup([match_key])
 
     rows = db.query("""SELECT rp.round_num, rp.data, m.map_name, r.ct_won
                          FROM round_positions rp
@@ -422,22 +460,29 @@ def match_positions(match_key: str, team_id: int) -> dict:
 
         # Where the first of ours died.
         died_in = None
+        was_traded = None
         fell = alive[:-1] & ~alive[1:] & theirs[1:]
         if fell.any():
             t_i, p_i = np.argwhere(fell)[0]
             z = int(gid[t_i + 1, p_i])
             if z:
                 died_in = names.get(z)
+                sid = str(int(_sids[p_i]))
+                was_traded = bool(traded.get((match_key, r["round_num"], sid)))
                 if died_in:
-                    d = death_tally.setdefault(died_in, {"n": 0, "won": 0})
+                    d = death_tally.setdefault(
+                        died_in, {"n": 0, "won": 0, "traded": 0})
                     d["n"] += 1
                     d["won"] += won
+                    d["traded"] += int(was_traded)
 
         per_round.append({"round_num": r["round_num"], "side": side, "won": won,
-                          "went": went, "at": at, "died_in": died_in})
+                          "went": went, "at": at, "died_in": died_in,
+                          "traded": was_traded})
 
     def rank(tally):
-        return sorted(({"zone": k, "n": v["n"], "won": v["won"]}
+        return sorted(({"zone": k, "n": v["n"], "won": v["won"],
+                        "traded": v.get("traded")}
                        for k, v in tally.items()
                        if v["n"] >= MATCH_MIN_ROUNDS),
                       key=lambda x: -x["n"])

@@ -787,16 +787,21 @@ def match_report(request: Request, match_key: str):
     where = movement.match_positions(match_key, team["id"]) if team else {}
     where_block = ""
     if where.get("commit") or where.get("death"):
-        def zone_table(items, label, heading):
+        def zone_table(items, label, heading, trades=False):
             rows_ = "".join(
                 f'<tr><td class="name">{esc(z["zone"])}</td>'
                 f'<td class="num">{z["n"]}</td>'
-                f'<td class="num">{rate(z["won"], z["n"])}</td></tr>'
+                + (f'<td class="num">{rate(z["traded"] or 0, z["n"])}</td>'
+                   if trades else "")
+                + f'<td class="num">{rate(z["won"], z["n"])}</td></tr>'
                 for z in items)
+            head = (f'<th class="num" title="First deaths here that a teammate '
+                    f'traded back">Traded</th>' if trades else "")
             return (f'<div><div class="sec-head"><span class="label">{label}</span>'
                     f'<h3>{heading}</h3></div>'
                     f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-                    f'<th class="num">Rounds</th><th class="num">Won</th></tr>'
+                    f'<th class="num">Rounds</th>{head}'
+                    f'<th class="num">Won</th></tr>'
                     f'</thead><tbody>{rows_}</tbody></table></div></div>')
 
         blocks = []
@@ -806,7 +811,7 @@ def match_report(request: Request, match_key: str):
                                      "Where you went"))
         if where["death"]:
             blocks.append(zone_table(where["death"], "The first of you to fall",
-                                     "Where it went wrong"))
+                                     "Where it went wrong", trades=True))
 
         named = {z["zone"] for z in where["commit"] + where["death"]}
         figs = "".join(
@@ -822,6 +827,9 @@ def match_report(request: Request, match_key: str):
             went = esc(x["went"]) if x["went"] else "&ndash;"
             at = f'{x["at"]:.0f}s' if x["at"] else "&ndash;"
             died = esc(x["died_in"]) if x["died_in"] else "&ndash;"
+            if x["died_in"] and x.get("traded") is not None:
+                died += ('' if x["traded"] else
+                         ' <span class="den">not traded</span>')
             rr.append(
                 f'<tr><td class="num mono">{x["round_num"]}</td>'
                 f'<td><span class="pill {x["side"]}">{x["side"].upper()}</span></td>'
@@ -834,8 +842,9 @@ def match_report(request: Request, match_key: str):
     <div class="sec-head"><span class="label">From position data, this match</span>
       <h2>Where you went tonight</h2></div>
     <p class="lede">The reading the season page does, asked of this match alone.
-      Where three of you got to together and held, and where the first of you
-      died, counted only in rounds where your side is known.</p>
+      Where three of you got to together and held, where the first of you died,
+      and whether a teammate got him back. Counted only in rounds where your
+      side is known.</p>
     <div class="grid2">{"".join(blocks)}</div>
     <div class="zonerow">{figs}</div>
     <details><summary>Round by round</summary>
@@ -1705,8 +1714,10 @@ def stats_page(request: Request):
          f"Where two or more of you are standing {int(movement.SETUP_AT)} seconds "
          "in: after the round has taken shape, before contact decides it."),
         ("death", "Where your first death happens",
-         "The first of you to die, and where. Where a round starts going wrong "
-         "is more useful than how often it does."),
+         "The first of you to die, where, and whether anybody got him back. "
+         "The same death traded leaves a 4v4 and untraded leaves a 4v5, which "
+         "is the difference between a place you lose men and a place you lose "
+         "rounds."),
     )
     # Five rows, not twenty.
     #
@@ -1727,15 +1738,24 @@ def stats_page(request: Request):
             continue
         hidden = max(0, len(sel) - POS_TOP_N)
         sel = sel[:POS_TOP_N]
+        # Only a first death can be traded, so the column exists in that one
+        # section rather than sitting empty in the other two.
+        trades = kind == "death"
         rws = []
         for q in sel:
+            # The place is already named in the row, so repeating "traded 3 of
+            # 10" in the sub-line would print the same denominator twice.
+            extra = "" if trades else q["extra"]
+            sub = f' &middot; {esc(extra)}' if extra else ""
+            traded_cell = (f'<td class="num">{rate(q["traded"], q["hit"])}</td>'
+                           if trades else "")
             rws.append(
                 f'<tr><td class="name"><span class="pill {q["side"]}">'
                 f'{q["side"].upper()}</span> {esc(q["zone"])}'
                 f'<span class="den" style="font-weight:400;margin-left:7px">'
-                f'{esc(q["map"].replace("de_", ""))}'
-                f'{" &middot; " + esc(q["extra"]) if q["extra"] else ""}</span></td>'
+                f'{esc(q["map"].replace("de_", ""))}{sub}</span></td>'
                 f'<td class="num">{rate(q["hit"], q["of"])}</td>'
+                f'{traded_cell}'
                 f'<td class="num">{rate(q["won"], q["hit"])}</td></tr>')
         more = (f'<p class="note">{hidden} more place'
                 f'{"s" if hidden != 1 else ""} showed the same pattern less '
@@ -1770,7 +1790,10 @@ def stats_page(request: Request):
             f'From position data</span><h2>{title}</h2></div>'
             f'<p class="lede">{lede}</p>'
             f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-            f'<th class="num">Rounds</th><th class="num">Of those, won</th>'
+            f'<th class="num">Rounds</th>'
+            + (f'<th class="num" title="First deaths here that a teammate '
+               f'traded back">Traded</th>' if trades else "")
+            + f'<th class="num">Of those, won</th>'
             f'</tr></thead><tbody>{"".join(rws)}</tbody></table></div>'
             f'{more}{maps_here}</section>')
 
