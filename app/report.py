@@ -636,8 +636,6 @@ def team_stats(team_id: int) -> dict | None:
                "t": {"took": 0, "converted": 0, "lost": 0, "saved": 0}}
     buys = defaultdict(lambda: {"n": 0, "won": 0})
     plants = 0
-    early_first_blood = 0
-    rounds_with_a_death = 0
 
     prev = {}          # match_key -> (round_num, ct_won) of the previous round
     after_loss = {"ct": {"eco": 0, "force": 0, "full": 0, "pistol": 0},
@@ -684,10 +682,7 @@ def team_stats(team_id: int) -> dict | None:
             plants += 1
             m["plants"] += 1
         if deaths:
-            rounds_with_a_death += 1
             first = deaths[0]
-            if first["seconds"] < 20:
-                early_first_blood += 1
             loser = first["victim_side"]
             winner = "t" if loser == "ct" else "ct"
             if loser in opening:
@@ -732,8 +727,7 @@ def team_stats(team_id: int) -> dict | None:
         "maps": dict(sorted(maps.items(), key=lambda kv: -kv[1]["rounds"])),
         "sides": sides, "opening": opening,
         "buys": {k: v for k, v in sorted(buys.items())},
-        "plants": plants, "early_first_blood": early_first_blood,
-        "rounds_with_a_death": rounds_with_a_death,
+        "plants": plants,
         "after_loss": after_loss, "pistol_followups": pistol_followups,
         "you": you, "you_buys": dict(you_buys),
         "anchors": anchor_info,
@@ -779,10 +773,6 @@ def recurring_patterns(team_id: int) -> list[dict]:
         for kind, v in sorted(st["you_buys"].items()):
             add(f"You win {BUY_ARTICLE.get(kind, 'a')} {kind} round",
                 v["won"], v["n"], BUY_BLURB.get(kind, DEFAULT_BUY_BLURB))
-        add("First blood inside the opening 20 seconds",
-            st["early_first_blood"], st["rounds_with_a_death"],
-            "How early the first duel happens, on either side. Very high means "
-            "rounds are being decided before any utility is used.")
         return sorted(out, key=lambda x: -x["of"])
 
     for side in ("ct", "t"):
@@ -809,11 +799,6 @@ def recurring_patterns(team_id: int) -> list[dict]:
         add("Full saves after losing a round", al["eco"], total_after_loss,
             "Eco discipline. High means the economy is being managed; low means "
             "rounds are being bought into and lost twice.", side)
-
-    add("First blood inside the opening 20 seconds",
-        st["early_first_blood"], st["rounds_with_a_death"],
-        "How early the first duel happens. Very high means rounds are being "
-        "decided before any utility is used, on both sides.")
 
     t_rounds = st["sides"]["t"]["rounds"]
     add("Bomb planted on a T-side round", st["plants"], t_rounds,

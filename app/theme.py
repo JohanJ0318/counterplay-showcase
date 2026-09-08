@@ -156,6 +156,49 @@ td.name{font-weight:600}
 td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   white-space:nowrap;text-align:right}
 
+/* ---- explanations on demand ----
+   Every recurring-pattern row carried a two-sentence paragraph underneath it.
+   Nine rows of that is a page of prose wrapped around nine numbers, and the
+   numbers are what a coach came for. The prose is still there, behind an "i".
+
+   Hover shows it, and so does FOCUS: `:focus` rather than `:focus-visible`
+   because tapping the button on a phone focuses it, which is the only way a
+   touch device gets at a hover tooltip. Keyboard users get the same thing for
+   free. */
+.info{display:inline-flex;align-items:center;justify-content:center;
+  width:15px;height:15px;flex:none;margin-left:7px;vertical-align:1px;
+  border:1px solid var(--border-strong);border-radius:50%;
+  background:var(--surface);color:var(--faint);
+  font-family:var(--f-body);font-size:.6rem;font-weight:700;font-style:normal;
+  line-height:1;cursor:help;position:relative;-webkit-user-select:none;
+  user-select:none}
+.info:hover,.info:focus{color:var(--purple);border-color:var(--purple);
+  background:var(--purple-soft);outline:none}
+/* Opens DOWNWARD. Upward reads better but is cut off whenever the row you are
+   hovering happens to be at the top of the screen, and the top of the screen is
+   exactly where you hover after scrolling to a section. */
+.info .tip{position:absolute;left:0;top:calc(100% + 9px);
+  width:max-content;max-width:min(320px,74vw);
+  background:var(--ink);color:#fff;
+  font-size:.78rem;font-weight:400;font-style:normal;line-height:1.5;
+  letter-spacing:0;text-align:left;text-transform:none;
+  padding:9px 11px;border-radius:var(--r);
+  box-shadow:0 8px 22px rgba(25,19,37,.28);
+  opacity:0;visibility:hidden;transition:opacity .12s ease;
+  pointer-events:none;z-index:50}
+.info .tip::after{content:"";position:absolute;bottom:100%;left:5px;
+  border:5px solid transparent;border-bottom-color:var(--ink)}
+.info:hover .tip,.info:focus .tip{opacity:1;visibility:visible}
+/* Near the right edge the balloon would run off the page, so rows can flip it. */
+.info.left .tip{left:auto;right:0}
+.info.left .tip::after{left:auto;right:5px}
+
+/* A table that hosts tooltips cannot also be a scroll container: `overflow-x`
+   clips the balloon on every axis. These tables are two columns of short text
+   and never needed to scroll. */
+.tbl-plain{background:var(--surface);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--shadow);overflow:visible}
+
 /* ---- stat cards ---- */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:12px}
 .stat{padding:16px 18px;display:flex;flex-direction:column;gap:2px}

@@ -1576,17 +1576,26 @@ def stats_page(request: Request):
         [(p_["name"], p_["hit"], p_["of"]) for p_ in patterns[:7]],
         width=540) if patterns else ""
     if patterns:
+        # The explanation of each pattern used to sit under it as a paragraph.
+        # Nine patterns meant nine paragraphs, and the page was mostly prose
+        # about numbers rather than the numbers. It now lives behind the "i",
+        # which is readable on hover, on focus, and by a screen reader through
+        # aria-describedby — nothing is hidden from anybody, it is just no
+        # longer in the way of the column a coach is reading down.
         prows = []
-        for p_ in patterns:
+        for i_, p_ in enumerate(patterns):
             side = (f'<span class="pill {p_["side"]}">{p_["side"].upper()}</span> '
                     if p_["side"] else "")
+            tid_ = f"pt{i_}"
+            info = (f'<span class="info" tabindex="0" role="button"'
+                    f' aria-describedby="{tid_}" aria-label="What this means">i'
+                    f'<span class="tip" role="tooltip" id="{tid_}">'
+                    f'{esc(p_["detail"])}</span></span>')
             prows.append(
-                f'<tr><td class="name">{side}{esc(p_["name"])}'
-                f'<div class="den" style="font-weight:400;white-space:normal;'
-                f'max-width:52ch;margin-top:3px">{esc(p_["detail"])}</div></td>'
+                f'<tr><td class="name">{side}{esc(p_["name"])}{info}</td>'
                 f'<td class="num">{rate(p_["hit"], p_["of"])}</td></tr>')
         patterns_block = (
-            f'<div class="tbl-wrap"><table><thead><tr><th>Pattern</th>'
+            f'<div class="tbl-plain"><table><thead><tr><th>Pattern</th>'
             f'<th class="num">Observed / chances</th></tr></thead>'
             f'<tbody>{"".join(prows)}</tbody></table></div>')
     else:

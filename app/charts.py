@@ -315,9 +315,9 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
     makes, made visible.
 
     Labels sit above their bars rather than beside them. Beside them, at any
-    sane label-column width, "First blood inside the opening 20 seconds" became
-    "First blood inside the op" — and a chart that cuts its own labels in half
-    is worse than the table it replaced.
+    sane label-column width, "You win the round after winning the opening duel"
+    became "You win the round after w" — and a chart that cuts its own labels
+    in half is worse than the table it replaced.
     """
     if not items:
         return ""
