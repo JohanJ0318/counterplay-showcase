@@ -43,6 +43,12 @@ FROM_NAME = os.environ.get("COUNTERPLAY_MAIL_FROM_NAME", "Counterplay")
 # built from the request's Host header, which is attacker-controlled.
 SITE_URL = os.environ.get("COUNTERPLAY_SITE_URL", "https://counterplaycs.com")
 
+# Mail goes out as no-reply@, and people reply to no-reply addresses anyway.
+# Without a Reply-To those replies bounce or vanish, and the person who most
+# needs help, somebody stuck outside their own account, is exactly the person
+# most likely to hit reply.
+REPLY_TO = os.environ.get("COUNTERPLAY_MAIL_REPLY_TO", "")
+
 TIMEOUT_SECONDS = 12
 
 
@@ -71,8 +77,9 @@ def send(to: str, subject: str, body: str, *, reply_to: str = "",
     msg["Subject"] = subject
     msg["Date"] = formatdate(localtime=True)
     msg["Message-ID"] = make_msgid()
-    if reply_to:
-        msg["Reply-To"] = reply_to
+    reply = reply_to or REPLY_TO
+    if reply:
+        msg["Reply-To"] = reply
     for k, v in (headers or {}).items():
         msg[k] = v
     msg.set_content(body)
