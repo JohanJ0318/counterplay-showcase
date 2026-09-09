@@ -128,7 +128,12 @@ html{-webkit-text-size-adjust:100%}
 body{
   margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
   font-family:var(--f-body);font-size:14px;line-height:1.5;
-  -webkit-font-smoothing:antialiased;
+  /* NO -webkit-font-smoothing:antialiased.
+     It reads as a nicety and on Windows it is not: it turns OFF subpixel
+     rendering, so every glyph loses two thirds of its horizontal resolution
+     and thins out. Combined with any text sitting on a fractional pixel it is
+     exactly what "is this blurry or am I imagining it" looks like. Left to
+     the operating system, which knows what kind of screen this is. */
 }
 
 .wrap{max-width:1160px;margin:0 auto;padding:0 24px 64px}
@@ -363,7 +368,11 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 .stat-n{font-family:var(--f-display);font-weight:700;font-size:1.6rem;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15;
   color:var(--ink)}
-.stat-row>.stat:first-child .stat-n,.stat.key .stat-n{color:var(--purple-deep)}
+/* Every figure is ink. There WAS a rule making the first card of any row
+   purple, and it made one number in a strip of four coloured for no reason a
+   reader could work out. An accent that cannot be explained is worse than no
+   accent: it reads as a mistake, and the reader spends attention deciding
+   whether it means something. Purple is for what you can click. */
 
 /* ---- a rate is a shape, not just a numeral ----
 
@@ -391,9 +400,14 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
    whatever is in it. The thin variant sets its figure a size smaller and in
    mono, and without this that alone left its box six pixels shorter, which is
    invisible in one row and reads as a wobble down a column of nine. */
-.rt b{font-weight:600;font-size:.9rem;letter-spacing:-.01em;
-  height:18px;line-height:18px;display:inline-flex;align-items:center}
-.rt .den{font-size:.66rem;line-height:1.2}
+/* Line boxes, not flex centring. `align-items:center` on a fixed height puts
+   the baseline at (box - text) / 2, which is a half pixel whenever those two
+   do not divide evenly: every figure on the page was landing on x.469 and
+   being resampled. A line box of the same height as the box lands on whole
+   pixels and needs no centring. */
+.rt b{font-weight:600;font-size:13px;letter-spacing:-.01em;
+  display:block;height:18px;line-height:18px}
+.rt .den{font-size:10px}
 .rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
   height:3px;border-radius:2px}
 .rt::before{right:0;background:var(--border)}
@@ -405,14 +419,13 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 /* No bar, same footprint. */
 .rt.few::after,.rt.nil::after{display:none}
 .rt.few::before,.rt.nil::before{background:transparent}
-.rt.few b{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+.rt.few b{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
 /* The second line is one fixed line box whatever sits in it. The pill carries
    a border and the denominator does not, which left a thin row three pixels
    shorter than its neighbours: invisible on its own, and visible as a wobble
    down a column of nine. */
-.rt .den,.rt .pill{height:15px;line-height:15px;display:inline-flex;
-  align-items:center}
-.rt.few .pill{padding:0 7px;font-size:.58rem;border:0;border-radius:20px}
+.rt .den,.rt .pill{height:14px;line-height:14px;display:block}
+.rt.few .pill{padding:0 7px;font-size:8px;border:0;border-radius:20px;display:inline-block}
 .rt.nil b{font-weight:400}
 
 /* ---- badges ---- */
