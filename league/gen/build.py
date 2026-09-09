@@ -334,7 +334,18 @@ CSS = """
   --t:#A65B0B; --t-soft:#FDF3E4; --on-purple:#FFFFFF;
   --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
-  --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
+  /* Chivo Mono, not JetBrains Mono, for one reason: the zero.
+     JetBrains draws a dot inside it and the dot cannot be turned off; all four
+     OpenType features that might do it produce an identical glyph in the
+     Google Fonts build. That is not a fault in JetBrains, it is what a coding
+     typeface is FOR, telling 0 from O in a variable name. This product shows
+     scores and denominators to a coach, where nobody is going to read a zero
+     as a letter, so the dot is only something in the way.
+
+     Of every monospace on Google Fonts, exactly two have a plain zero AND
+     real monospacing: Chivo Mono and Azeret Mono. Chivo is the narrower,
+     which matters in a column of nine rates. */
+  --f-mono:"Chivo Mono",ui-monospace,Menlo,monospace;
 }
 /* ---- dark ----
    A second palette, not a second stylesheet: every colour on this page comes
@@ -465,7 +476,7 @@ SHELL = """<!doctype html>
 <title>@@TITLE@@</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=Chivo+Mono:wght@400;500;600&display=swap">
 <style>@@CSS@@</style><script>
 (function(){try{var t=localStorage.getItem('cp-theme');
 if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
