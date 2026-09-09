@@ -336,6 +336,38 @@ CSS = """
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
+/* ---- dark ----
+   A second palette, not a second stylesheet: every colour on this page comes
+   from the block above, so restating the values is the whole job.
+
+   Follows the operating system, and `data-theme` on the root element beats it
+   in both directions. That attribute is set by the script in the head from
+   the same localStorage key the app uses, so a reader who picked dark inside
+   the product does not get flashbanged on the way back out to this page. */
+:root[data-theme="dark"]{
+  --bg:#141119; --surface:#1C1823; --sunk:#221D2B;
+  --ink:#EDE9F3; --muted:#A79FB5; --faint:#7E7590;
+  --border:#2E2739; --border-strong:#3E3549;
+  --purple:#A78BFA; --purple-soft:#241C38;
+  --t:#E0A458; --t-soft:#2E2415; --on-purple:#141119;
+}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+  --bg:#141119; --surface:#1C1823; --sunk:#221D2B;
+    --ink:#EDE9F3; --muted:#A79FB5; --faint:#7E7590;
+    --border:#2E2739; --border-strong:#3E3549;
+    --purple:#A78BFA; --purple-soft:#241C38;
+    --t:#E0A458; --t-soft:#2E2415; --on-purple:#141119;
+  }
+}
+html{color-scheme:light dark}
+.themebtn{appearance:none;border:1px solid var(--border-strong);
+  background:transparent;color:var(--muted);font:inherit;font-size:.9rem;
+  line-height:1;width:30px;height:30px;border-radius:6px;cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;flex:none}
+.themebtn:hover{color:var(--ink);border-color:var(--purple);
+  background:var(--purple-soft)}
+
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
   font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
@@ -355,6 +387,8 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border)}
   align-items:center;justify-content:space-between}
 .nav-links{display:flex;gap:4px;align-items:center;flex-wrap:wrap;
   justify-content:flex-end;font-size:.85rem;min-width:0}
+.nav-side{display:flex;align-items:center;flex:none;padding-left:14px;
+  margin-left:4px;border-left:1px solid var(--border)}
 .nav-links a.here{color:var(--purple);background:var(--purple-soft)}
 .subnav{background:var(--surface);border-bottom:1px solid var(--border)}
 .subnav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:42px;
@@ -422,10 +456,18 @@ SHELL = """<!doctype html>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
-<style>@@CSS@@</style></head><body>
+<style>@@CSS@@</style><script>
+(function(){try{var t=localStorage.getItem('cp-theme');
+if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+function cpTheme(){var h=document.documentElement,c=h.getAttribute('data-theme'),
+n=c?(c==='dark'?'light':'dark'):(window.matchMedia&&
+window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}}
+</script></head><body>
 <nav class="top"><div class="nav-in">
   <a class="mark" href="index.html">Counter<em>play</em></a>
   <span class="nav-links">@@NAV@@</span>
+  <span class="nav-side"><button class="themebtn" type="button" onclick="cpTheme()" title="Switch between light and dark" aria-label="Switch between light and dark">&#9681;</button></span>
 </div></nav>
 <!-- Section navigation. The row above never changes between the app and here;
      this row says where you are inside the league pages. -->
