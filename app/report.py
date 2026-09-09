@@ -337,23 +337,35 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
 def rate(won: int, total: int) -> str:
     """A rate, or raw counts when the sample is too thin to carry a percentage.
 
-    Every percentage in the product comes through here, so the bar drawn under
-    the figure is drawn under every figure everywhere: the recurring patterns,
-    the map pool, the scoreboard, both player tables and the positional
-    tables. A column of rates becomes a shape you read down rather than eight
-    numerals you compare in your head.
+    Every percentage in the product comes through here, so what is decided
+    here is decided everywhere: the recurring patterns, the map pool, the
+    scoreboard, both player tables and the positional tables.
 
-    A thin sample gets the label and NO bar. Drawing 5 of 7 as a 71% fill is
-    precisely the overstatement the thin label exists to prevent, and a bar is
-    a more confident claim than a number because it invites comparison.
+    TWO LINES, CENTRED, ALWAYS THE SAME SHAPE.
+
+    The headline sits on top and the evidence sits under it, smaller. Side by
+    side, "59% 78 / 133" reads as one long string and the denominator competes
+    with the figure; stacked, the eye takes the percentage and the denominator
+    is there the moment it is wanted. Which is the right order: the
+    denominator is the product's whole argument, and it is still not the thing
+    you read first.
+
+    Every variant occupies an identical box, including the thin one and the
+    empty one. They used to be laid out differently and sat askew from the
+    rows around them, which made a column of rates look misaligned rather than
+    look like a column.
     """
     if total == 0:
-        return '<span class="den">–</span>'
+        return '<span class="rt nil"><b class="den">&ndash;</b></span>'
     if total < MIN_CHANCES:
-        return (f'<span class="rt thin"><span class="den">{won} / {total}</span> '
+        # A thin sample gets the count as its headline, because the count IS
+        # the information, and no bar. Drawing 5 of 7 as a 71% fill is exactly
+        # the overstatement the thin label exists to prevent, and a bar is a
+        # more confident claim than a number because it invites comparison.
+        return (f'<span class="rt few"><b>{won} / {total}</b>'
                 f'<span class="pill beta">thin</span></span>')
     pct = 100.0 * won / total
-    return (f'<span class="rt" style="--f:{pct:.0f}%">{pct:.0f}% '
+    return (f'<span class="rt" style="--f:{pct:.0f}%"><b>{pct:.0f}%</b>'
             f'<span class="den">{won} / {total}</span></span>')
 
 

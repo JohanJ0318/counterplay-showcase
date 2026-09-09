@@ -366,21 +366,54 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 .stat-row>.stat:first-child .stat-n,.stat.key .stat-n{color:var(--purple-deep)}
 
 /* ---- a rate is a shape, not just a numeral ----
-   Drawn under the figure rather than behind it: a tinted cell background
-   fights the row hover and turns a dense table into noise, while a rule under
-   the number reads at a glance and vanishes while you read the number.
 
-   The track is always the full width of the figure, so a 90% and a 20% are
-   comparable down a column even though the text lengths differ. */
-.rt{display:inline-block;position:relative;padding-bottom:7px;min-width:74px}
+   Two lines, centred on each other: the figure on top and the denominator
+   under it, smaller. Side by side they read as one long string and the
+   denominator competes with the number it is supporting. Stacked, the eye
+   takes the percentage and the denominator is there the moment it is wanted,
+   which is the right order even though the denominator is this product's
+   whole argument.
+
+   EVERY VARIANT IS THE SAME BOX. The thin one and the empty one keep the
+   width, the two-line height and the bottom padding even though neither draws
+   a bar, because a cell that lays itself out differently sits askew from the
+   rows around it and makes a column look broken.
+
+   The bar goes under the figure rather than behind it: a tinted cell
+   background fights the row hover and turns a dense table into noise, while a
+   rule reads at a glance and disappears while the number is being read. The
+   track is the full width of the box, so 90% and 20% stay comparable down a
+   column even though the text lengths differ. */
+.rt{display:inline-flex;flex-direction:column;align-items:center;gap:1px;
+  position:relative;min-width:82px;padding-bottom:8px;line-height:1.2;
+  text-align:center}
+/* Both lines are fixed line boxes, so every cell is exactly the same height
+   whatever is in it. The thin variant sets its figure a size smaller and in
+   mono, and without this that alone left its box six pixels shorter, which is
+   invisible in one row and reads as a wobble down a column of nine. */
+.rt b{font-weight:600;font-size:.9rem;letter-spacing:-.01em;
+  height:18px;line-height:18px;display:inline-flex;align-items:center}
+.rt .den{font-size:.66rem;line-height:1.2}
 .rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
   height:3px;border-radius:2px}
 .rt::before{right:0;background:var(--border)}
 .rt::after{width:var(--f,0%);background:var(--purple);opacity:.85}
-/* A thin sample gets no bar. Drawing 5 of 7 as a 71% fill is exactly the
-   overstatement the "thin" label exists to prevent. */
-.rt.thin::before,.rt.thin::after{display:none}
-.rt.thin{padding-bottom:0;min-width:0}
+/* `few` and `nil`, not `thin` and `none`. `.thin` is already an amber badge
+   class defined further down this sheet, and at equal specificity the later
+   rule wins: `.rt.thin` was quietly inheriting its padding, background and
+   border, which is what made those cells sit askew from every other row. */
+/* No bar, same footprint. */
+.rt.few::after,.rt.nil::after{display:none}
+.rt.few::before,.rt.nil::before{background:transparent}
+.rt.few b{font-family:var(--f-mono);font-size:.78rem;color:var(--muted)}
+/* The second line is one fixed line box whatever sits in it. The pill carries
+   a border and the denominator does not, which left a thin row three pixels
+   shorter than its neighbours: invisible on its own, and visible as a wobble
+   down a column of nine. */
+.rt .den,.rt .pill{height:15px;line-height:15px;display:inline-flex;
+  align-items:center}
+.rt.few .pill{padding:0 7px;font-size:.58rem;border:0;border-radius:20px}
+.rt.nil b{font-weight:400}
 
 /* ---- badges ---- */
 .pill{display:inline-block;font-size:.68rem;font-weight:600;letter-spacing:.04em;
