@@ -19,14 +19,23 @@ a lawyer cannot do for you. They are not legal advice and have not been
 reviewed by anybody qualified. The banner at the top of each page says exactly
 that, and it disappears once COUNTERPLAY_LEGAL_REVIEWED is set.
 
-CONTACT DETAILS COME FROM THE ENVIRONMENT
------------------------------------------
-An operator name, an email and a postal address. A postal address is not
-optional decoration: US anti-spam law requires a physical address in
-commercial email, so the same three values serve the policy and the outreach
-footer. They are environment variables rather than constants so that a real
-address is never committed to a public repository, and if they are missing the
-page says it is incomplete rather than inventing one.
+ONE CONTACT DETAIL, NOT THREE
+-----------------------------
+An email address, and that is all. An earlier version also published an
+operator name and a postal address and told the reader the pages were
+incomplete without them. Both were wrong:
+
+  * No US law requires a solo operator to publish a legal name in a privacy
+    policy. California's CalOPPA wants the policy and a contact method, not an
+    identity. A name is a trust decision, not a legal one.
+  * The postal address requirement is CAN-SPAM, and it applies to commercial
+    EMAIL rather than to a website. It belongs in the footer of the outreach
+    message, which is where `deploy/outreach-email.md` puts it. Password
+    resets are transactional and exempt from it altogether.
+
+What is left is the one detail that makes the promise on these pages mean
+anything: a way to ask. It comes from the environment so that the published
+address can be changed without a deploy.
 """
 from __future__ import annotations
 
@@ -34,48 +43,39 @@ import os
 
 from .theme import esc
 
-NAME = os.environ.get("COUNTERPLAY_LEGAL_NAME", "")
 EMAIL = os.environ.get("COUNTERPLAY_LEGAL_EMAIL", "")
-ADDRESS = os.environ.get("COUNTERPLAY_LEGAL_ADDRESS", "")
 REVIEWED = os.environ.get("COUNTERPLAY_LEGAL_REVIEWED", "") == "1"
 
 UPDATED = "September 2026"
 
 
 def complete() -> bool:
-    return bool(NAME and EMAIL and ADDRESS)
+    """Whether these pages can do their job, which needs one thing."""
+    return bool(EMAIL)
 
 
 def _draft_banner() -> str:
     if complete() and REVIEWED:
         return ""
-    missing = [n for n, v in (("an operator name", NAME), ("a contact email", EMAIL),
-                              ("a postal address", ADDRESS)) if not v]
-    what = (f" It is also missing {', '.join(missing)}." if missing else "")
+    what = ("" if EMAIL else
+            " It also has no contact address configured, so nobody can act on it.")
     return (f'<p class="warn"><strong>Draft.</strong> This page describes what '
             f'the system actually does and has not been reviewed by a lawyer.'
             f'{esc(what)}</p>')
 
 
 def _contact_block() -> str:
-    """Whatever is configured, rather than nothing until everything is.
+    """The address to write to, and nothing else.
 
-    The first version showed "not configured" unless all three were set, so a
-    server with a real name and a real email on it still gave a reader no way
-    to reach anybody. A partial answer to "how do I ask you to delete my data"
-    is worth a great deal more than no answer.
+    An earlier version printed a name and a postal address beside it. Neither
+    is required of these pages, and a home address published on a page that
+    scrapers read is permanent in a way a person cannot take back.
     """
-    bits = []
-    if NAME:
-        bits.append(esc(NAME))
-    if EMAIL:
-        bits.append(f'<a href="mailto:{esc(EMAIL)}">{esc(EMAIL)}</a>')
-    if ADDRESS:
-        bits.append(esc(ADDRESS))
-    if not bits:
-        return ('<p class="den">Contact details are not configured on this '
+    if not EMAIL:
+        return ('<p class="den">No contact address is configured on this '
                 'server yet.</p>')
-    return '<p class="den">' + "<br>".join(bits) + "</p>"
+    return (f'<p class="den"><a href="mailto:{esc(EMAIL)}">{esc(EMAIL)}</a>'
+            f'</p>')
 
 
 def privacy_body() -> str:
