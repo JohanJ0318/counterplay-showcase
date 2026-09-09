@@ -60,23 +60,86 @@ CSS = """
 
   --r:6px;
   --shadow:0 1px 2px rgba(25,19,37,.05);
+  --radar-dim:none;
 }
+
+/* ---- dark ----
+   Every colour in this product is already a custom property, so dark is a
+   second set of values rather than a second stylesheet. Nothing below here
+   restates a rule; it restates a palette.
+
+   Counter-Strike players review demos at night and every tool they already
+   use is dark, so this is closer to the expected state than the exception.
+   The ground is warmed slightly toward purple rather than neutral grey,
+   which is the same decision the light theme makes.
+
+   The accent flips direction: on white, purple is the ink and white is the
+   text on it; on near-black, purple is the light and the text on it is dark.
+   --on-purple carries that so no rule has to know which theme it is in. */
+:root[data-theme="dark"]{
+  --bg:#141119;
+  --surface:#1C1823;
+  --surface-2:#221D2B;
+  --border:#2E2739;
+  --border-strong:#3E3549;
+
+  --ink:#EDE9F3;
+  --muted:#A79FB5;
+  --faint:#7E7590;
+
+  --purple:#A78BFA;
+  --purple-deep:#C4B5FD;
+  --purple-bright:#8B5CF6;
+  --purple-soft:#241C38;
+  --purple-line:#3B2E5C;
+  --on-purple:#141119;
+
+  --ct:#A78BFA;
+  --ct-soft:#241C38;
+  --t:#E0A458;
+  --t-soft:#2E2415;
+
+  --good:#4ADE80;
+  --bad:#F87171;
+  --bad-soft:#341D1F;
+
+  --shadow:0 1px 2px rgba(0,0,0,.45);
+  /* Valve's radar images are bright PNGs and cannot be recoloured, so they
+     are dimmed instead of left glowing on a dark page. */
+  --radar-dim:brightness(.72) contrast(1.05);
+}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#141119; --surface:#1C1823; --surface-2:#221D2B;
+    --border:#2E2739; --border-strong:#3E3549;
+    --ink:#EDE9F3; --muted:#A79FB5; --faint:#7E7590;
+    --purple:#A78BFA; --purple-deep:#C4B5FD; --purple-bright:#8B5CF6;
+    --purple-soft:#241C38; --purple-line:#3B2E5C; --on-purple:#141119;
+    --ct:#A78BFA; --ct-soft:#241C38; --t:#E0A458; --t-soft:#2E2415;
+    --good:#4ADE80; --bad:#F87171; --bad-soft:#341D1F;
+    --shadow:0 1px 2px rgba(0,0,0,.45);
+    --radar-dim:brightness(.72) contrast(1.05);
+  }
+}
+html{color-scheme:light dark}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
 body{
   margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
-  font-family:var(--f-body);font-size:15px;line-height:1.6;
+  font-family:var(--f-body);font-size:15px;line-height:1.55;
   -webkit-font-smoothing:antialiased;
 }
 
-.wrap{max-width:1160px;margin:0 auto;padding:0 24px 88px}
+.wrap{max-width:1160px;margin:0 auto;padding:0 24px 64px}
 .wrap.narrow{max-width:460px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
 h1{font-size:clamp(1.7rem,3.6vw,2.25rem);line-height:1.12;letter-spacing:-.022em;
   font-weight:700}
-h2{font-size:1.12rem;letter-spacing:-.012em;font-weight:700}
-h3{font-size:.98rem;font-weight:600}
+/* A heading has to be a step, not a nudge. At 1.12rem against 15px body a
+   reader could not skim by heading, which is the only thing headings are for. */
+h2{font-size:1.45rem;letter-spacing:-.02em;font-weight:800;line-height:1.16}
+h3{font-size:1.02rem;font-weight:600}
 p{margin:0}
 a{color:var(--purple);text-decoration:none}
 a:hover{color:var(--purple-deep);text-decoration:underline}
@@ -87,61 +150,130 @@ a:hover{color:var(--purple-deep);text-decoration:underline}
 .den{font-family:var(--f-mono);font-size:.74rem;color:var(--faint)}
 
 /* ---- top nav ---- */
+/* ---- navigation ----
+   One row, fixed height, and it never wraps. The old bar let the account name
+   push the links onto a second line, which changed the height of the page
+   header depending on how long somebody's name was.
+
+   Sections sit left, next to the mark, because that is where a person looks
+   for them. Everything about the ACCOUNT rather than the product sits right,
+   behind a divider, so "where can I go" and "who am I" are not one list.
+
+   Below 720px the links go behind a menu instead of wrapping. It is a
+   <details> element: a real disclosure with no JavaScript, keyboard
+   accessible for free, and on desktop the summary is simply not displayed. */
 nav.top{background:var(--surface);border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:50}
-.nav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:58px;display:flex;
-  gap:20px;align-items:center;justify-content:space-between}
-.nav-links{display:flex;gap:6px;align-items:center;font-size:.9rem;
-  flex-wrap:wrap;justify-content:flex-end;min-width:0}
-.nav-links a{white-space:nowrap}
-/* The account name is the one nav item of unbounded length, and on a phone it
-   pushed everything else off the edge. It truncates; the links never do. */
-.nav-links a.who{max-width:9rem;overflow:hidden;text-overflow:ellipsis}
-/* The section you are in, marked in the nav rather than left to be inferred. */
+.nav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:56px;
+  display:flex;gap:16px;align-items:center}
+.nav-menu{flex:1 1 auto;min-width:0;position:relative}
+/* The checkbox is the menu's open state, so the disclosure needs no script.
+   A <details> cannot do this job: browsers hide the content of a closed
+   details through the internal slot, so CSS cannot show it again on a wide
+   screen, and the links vanished on desktop. The input is moved out of sight
+   rather than `hidden` so it keeps keyboard focus. */
+.navchk{position:absolute;width:1px;height:1px;opacity:0;pointer-events:none}
+.navbtn{display:none}
+.nav-links{display:flex;gap:2px;align-items:center;font-size:.9rem;min-width:0}
+.nav-links a{white-space:nowrap;color:var(--muted);padding:7px 11px;
+  border-radius:var(--r);font-weight:500}
+.nav-links a:hover{color:var(--ink);background:var(--bg);text-decoration:none}
+/* The section you are in, marked rather than left to be inferred. */
 .nav-links a.here{color:var(--purple);background:var(--purple-soft)}
+/* `.nav-links a` outranks `.btn`, so without this the call to action renders in
+   muted grey on the purple fill, the lowest-contrast text on the page, on the
+   one element that most needs reading. */
+.nav-links a.btn{color:var(--on-purple);background:var(--purple);padding:8px 15px}
+.nav-links a.btn:hover{color:var(--on-purple);background:var(--purple-deep)}
+
+.nav-side{display:flex;gap:8px;align-items:center;flex:none;
+  padding-left:16px;border-left:1px solid var(--border)}
+.nav-side a.who{color:var(--muted);font-size:.86rem;font-weight:500;
+  max-width:9rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  padding:6px 9px;border-radius:var(--r)}
+.nav-side a.who:hover{color:var(--ink);background:var(--bg);text-decoration:none}
+.themebtn{appearance:none;border:1px solid var(--border-strong);
+  background:transparent;color:var(--muted);font:inherit;font-size:.9rem;
+  line-height:1;width:30px;height:30px;border-radius:var(--r);cursor:pointer;
+  display:inline-flex;align-items:center;justify-content:center;flex:none}
+.themebtn:hover{color:var(--ink);border-color:var(--purple);
+  background:var(--purple-soft)}
+
 /* Section navigation: where you are INSIDE a section, on its own row, so the
    primary nav never changes shape between one part of the product and another. */
 .subnav{background:var(--surface);border-bottom:1px solid var(--border)}
-.subnav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:42px;
+.subnav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:40px;
   display:flex;gap:4px;align-items:center;overflow-x:auto}
 .subnav a{color:var(--muted);font-size:.86rem;font-weight:500;padding:6px 11px;
   border-radius:var(--r);white-space:nowrap}
 .subnav a:hover{color:var(--ink);background:var(--bg);text-decoration:none}
 .subnav a.here{color:var(--purple);background:var(--purple-soft)}
-@media(max-width:640px){
-  .nav-in{flex-wrap:wrap;gap:6px}
-  .nav-links{font-size:.82rem;gap:2px;width:100%}
-  .nav-links a{padding:6px 8px}
-  .nav-links a.who{max-width:6rem}
+
+/* Six links, a divider, an account name and the theme switch need about
+   820px. Below that they do not shrink, they overlap: link text is nowrap,
+   so the row overflows rather than reflowing, and the account name drew on
+   top of "League". The menu therefore appears at 880px rather than at a
+   phone width. */
+@media(min-width:881px){
+  /* Backstop. If a longer account name ever arrives, the links clip rather
+     than draw over the top of it. */
+  .nav-menu{overflow:hidden}
 }
-.nav-links a{color:var(--muted);padding:7px 12px;border-radius:var(--r);
-  font-weight:500}
-.nav-links a:hover{color:var(--ink);background:var(--bg);text-decoration:none}
-/* `.nav-links a` outranks `.btn`, so without this the call to action renders in
-   muted grey on the purple fill, the lowest-contrast text on the page, on the
-   one element that most needs reading. */
-.nav-links a.btn{color:var(--on-purple);background:var(--purple);padding:8px 16px}
-.nav-links a.btn:hover{color:var(--on-purple);background:var(--purple-deep)}
+@media(max-width:880px){
+  .nav-in{gap:10px;padding:0 16px}
+  .nav-menu{flex:none;margin-left:auto}
+  .navbtn{display:inline-flex;align-items:center;gap:7px;cursor:pointer;
+    color:var(--muted);font-size:.86rem;font-weight:600;padding:6px 10px;
+    border-radius:var(--r);border:1px solid var(--border-strong);
+    user-select:none;-webkit-user-select:none}
+  .navchk:focus-visible+.navbtn{outline:2px solid var(--purple);
+    outline-offset:2px}
+  .navchk:checked+.navbtn{color:var(--purple);border-color:var(--purple);
+    background:var(--purple-soft)}
+  .nav-menu .nav-links{display:none}
+  .navchk:checked~.nav-links{display:flex;flex-direction:column;
+    align-items:stretch;position:absolute;right:0;top:calc(100% + 8px);
+    min-width:190px;background:var(--surface);border:1px solid var(--border);
+    border-radius:var(--r);box-shadow:0 10px 26px rgba(25,19,37,.16);
+    padding:6px;z-index:60}
+  .nav-side{padding-left:10px}
+  .nav-side a.who{max-width:6.5rem}
+}
+
 .mark{font-family:var(--f-display);font-weight:700;letter-spacing:-.03em;
   font-size:1.06rem;color:var(--ink)}
 .mark em{font-style:normal;color:var(--purple)}
 
 /* ---- page header ---- */
 header.page{background:var(--surface);border-bottom:1px solid var(--border)}
-.head-in{max-width:1160px;margin:0 auto;padding:30px 24px 26px;display:flex;
-  flex-direction:column;gap:7px}
+.head-in{max-width:1160px;margin:0 auto;padding:22px 24px 20px;display:flex;
+  flex-direction:column;gap:5px}
 .crumb{font-size:.86rem;color:var(--muted)}
 
-section{padding-top:34px;display:flex;flex-direction:column;gap:14px}
-.sec-head{display:flex;flex-direction:column;gap:3px}
-.lede{color:var(--muted);font-size:.9rem;max-width:70ch}
+/* A coach reads this between matches on a laptop. Tighter than a marketing
+   page on purpose: the same content now fits about a third more per screen
+   without any of it getting smaller. */
+section{padding-top:24px;display:flex;flex-direction:column;gap:11px}
+.sec-head{display:flex;flex-direction:column;gap:2px}
+.lede{color:var(--muted);font-size:.875rem;max-width:70ch}
+
+/* ---- one section per page leads ----
+   Every section used to be label, heading, paragraph, card, which meant
+   nothing on the page said "read this one first". The one that matters gets
+   a rule, a tint and a bigger heading; everything else steps back a little
+   so that it can. */
+section.lead{background:var(--surface);border:1px solid var(--border);
+  border-left:3px solid var(--purple);border-radius:var(--r);
+  padding:20px 22px 22px;margin-top:26px;box-shadow:var(--shadow)}
+section.lead>.sec-head h2{font-size:1.75rem}
+section.lead>.sec-head .label{color:var(--purple)}
 
 /* ---- surfaces ---- */
 .card, .tbl-wrap, .stat, .note, .warn{
   background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r);box-shadow:var(--shadow);
 }
-.card{padding:22px 24px;display:flex;flex-direction:column;gap:14px}
+.card{padding:16px 18px;display:flex;flex-direction:column;gap:11px}
 .tbl-wrap{overflow-x:auto}
 
 /* ---- tables ---- */
@@ -201,10 +333,14 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 
 /* ---- stat cards ---- */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:12px}
-.stat{padding:16px 18px;display:flex;flex-direction:column;gap:2px}
+.stat{padding:13px 16px;display:flex;flex-direction:column;gap:1px}
+/* Numbers are ink. Purple was on every figure on the page, which made none
+   of them the important one. It is now the lead number of a row and the
+   things you can click, and nothing else. */
 .stat-n{font-family:var(--f-display);font-weight:700;font-size:1.6rem;
   letter-spacing:-.02em;font-variant-numeric:tabular-nums;line-height:1.15;
-  color:var(--purple-deep)}
+  color:var(--ink)}
+.stat-row>.stat:first-child .stat-n,.stat.key .stat-n{color:var(--purple-deep)}
 
 /* ---- badges ---- */
 .pill{display:inline-block;font-size:.68rem;font-weight:600;letter-spacing:.04em;
@@ -249,7 +385,8 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 }
 .zonerow{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
 .zonefig{margin:0;flex:1 1 320px;min-width:0}
-.zonefig svg{width:100%;height:auto;border:1px solid var(--line);
+.zonefig svg image{filter:var(--radar-dim)}
+.zonefig svg{width:100%;height:auto;border:1px solid var(--border);
   border-radius:var(--r);background:var(--card)}
 .zonefig figcaption{margin-top:6px}
 details summary{cursor:pointer;font-weight:600;color:var(--purple);
@@ -371,16 +508,36 @@ PRIMARY_NAV = [
 ]
 
 
-def nav_links(current: str = "", account: str = "") -> str:
-    """The primary nav as HTML. `current` marks the section you are in."""
+def nav_links(current: str = "") -> str:
+    """The primary nav as HTML. `current` marks the section you are in.
+
+    The account no longer belongs in this list. "Where can I go in the
+    product" and "who am I signed in as" are different questions, and mixing
+    them put an item of unbounded length in the middle of a fixed row.
+    """
     out = []
     for href, label in PRIMARY_NAV:
         here = ' aria-current="page"' if href == current else ""
         cls = ' class="here"' if href == current else ""
         out.append(f'<a href="{href}"{cls}{here}>{esc(label)}</a>')
-    if account:
-        out.append(f'<a class="who" href="/account">{esc(account)}</a>')
     return "".join(out)
+
+
+# Set before first paint so a dark-mode reader never sees a white flash, and
+# read back from localStorage so the choice survives a reload. No preference
+# stored means no attribute, which leaves the OS setting in charge.
+THEME_SCRIPT = """<script>
+(function(){try{var t=localStorage.getItem('cp-theme');
+if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+function cpTheme(){var h=document.documentElement,c=h.getAttribute('data-theme'),
+n=c?(c==='dark'?'light':'dark'):(window.matchMedia&&
+window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
+h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}}
+</script>"""
+
+THEME_BUTTON = ('<button class="themebtn" type="button" onclick="cpTheme()" '
+                'title="Switch between light and dark" '
+                'aria-label="Switch between light and dark">&#9681;</button>')
 
 
 def page(title: str, head: str, body: str, user=None) -> str:
@@ -389,16 +546,24 @@ def page(title: str, head: str, body: str, user=None) -> str:
         links = ('<a href="/league/">League</a>'
                  '<a href="/login">Log in</a>'
                  '<a class="btn" href="/signup">Add your team</a>')
+        side = THEME_BUTTON
     else:
-        links = nav_links(account=user["name"] or user["email"])
+        links = nav_links()
+        who = esc(user["name"] or user["email"])
+        side = f'<a class="who" href="/account" title="{who}">{who}</a>{THEME_BUTTON}'
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{esc(title)}</title>{FONTS}
-<style>{CSS}</style></head><body>
+<style>{CSS}</style>{THEME_SCRIPT}</head><body>
 <nav class="top"><div class="nav-in">
   <a class="mark" href="/">Counter<em>play</em></a>
-  <span class="nav-links">{links}</span>
+  <span class="nav-menu">
+    <input class="navchk" id="navchk" type="checkbox" aria-label="Menu">
+    <label class="navbtn" for="navchk">Menu</label>
+    <span class="nav-links">{links}</span>
+  </span>
+  <span class="nav-side">{side}</span>
 </div></nav>
 <header class="page"><div class="head-in">{head}</div></header>
 <div class="wrap">{body}

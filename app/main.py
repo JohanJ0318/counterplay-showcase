@@ -1509,6 +1509,13 @@ def stats_page(request: Request):
             cls = "on" if it["good"] else "t"
             side = (it["side"] or "").upper()
             ev = "".join(f'<li>{esc(e)}</li>' for e in it["evidence"])
+            # A finding counted in flashes or in dollars brings its own
+            # closing line. The default one is a share of rounds against the
+            # team's round win rate, which is only true of the rest.
+            foot = it.get("foot") or (
+                f'{it["rate"]:.0f}% against your {plan["baseline"]:.0f}% '
+                f'overall, a gap of {abs(it["gap"]):.0f} points across '
+                f'{it["of"]} rounds')
             return (
                 f'<div class="card advice{" good" if it["good"] else ""}">'
                 f'<div style="display:flex;gap:9px;align-items:center;'
@@ -1517,9 +1524,7 @@ def stats_page(request: Request):
                 + f'</div><h3>{esc(it["do"])}</h3>'
                 f'<p class="lede">{esc(it["because"])}</p>'
                 f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
-                f'<p class="den">{it["rate"]:.0f}% against your '
-                f'{plan["baseline"]:.0f}% overall, a gap of '
-                f'{abs(it["gap"]):.0f} points across {it["of"]} rounds</p></div>')
+                f'<p class="den">{esc(foot)}</p></div>')
 
         # Grouped by map, because practice is planned one map at a time. The
         # ranking still decides the order of the groups and of the cards inside
@@ -1534,7 +1539,7 @@ def stats_page(request: Request):
                           f'<div class="grid2">'
                           f'{"".join(advice_card(i) for i in items)}</div></div>')
         monday_block = f"""
-  <section>
+  <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
       <h2>What to work on</h2></div>
     <p class="lede">Every line below is a conclusion drawn from something counted
@@ -1566,9 +1571,8 @@ def stats_page(request: Request):
         form_block = (
             f'<section><div class="sec-head"><span class="label">'
             f'Newest first</span><h2>Recent form</h2></div>'
-            f'<p class="lede">Your last {len(form)} matches, with the real result: '
-            f'the score followed through the side swap, not rounds summed '
-            f'by side. Click one to open its report.</p>'
+            f'<p class="lede">Your last {len(form)} matches, with the real '
+            f'result. Click one to open its report.</p>'
             f'<div class="formrow">{"".join(cards)}</div></section>')
     else:
         form_block = ""
@@ -1911,11 +1915,9 @@ def stats_page(request: Request):
   <section>
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
-    <p class="lede">Things that happened over and over, each one counted with the
-      number of chances it had. Nothing here is modeled or predicted. A line
-      only appears once it has {report_mod.MIN_PATTERN_CHANCES} chances behind it,
-      and anything under {report_mod.MIN_CHANCES} shows raw counts rather than a
-      percentage.</p>
+    <p class="lede">Counted, never predicted. A line appears once it has
+      {report_mod.MIN_PATTERN_CHANCES} chances behind it; under
+      {report_mod.MIN_CHANCES} it shows raw counts rather than a percentage.</p>
     <div class="grid-chart">
       <div>{patterns_block}</div>
       <div class="chart">{patterns_chart}</div>

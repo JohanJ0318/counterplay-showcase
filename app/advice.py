@@ -137,10 +137,16 @@ def monday(team_id: int) -> dict:
     raw: list[dict] = []
 
     def add(do, because, evidence, hit, of, *, mp=None, side=None, zone=None,
-            good=False, stake=None):
+            good=False, stake=None, foot=None):
         rate = _pct(hit, of)
         gap = rate - baseline
         raw.append({
+            # The line under each card. Every finding except the utility ones
+            # is a share of ROUNDS against the team's round win rate, so the
+            # default sentence is true of them and of nothing else. A finding
+            # counted in flashes or in dollars supplies its own, because
+            # "a gap of 19 points across 745200 rounds" is not a sentence.
+            "foot": foot,
             "do": do, "because": because, "evidence": [evidence],
             "hit": hit, "of": of, "rate": rate, "gap": gap,
             "map": (mp or "").replace("de_", ""), "side": side, "zone": zone,
@@ -284,6 +290,18 @@ def monday(team_id: int) -> dict:
             return 0.0
         return abs(_pct(hit, of) - baseline) / 100.0 * of
 
+    def _round_foot(name):
+        """The footer for a finding counted in something other than rounds.
+
+        Says what happened in the rounds the habit turned up in, which is the
+        only claim about rounds these findings can honestly make.
+        """
+        hit, of = splits.get(name, (0, 0))
+        if not of:
+            return None
+        return (f"You win {hit} of the {of} rounds it happens in "
+                f"({_pct(hit, of):.0f}%), against {baseline:.0f}% overall")
+
     uf = _utility.flashes(team_id)
     if uf and uf["thrown"] >= MIN_UTILITY:
         own = _pct(uf["hit_own"], uf["thrown"])
@@ -298,7 +316,8 @@ def monday(team_id: int) -> dict:
                 f"or the thrower, for {uf['own_secs']:.0f} seconds against "
                 f"{uf['enemy_secs']:.0f} seconds of the opposition",
                 uf["hit_own"], uf["thrown"],
-                stake=_round_stake("own_flash"))
+                stake=_round_stake("own_flash"),
+                foot=_round_foot("own_flash"))
         landed = _pct(uf["hit_enemy"], uf["thrown"])
         if landed <= LANDED_FLASH_FLOOR:
             add("Your flashes are not landing on anybody",
@@ -309,7 +328,8 @@ def monday(team_id: int) -> dict:
                 f"{uf['hit_enemy']} of {uf['thrown']} flashes blinded an "
                 f"opponent; {uf['wasted']} blinded nobody at all",
                 uf["hit_enemy"], uf["thrown"],
-                stake=_round_stake("enemy_flash"))
+                stake=_round_stake("enemy_flash"),
+                foot=_round_foot("enemy_flash"))
 
     uu = _utility.unused(team_id)
     if uu and uu["bought"] >= MIN_UTILITY:
@@ -324,7 +344,8 @@ def monday(team_id: int) -> dict:
                 f"still in a hand when its owner died, across "
                 f"{uu['rounds_holding']} rounds",
                 uu["wasted"], uu["spent"],
-                stake=_round_stake("died_holding"))
+                stake=_round_stake("died_holding"),
+                foot=_round_foot("died_holding"))
 
     items = _merge_same_place(raw)
     items.sort(key=lambda x: -x["stake"])
