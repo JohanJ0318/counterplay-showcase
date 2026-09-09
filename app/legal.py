@@ -58,12 +58,24 @@ def _draft_banner() -> str:
 
 
 def _contact_block() -> str:
-    if not complete():
+    """Whatever is configured, rather than nothing until everything is.
+
+    The first version showed "not configured" unless all three were set, so a
+    server with a real name and a real email on it still gave a reader no way
+    to reach anybody. A partial answer to "how do I ask you to delete my data"
+    is worth a great deal more than no answer.
+    """
+    bits = []
+    if NAME:
+        bits.append(esc(NAME))
+    if EMAIL:
+        bits.append(f'<a href="mailto:{esc(EMAIL)}">{esc(EMAIL)}</a>')
+    if ADDRESS:
+        bits.append(esc(ADDRESS))
+    if not bits:
         return ('<p class="den">Contact details are not configured on this '
                 'server yet.</p>')
-    return (f'<p class="den">{esc(NAME)}<br>'
-            f'<a href="mailto:{esc(EMAIL)}">{esc(EMAIL)}</a><br>'
-            f'{esc(ADDRESS)}</p>')
+    return '<p class="den">' + "<br>".join(bits) + "</p>"
 
 
 def privacy_body() -> str:
