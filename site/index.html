@@ -63,7 +63,11 @@ html{color-scheme:light dark}
 html{scroll-behavior:smooth}
 @media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
-  font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  font-size:17px;line-height:1.6}
+/* No -webkit-font-smoothing here. On Windows it turns OFF subpixel
+     rendering, costing every glyph two thirds of its horizontal resolution
+     and thinning the text out. Left to the operating system. */
+
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
 /* Big and light. The weight comes DOWN as the size goes up, which is how
    display type works and the one thing every current product page shares. */

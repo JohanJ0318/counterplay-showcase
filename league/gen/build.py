@@ -370,7 +370,11 @@ html{color-scheme:light dark}
 
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
-  font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
+  font-size:16px;line-height:1.6}
+/* No -webkit-font-smoothing here. On Windows it turns OFF subpixel
+     rendering, costing every glyph two thirds of its horizontal resolution
+     and thinning the text out. Left to the operating system. */
+
 .wrap{max-width:1060px;margin:0 auto;padding:0 20px 80px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
 /* Same type decisions as the app. Big and light for display, and a section
