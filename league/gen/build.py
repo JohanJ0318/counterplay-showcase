@@ -373,14 +373,18 @@ body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
   font-size:16px;line-height:1.6;-webkit-font-smoothing:antialiased}
 .wrap{max-width:1060px;margin:0 auto;padding:0 20px 80px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
-h1{font-size:clamp(1.8rem,4.4vw,2.6rem);line-height:1.04;letter-spacing:-.026em;font-weight:800}
-h2{font-size:1.28rem;letter-spacing:-.016em;font-weight:800}
+/* Same type decisions as the app. Big and light for display, and a section
+   heading with enough voice to sound written rather than generated. Kept in
+   step by hand because this site carries its own copy of the stylesheet. */
+h1{font-size:clamp(2.1rem,4.6vw,3rem);line-height:1.04;letter-spacing:-.034em;
+  font-weight:600}
+h2{font-size:1.2rem;letter-spacing:-.014em;font-weight:700;line-height:1.22}
 h3{font-size:1rem;font-weight:600}
 p{margin:0}
 a{color:var(--purple);text-decoration:none}
 a:hover{text-decoration:underline}
-.label{font-family:var(--f-mono);font-size:.66rem;font-weight:500;letter-spacing:.13em;
-  text-transform:uppercase;color:var(--faint)}
+.label{font-family:var(--f-mono);font-size:.66rem;font-weight:600;letter-spacing:.13em;
+  text-transform:uppercase;color:var(--purple)}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 nav.top{background:var(--surface);border-bottom:1px solid var(--border)}
 .nav-in{max-width:1060px;margin:0 auto;padding:14px 20px;display:flex;gap:16px;
@@ -404,7 +408,9 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border)}
 .mark{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em;font-size:1.06rem;
   color:var(--ink)}
 .mark em{font-style:normal;color:var(--purple)}
-header.page{background:var(--surface);border-bottom:1px solid var(--border)}
+header.page{background:
+  linear-gradient(180deg,var(--purple-soft) 0%,var(--surface) 100%);
+  border-bottom:1px solid var(--border)}
 .head-in{max-width:1060px;margin:0 auto;padding:34px 20px 28px;display:flex;
   flex-direction:column;gap:11px}
 .crumb{font-size:.86rem;color:var(--muted)}

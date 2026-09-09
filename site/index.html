@@ -65,8 +65,11 @@ html{scroll-behavior:smooth}
 body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--f-body);
   font-size:17px;line-height:1.6;-webkit-font-smoothing:antialiased}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
-h1{font-size:clamp(2.2rem,5.6vw,3.6rem);line-height:1.02;letter-spacing:-.03em;font-weight:800}
-h2{font-size:clamp(1.4rem,3vw,2rem);line-height:1.1;letter-spacing:-.022em;font-weight:800}
+/* Big and light. The weight comes DOWN as the size goes up, which is how
+   display type works and the one thing every current product page shares. */
+h1{font-size:clamp(2.6rem,6.4vw,4.4rem);line-height:.98;letter-spacing:-.042em;
+  font-weight:500}
+h2{font-size:clamp(1.5rem,3.2vw,2.2rem);line-height:1.08;letter-spacing:-.03em;font-weight:600}
 h3{font-size:1.05rem;font-weight:600;letter-spacing:-.008em}
 p{margin:0}
 a{color:var(--purple)}
@@ -85,8 +88,8 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .nav-links{display:flex;gap:18px;align-items:center}
 .nav-links a{font-size:.9rem;text-decoration:none;color:var(--muted)}
 .nav-links a:hover{color:var(--ink)}
-.nav-links a.btn-sm{background:var(--purple);color:var(--on-purple);padding:8px 14px;
-  font-weight:600;font-family:var(--f-display)}
+.nav-links a.btn-sm{background:var(--purple);color:var(--on-purple);padding:8px 16px;
+  font-weight:600;font-family:var(--f-display);border-radius:99px}
 @media (max-width:620px){.nav-links a:not(.btn-sm){display:none}}
 
 /* ---------- hero ---------- */
@@ -100,16 +103,28 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .sub{font-size:1.14rem;color:var(--muted);max-width:52ch}
 .hero-cta{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-top:4px}
 .btn{display:inline-block;background:var(--purple);color:var(--on-purple);
-  font-family:var(--f-display);font-weight:600;font-size:1rem;padding:13px 22px;
-  text-decoration:none;border:1px solid var(--purple)}
+  font-family:var(--f-display);font-weight:600;font-size:1rem;padding:13px 26px;
+  text-decoration:none;border:1px solid var(--purple);border-radius:99px}
 .btn:hover{filter:brightness(1.07)}
 .btn-ghost{background:transparent;color:var(--ink);border:1px solid var(--border-strong)}
 .btn-ghost:hover{border-color:var(--ink);filter:none}
 .hero-note{font-size:.86rem;color:var(--faint)}
 
 /* the receipt, and the identity: every number carries its denominator */
-.receipt{border:1px solid var(--border);background:var(--bg);padding:20px;
-  display:flex;flex-direction:column;gap:0}
+/* Framed like an application window. Relay puts a screenshot of its product
+   here; this page has something better than a screenshot, which is a set of
+   real figures out of real demos, and it was drawn as a plain box. The frame
+   says "this is the thing" without pretending to be a picture of it. */
+.receipt{border:1px solid var(--border-strong);background:var(--surface);
+  border-radius:12px;display:flex;flex-direction:column;gap:0;overflow:hidden;
+  box-shadow:0 24px 60px -20px rgba(25,19,37,.28)}
+.receipt-bar{display:flex;align-items:center;gap:7px;padding:11px 14px;
+  background:var(--sunk);border-bottom:1px solid var(--border)}
+.receipt-bar i{width:10px;height:10px;border-radius:50%;
+  background:var(--border-strong);display:block}
+.receipt-bar span{font-family:var(--f-mono);font-size:.7rem;color:var(--faint);
+  margin-left:6px}
+.receipt-body{padding:18px 20px 20px;display:flex;flex-direction:column}
 .receipt-top{display:flex;justify-content:space-between;align-items:baseline;
   padding-bottom:12px;border-bottom:1px solid var(--border-strong)}
 .rline{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;
@@ -244,6 +259,10 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="receipt" aria-label="Example of how figures are reported">
+    <div class="receipt-bar" aria-hidden="true">
+      <i></i><i></i><i></i><span>counterplaycs.com/stats</span>
+    </div>
+    <div class="receipt-body">
     <div class="receipt-top">
       <span class="label">Real lines, real matches</span>
       <span class="label">observed / chances</span>
@@ -266,6 +285,7 @@ footer a{color:var(--muted)}
     </div>
     <p class="receipt-foot">Every one of these came out of eleven real demos, and every
       line in a report carries its denominator and the rounds it came from.</p>
+    </div>
   </div>
 </div></div>
 

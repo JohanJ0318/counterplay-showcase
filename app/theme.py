@@ -58,7 +58,7 @@ CSS = """
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 
-  --r:6px;
+  --r:8px;
   --shadow:0 1px 2px rgba(25,19,37,.05);
   --radar-dim:none;
 }
@@ -127,25 +127,34 @@ html{color-scheme:light dark}
 html{-webkit-text-size-adjust:100%}
 body{
   margin:0;min-height:100vh;background:var(--bg);color:var(--ink);
-  font-family:var(--f-body);font-size:15px;line-height:1.55;
+  font-family:var(--f-body);font-size:14px;line-height:1.5;
   -webkit-font-smoothing:antialiased;
 }
 
 .wrap{max-width:1160px;margin:0 auto;padding:0 24px 64px}
 .wrap.narrow{max-width:460px}
 h1,h2,h3{font-family:var(--f-display);margin:0;text-wrap:balance}
-h1{font-size:clamp(1.7rem,3.6vw,2.25rem);line-height:1.12;letter-spacing:-.022em;
-  font-weight:700}
-/* A heading has to be a step, not a nudge. At 1.12rem against 15px body a
-   reader could not skim by heading, which is the only thing headings are for. */
-h2{font-size:1.45rem;letter-spacing:-.02em;font-weight:800;line-height:1.16}
+/* Big and light, not small and heavy. The weight comes DOWN as the size goes
+   up, which is how display type is supposed to work and is the one thing
+   every modern product page has in common. Measured off Relay: 72px at weight
+   400 with -1.8px tracking. This is the same idea at a size that suits a page
+   with a table under it. */
+h1{font-size:clamp(2.1rem,4.6vw,3rem);line-height:1.04;letter-spacing:-.034em;
+  font-weight:600}
+/* The surface underneath says where a section starts, so the heading does not
+   have to shout it. It does still have to sound like somebody wrote it.
+   Tabler's answer is 16px at weight 500, and copying that exactly made this
+   look like every other admin template. 19px at 700 keeps the structure and
+   keeps the voice. */
+h2{font-size:1.2rem;letter-spacing:-.014em;font-weight:700;line-height:1.22}
 h3{font-size:1.02rem;font-weight:600}
 p{margin:0}
 a{color:var(--purple);text-decoration:none}
 a:hover{color:var(--purple-deep);text-decoration:underline}
 
-.label{font-size:.7rem;font-weight:600;letter-spacing:.07em;text-transform:uppercase;
-  color:var(--faint)}
+.label{font-size:.68rem;font-weight:700;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--purple)}
+.head-in .label{color:var(--purple)}
 .mono{font-family:var(--f-mono);font-variant-numeric:tabular-nums}
 .den{font-family:var(--f-mono);font-size:.74rem;color:var(--faint)}
 
@@ -245,7 +254,13 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border);
 .mark em{font-style:normal;color:var(--purple)}
 
 /* ---- page header ---- */
-header.page{background:var(--surface);border-bottom:1px solid var(--border)}
+/* The page header was a white band with a title in it, which is the most
+   anonymous thing on the site and the first thing anybody sees. A wash of the
+   brand colour costs nothing, cannot fail to load, and is the difference
+   between a page and a product. */
+header.page{background:
+  linear-gradient(180deg,var(--purple-soft) 0%,var(--surface) 100%);
+  border-bottom:1px solid var(--border)}
 .head-in{max-width:1160px;margin:0 auto;padding:22px 24px 20px;display:flex;
   flex-direction:column;gap:5px}
 .crumb{font-size:.86rem;color:var(--muted)}
@@ -253,7 +268,15 @@ header.page{background:var(--surface);border-bottom:1px solid var(--border)}
 /* A coach reads this between matches on a laptop. Tighter than a marketing
    page on purpose: the same content now fits about a third more per screen
    without any of it getting smaller. */
-section{padding-top:24px;display:flex;flex-direction:column;gap:11px}
+section{background:var(--surface);border:1px solid var(--border);
+  border-radius:8px;padding:15px 17px 17px;margin-top:14px;
+  display:flex;flex-direction:column;gap:11px}
+/* No double chrome. A table or a card that is a section's own content should
+   not draw a second border inside the first one. */
+section>.tbl-wrap,section>.tbl-plain,section>.card,section>.note{
+  background:transparent;border:0;border-radius:0;box-shadow:none;padding:0}
+section>.grid2>div>.tbl-wrap,section>.grid-chart>div>.tbl-plain{
+  background:transparent;border:0;box-shadow:none}
 .sec-head{display:flex;flex-direction:column;gap:2px}
 .lede{color:var(--muted);font-size:.875rem;max-width:70ch}
 
@@ -262,16 +285,15 @@ section{padding-top:24px;display:flex;flex-direction:column;gap:11px}
    nothing on the page said "read this one first". The one that matters gets
    a rule, a tint and a bigger heading; everything else steps back a little
    so that it can. */
-section.lead{background:var(--surface);border:1px solid var(--border);
-  border-left:3px solid var(--purple);border-radius:var(--r);
-  padding:20px 22px 22px;margin-top:26px;box-shadow:var(--shadow)}
-section.lead>.sec-head h2{font-size:1.75rem}
+section.lead{border-left:3px solid var(--purple);
+  padding:17px 19px 19px;margin-top:22px}
+section.lead>.sec-head h2{font-size:1.3rem;font-weight:700}
 section.lead>.sec-head .label{color:var(--purple)}
 
 /* ---- surfaces ---- */
 .card, .tbl-wrap, .stat, .note, .warn{
   background:var(--surface);border:1px solid var(--border);
-  border-radius:var(--r);box-shadow:var(--shadow);
+  border-radius:8px;box-shadow:none;
 }
 .card{padding:16px 18px;display:flex;flex-direction:column;gap:11px}
 .tbl-wrap{overflow-x:auto}
@@ -333,7 +355,8 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 
 /* ---- stat cards ---- */
 .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:12px}
-.stat{padding:13px 16px;display:flex;flex-direction:column;gap:1px}
+.stat{padding:13px 16px;display:flex;flex-direction:column;gap:1px;
+  background:var(--surface-2)}
 /* Numbers are ink. Purple was on every figure on the page, which made none
    of them the important one. It is now the lead number of a row and the
    things you can click, and nothing else. */
@@ -427,10 +450,12 @@ input:focus,select:focus,textarea:focus{outline:none;border-color:var(--purple);
   box-shadow:0 0 0 3px var(--purple-soft)}
 input[type=file]{padding:9px;cursor:pointer}
 
+/* Pills. A 6px box is what a form control looked like in 2015; a full radius
+   is what a call to action looks like now, and it costs one value. */
 button,.btn{
-  font-family:var(--f-body);font-weight:600;font-size:.92rem;padding:11px 20px;
+  font-family:var(--f-body);font-weight:600;font-size:.92rem;padding:11px 22px;
   background:var(--purple);color:var(--on-purple);border:1px solid var(--purple);
-  border-radius:var(--r);cursor:pointer;text-align:center;display:inline-block;
+  border-radius:99px;cursor:pointer;text-align:center;display:inline-block;
   transition:background .12s ease,border-color .12s ease;
 }
 button:hover,.btn:hover{background:var(--purple-deep);border-color:var(--purple-deep);
