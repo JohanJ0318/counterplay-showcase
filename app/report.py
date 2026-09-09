@@ -335,14 +335,26 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
 
 
 def rate(won: int, total: int) -> str:
-    """A rate, or raw counts when the sample is too thin to carry a percentage."""
+    """A rate, or raw counts when the sample is too thin to carry a percentage.
+
+    Every percentage in the product comes through here, so the bar drawn under
+    the figure is drawn under every figure everywhere: the recurring patterns,
+    the map pool, the scoreboard, both player tables and the positional
+    tables. A column of rates becomes a shape you read down rather than eight
+    numerals you compare in your head.
+
+    A thin sample gets the label and NO bar. Drawing 5 of 7 as a 71% fill is
+    precisely the overstatement the thin label exists to prevent, and a bar is
+    a more confident claim than a number because it invites comparison.
+    """
     if total == 0:
         return '<span class="den">–</span>'
     if total < MIN_CHANCES:
-        return (f'<span class="den">{won} / {total}</span> '
-                f'<span class="pill beta">thin</span>')
-    return (f'{100.0 * won / total:.0f}% '
-            f'<span class="den">{won} / {total}</span>')
+        return (f'<span class="rt thin"><span class="den">{won} / {total}</span> '
+                f'<span class="pill beta">thin</span></span>')
+    pct = 100.0 * won / total
+    return (f'<span class="rt" style="--f:{pct:.0f}%">{pct:.0f}% '
+            f'<span class="den">{won} / {total}</span></span>')
 
 
 def team_players(team_id: int) -> list[dict]:

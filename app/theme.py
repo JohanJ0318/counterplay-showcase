@@ -365,6 +365,23 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   color:var(--ink)}
 .stat-row>.stat:first-child .stat-n,.stat.key .stat-n{color:var(--purple-deep)}
 
+/* ---- a rate is a shape, not just a numeral ----
+   Drawn under the figure rather than behind it: a tinted cell background
+   fights the row hover and turns a dense table into noise, while a rule under
+   the number reads at a glance and vanishes while you read the number.
+
+   The track is always the full width of the figure, so a 90% and a 20% are
+   comparable down a column even though the text lengths differ. */
+.rt{display:inline-block;position:relative;padding-bottom:7px;min-width:74px}
+.rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
+  height:3px;border-radius:2px}
+.rt::before{right:0;background:var(--border)}
+.rt::after{width:var(--f,0%);background:var(--purple);opacity:.85}
+/* A thin sample gets no bar. Drawing 5 of 7 as a 71% fill is exactly the
+   overstatement the "thin" label exists to prevent. */
+.rt.thin::before,.rt.thin::after{display:none}
+.rt.thin{padding-bottom:0;min-width:0}
+
 /* ---- badges ---- */
 .pill{display:inline-block;font-size:.68rem;font-weight:600;letter-spacing:.04em;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap;
