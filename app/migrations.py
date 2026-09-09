@@ -387,6 +387,54 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE player_rounds ADD COLUMN nades_value INTEGER NOT NULL DEFAULT 0;
         ALTER TABLE player_rounds ADD COLUMN nades_wasted INTEGER NOT NULL DEFAULT 0;
     """),
+    (16, "accounts a coach can actually own", """
+        -- THREE THINGS THAT HAVE TO EXIST BEFORE A STRANGER HAS AN ACCOUNT.
+
+        -- 1. Naming the map is an admin act, not a user act.
+        --
+        -- `POST /api/zones` rewrote every zone name on the platform and was
+        -- open to anyone signed in. The zones are shared across every team, so
+        -- one coach experimenting with the naming page could rename Mirage for
+        -- everybody. The founder keeps the flag; nobody else gets it by
+        -- default.
+        ALTER TABLE users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0;
+        UPDATE users SET is_admin = 1
+         WHERE id = (SELECT MIN(id) FROM users);
+
+        -- 2. A way back in.
+        --
+        -- There was no password reset and no mail. A coach who forgot their
+        -- password was locked out until somebody ran setpw.py over SSH.
+        --
+        -- The token is stored as its SHA-256, exactly like a session cookie,
+        -- so a leaked backup is not a set of live password resets. One hour,
+        -- one use, and using one ends every session that account has open,
+        -- because "I forgot my password" and "somebody else is in my account"
+        -- arrive looking identical.
+        CREATE TABLE IF NOT EXISTS password_resets (
+            id          INTEGER PRIMARY KEY,
+            token_hash  TEXT    NOT NULL UNIQUE,
+            user_id     INTEGER NOT NULL,
+            created_at  TEXT    NOT NULL,
+            expires_at  TEXT    NOT NULL,
+            used_at     TEXT,
+            requested_ip TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_resets_user ON password_resets(user_id);
+
+        -- 3. An unsubscribe that works before the first email is sent.
+        --
+        -- Cold email to coaches needs a working opt-out and a postal address
+        -- in the message. The opt-out has to keep working whether or not the
+        -- address ever became an account, so it is keyed on the address rather
+        -- than on a user id.
+        CREATE TABLE IF NOT EXISTS unsubscribes (
+            id         INTEGER PRIMARY KEY,
+            email_key  TEXT    NOT NULL UNIQUE,
+            source     TEXT,
+            created_at TEXT    NOT NULL
+        );
+    """),
 ]
 
 

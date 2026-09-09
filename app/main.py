@@ -25,8 +25,9 @@ from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
-from . import (advice, auth, charts, db, movement, report as report_mod,
-               sample as sample_page, utility)
+from . import (advice, auth, charts, db, legal, mail, movement,
+               report as report_mod, resets, sample as sample_page,
+               utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, page
@@ -227,7 +228,8 @@ def login_form(email: str = "", error: str = "") -> str:
         {form_field("email", "Email", "email", email, autocomplete="email")}
         {form_field("password", "Password", "password", autocomplete="current-password")}
         <button type="submit">Log in</button>
-        <p class="den">No account? <a href="/signup">Add your team</a>.</p>
+        <p class="den">No account? <a href="/signup">Add your team</a>.
+          Forgotten it? <a href="/forgot">Reset your password</a>.</p>
       </form>
     </div>
   </section>"""
@@ -264,6 +266,222 @@ def login_post(request: Request, email: str = Form(""), password: str = Form("")
     response = see_other("/dashboard")
     set_session_cookie(response, token)
     return response
+
+
+# ---------------------------------------------------------------- password reset
+#
+# The rules live in `resets.py`; what is here is the four screens and the one
+# thing the screens must never do, which is say whether an address has an
+# account. Every path through /forgot ends on the same page with the same
+# words, so the form cannot be used to find out who has signed up.
+
+def _forgot_form(email: str = "", error: str = "") -> str:
+    warn = f'<p class="warn">{esc(error)}</p>' if error else ""
+    return f"""
+  <section>
+    <div class="card">
+      {warn}
+      <p class="lede">Give us the address on the account and we will send a
+        link that lets you set a new password. The link works once and lasts
+        {resets.TOKEN_HOURS} hour.</p>
+      <form class="stack" method="post" action="/forgot">
+        {form_field("email", "Email", "email", email, autocomplete="email")}
+        <button type="submit">Send the link</button>
+        <p class="den"><a href="/login">Back to signing in</a></p>
+      </form>
+    </div>
+  </section>"""
+
+
+def _sent_page() -> str:
+    return """
+  <section>
+    <div class="card">
+      <p class="lede">If that address has an account, a reset link is on its
+        way. It works once and lasts an hour.</p>
+      <p class="den">Nothing arrived? Check the spam folder, then try again in
+        a few minutes. We do not say whether an address has an account here,
+        which is deliberate: otherwise this form is a way to find out who has
+        signed up.</p>
+      <p class="den"><a href="/login">Back to signing in</a></p>
+    </div>
+  </section>"""
+
+
+@app.get("/forgot", response_class=HTMLResponse)
+def forgot_get(request: Request):
+    if current(request):
+        return see_other("/account")
+    return html_page("Reset your password | Counterplay",
+                     banner("Reset your password"), _forgot_form())
+
+
+@app.post("/forgot", response_class=HTMLResponse)
+def forgot_post(request: Request, email: str = Form("")):
+    sent = html_page("Check your email | Counterplay",
+                     banner("Check your email"), _sent_page())
+    if not mail.configured():
+        # Better to say so than to show "check your email" forever. This is
+        # the state of a box that has not been given SMTP settings, and the
+        # only person who can hit it before launch is us.
+        return HTMLResponse(
+            page("Reset your password | Counterplay",
+                 banner("Reset your password"),
+                 _forgot_form(email, "Password reset is not switched on for "
+                                     "this server yet. Get in touch and we "
+                                     "will sort it out by hand.")),
+            status_code=503)
+
+    # Rate limited per account, and silently: a caller must not be able to tell
+    # "too many requests" from "no such account" either.
+    if resets.too_many(email):
+        return sent
+    got = resets.issue(email, request.client.host if request.client else "")
+    if got is None:
+        return sent
+    token, user = got
+    subject, body = mail.reset_email(
+        user.get("name") or "", mail.site_url(f"/reset/{token}"),
+        resets.TOKEN_HOURS)
+    try:
+        mail.send(user["email"], subject, body)
+    except (KeyboardInterrupt, SystemExit):
+        raise
+    except Exception as exc:
+        # The token is already issued and the mail did not go. Say so rather
+        # than showing "check your email" to somebody who will never get one.
+        db.audit(user["id"], "reset_mail_failed", f"{type(exc).__name__}")
+        return HTMLResponse(
+            page("Reset your password | Counterplay",
+                 banner("Reset your password"),
+                 _forgot_form(email, "We could not send the email just now. "
+                                     "Try again in a minute.")),
+            status_code=502)
+    db.audit(user["id"], "reset_requested")
+    return sent
+
+
+def _reset_form(token: str, error: str = "") -> str:
+    warn = f'<p class="warn">{esc(error)}</p>' if error else ""
+    return f"""
+  <section>
+    <div class="card">
+      {warn}
+      <form class="stack" method="post" action="/reset/{esc(token)}">
+        {form_field("password", "New password", "password",
+                    autocomplete="new-password")}
+        {form_field("confirm", "New password again", "password",
+                    autocomplete="new-password")}
+        <button type="submit">Set the password</button>
+        <p class="den">Setting it signs this account out everywhere else.</p>
+      </form>
+    </div>
+  </section>"""
+
+
+def _dead_link() -> str:
+    return """
+  <section>
+    <div class="card">
+      <p class="warn">That link is not usable. It has either expired, been
+        used already, or was never one of ours.</p>
+      <p class="den">A link lasts an hour and works once.
+        <a href="/forgot">Ask for a new one</a>.</p>
+    </div>
+  </section>"""
+
+
+@app.get("/reset/{token}", response_class=HTMLResponse)
+def reset_get(token: str):
+    if resets.holder(token) is None:
+        return HTMLResponse(page("Link expired | Counterplay",
+                                 banner("Link expired"), _dead_link()),
+                            status_code=410)
+    return html_page("Set a new password | Counterplay",
+                     banner("Set a new password"), _reset_form(token))
+
+
+@app.post("/reset/{token}", response_class=HTMLResponse)
+def reset_post(request: Request, token: str, password: str = Form(""),
+               confirm: str = Form("")):
+    if resets.holder(token) is None:
+        return HTMLResponse(page("Link expired | Counterplay",
+                                 banner("Link expired"), _dead_link()),
+                            status_code=410)
+    if password != confirm:
+        return HTMLResponse(
+            page("Set a new password | Counterplay", banner("Set a new password"),
+                 _reset_form(token, "Those two do not match.")), status_code=400)
+    problem = auth.password_problem(password)
+    if problem:
+        return HTMLResponse(
+            page("Set a new password | Counterplay", banner("Set a new password"),
+                 _reset_form(token, problem)), status_code=400)
+    if not resets.spend(token, password):
+        return HTMLResponse(page("Link expired | Counterplay",
+                                 banner("Link expired"), _dead_link()),
+                            status_code=410)
+    return html_page(
+        "Password changed | Counterplay", banner("Password changed"),
+        """
+  <section>
+    <div class="card">
+      <p class="lede">Done. Every session on this account was signed out,
+        including any that were not yours.</p>
+      <p><a class="btn" href="/login">Sign in</a></p>
+    </div>
+  </section>""")
+
+
+# ------------------------------------------------------------------- legal
+#
+# Two pages and an opt-out. None of it is interesting and all of it has to
+# exist before somebody who did not build this has an account, or before a
+# cold email goes to a coach.
+
+@app.get("/privacy", response_class=HTMLResponse)
+def privacy_page(request: Request):
+    return html_page("Privacy | Counterplay",
+                     banner("Privacy", label="What we hold, and how to get rid of it"),
+                     legal.privacy_body(), current(request))
+
+
+@app.get("/terms", response_class=HTMLResponse)
+def terms_page(request: Request):
+    return html_page("Terms | Counterplay",
+                     banner("Terms", label="The deal, in plain English"),
+                     legal.terms_body(), current(request))
+
+
+@app.get("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_get(request: Request, e: str = ""):
+    """The link in an outreach email.
+
+    A GET must not change anything, so this confirms rather than acting: mail
+    clients and link scanners fetch every URL in a message, and an unsubscribe
+    that fired on GET would opt people out because their virus scanner was
+    thorough. The address is prefilled and one button away.
+    """
+    return html_page("Unsubscribe | Counterplay", banner("Unsubscribe"),
+                     legal.unsubscribe_form(e), current(request))
+
+
+@app.post("/unsubscribe", response_class=HTMLResponse)
+def unsubscribe_post(email: str = Form("")):
+    key = auth.email_key(email)
+    if auth.email_problem(email):
+        return HTMLResponse(
+            page("Unsubscribe | Counterplay", banner("Unsubscribe"),
+                 legal.unsubscribe_form(email, "That does not look like an "
+                                               "email address.")),
+            status_code=400)
+    already = db.one("SELECT id FROM unsubscribes WHERE email_key = ?", key)
+    if already is None:
+        db.execute("""INSERT INTO unsubscribes (email_key, source, created_at)
+                      VALUES (?,?,?)""", key, "web", db.utcnow())
+        db.audit(None, "unsubscribe", key)
+    return html_page("Unsubscribed | Counterplay", banner("Unsubscribed"),
+                     legal.unsubscribed_body(email, already is not None))
 
 
 @app.post("/logout")
@@ -2155,15 +2373,24 @@ def index():
 
 @app.post("/api/zones")
 async def api_zones(request: Request):
-    """Save the names a human put on the clustered zones.
+    """Save the names a human put on the clustered zones. Admin only.
 
-    Open to any signed-in user: naming the map is shared knowledge, not a
-    per-team secret, and the zones come from the corpus rather than from any
-    one team's demos.
+    Zone names are shared by every team on the platform: one list of 142
+    names, used by every pattern on every report. This used to accept a write
+    from anyone signed in, which meant the first coach with an account could
+    rename Mirage for everybody by trying the naming page out.
+
+    Shared knowledge, yes. Shared write access, no. `grantadmin.py` is how the
+    flag is given, and it is deliberately not something a web page can do.
     """
     user = current(request)
     if user is None:
         return {"ok": False, "error": "sign in first"}
+    if not user["is_admin"]:
+        db.audit(user["id"], "zone_write_denied")
+        return {"ok": False,
+                "error": "zone names are shared across every team, so only an "
+                         "admin can change them"}
     data = await request.json()
     names = data.get("names") if isinstance(data, dict) else None
     if not isinstance(names, dict):

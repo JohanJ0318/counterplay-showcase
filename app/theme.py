@@ -570,6 +570,8 @@ def page(title: str, head: str, body: str, user=None) -> str:
 <footer>
   <span>Counterplay: match analysis for league Counter-Strike.</span>
   <span>Not affiliated with Valve, FACEIT, ESEA, or any collegiate association.</span>
+  <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a>
+    &middot; <a href="/unsubscribe">Unsubscribe</a></span>
 </footer>
 </div></body></html>"""
 

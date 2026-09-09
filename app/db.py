@@ -29,6 +29,11 @@ def in_days(days: int) -> str:
         microsecond=0).isoformat()
 
 
+def in_hours(hours: int) -> str:
+    return (datetime.now(timezone.utc) + timedelta(hours=hours)).replace(
+        microsecond=0).isoformat()
+
+
 def minutes_ago(minutes: int) -> str:
     return (datetime.now(timezone.utc) - timedelta(minutes=minutes)).replace(
         microsecond=0).isoformat()
