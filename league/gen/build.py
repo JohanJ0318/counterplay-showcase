@@ -475,7 +475,11 @@ window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
 h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}}
 </script></head><body>
 <nav class="top"><div class="nav-in">
-  <a class="mark" href="index.html">Counter<em>play</em></a>
+  <!-- The site root, not the league index. The mark is the one control every
+       visitor expects to take them home, and here it took them to the page
+       they were already on. A signed-in coach following it lands on their own
+       dashboard; a visitor lands on the front page. -->
+  <a class="mark" href="/">Counter<em>play</em></a>
   <span class="nav-links">@@NAV@@</span>
   <span class="nav-side"><button class="themebtn" type="button" onclick="cpTheme()" title="Switch between light and dark" aria-label="Switch between light and dark">&#9681;</button></span>
 </div></nav>
@@ -494,15 +498,21 @@ h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}
 def page(path: Path, title: str, league: str, head: str, body: str):
     # Which section page this is, so the section bar marks it. Team and match
     # pages belong to the standings, which is where a reader came from.
-    here = "leaderboards.html" if path.name == "leaderboards.html" else "index.html"
+    here = ("/league/leaderboards" if path.name == "leaderboards.html"
+            else "/league/")
     subnav = "".join(
         f'<a href="{h}"{" class='here'" if h == here else ""}>{esc(l)}</a>'
-        for h, l in (("index.html", f"{league} standings"),
-                     ("leaderboards.html", "Leaderboards")))
+        for h, l in (("/league/", f"{league} standings"),
+                     ("/league/leaderboards", "Leaderboards")))
     out = SHELL
-    nav = "".join(
-        f'<a href="{h}"{" class=\'here\'" if h == "/league/" else ""}>{esc(l)}</a>'
-        for h, l in PRIMARY_NAV)
+    # The public nav, not the app's. These pages are static and cannot know
+    # whether the reader is signed in, and rendering Dashboard, Matches,
+    # Players, Team stats and Trends at a visitor who has never had an account
+    # is five links to a login screen. Where you are INSIDE the league pages
+    # is the row underneath; this row is how you get in.
+    nav = ('<a href="/sample-report">See a real report</a>'
+           '<a href="/login">Log in</a>'
+           '<a class="btn" href="/signup">Add your team</a>')
     for token, value in (("@@CSS@@", CSS), ("@@NAV@@", nav),
                          ("@@SUBNAV@@", subnav), ("@@TITLE@@", esc(title)),
                          ("@@LEAGUE@@", esc(league)), ("@@HEAD@@", head),
@@ -577,7 +587,7 @@ def render(model: dict, out: Path):
             elsewhere = (' <span class="thin" title="also played in another division">'
                          'also elsewhere</span>' if t["multi_division"] else "")
             rows.append(
-                '<tr><td class="name"><a href="t-%s.html">%s</a>%s</td>'
+                '<tr><td class="name"><a href="/league/t-%s">%s</a>%s</td>'
                 '<td class="num mono">%d</td><td class="num">%s</td>'
                 '<td class="num mono">%d</td><td class="num mono">%d</td>'
                 '<td class="num mono" style="color:var(--purple)">%s%d</td></tr>'
@@ -602,7 +612,7 @@ def render(model: dict, out: Path):
         names = [m["names"].get(t, t) for t in m["team_ids"]]
         maps = ", ".join(x["map"].replace("de_", "") for x in m["maps"])
         recent.append(
-            '<tr><td class="name"><a href="m-%s.html">%s</a></td>'
+            '<tr><td class="name"><a href="/league/m-%s">%s</a></td>'
             '<td class="mono">%s</td><td class="mono den">%s</td>'
             '<td class="mono den">%s</td></tr>'
             % (esc(m["id"]), esc(" vs ".join(names)), esc(maps),
@@ -627,7 +637,7 @@ def render(model: dict, out: Path):
       <h2>Leaderboards</h2></div>
     <p class="lede">Top ten on ADR, K/D, kills per round, headshot share, opening-duel
       success and utility damage, ranked inside each division.
-      <a href="leaderboards.html">Open the leaderboards &rarr;</a></p>
+      <a href="/league/leaderboards">Open the leaderboards &rarr;</a></p>
   </section>
   <section>
     <div class="sec-head"><span class="label">Most recent first</span><h2>Matches</h2></div>
@@ -700,7 +710,7 @@ def render(model: dict, out: Path):
                 rows.append(
                     '<tr><td class="num mono den">%d</td>'
                     '<td class="name">%s</td>'
-                    '<td class="den"><a href="t-%s.html">%s</a></td>'
+                    '<td class="den"><a href="/league/t-%s">%s</a></td>'
                     '<td class="num mono">%s</td>'
                     '<td class="num den">%d %s</td></tr>'
                     % (i, esc(pl["nick"]), esc(team["id"]), esc(team["name"]),
@@ -720,7 +730,7 @@ def render(model: dict, out: Path):
             'gap:24px">%s</div></section>'
             % (len(entries), esc(dname), "".join(tables)))
 
-    lb_head = (f'<p class="crumb"><a href="index.html">{esc(league)}</a></p>'
+    lb_head = (f'<p class="crumb"><a href="/league/">{esc(league)}</a></p>'
                f'<span class="label">Ranked within each division</span>'
                f'<h1>Leaderboards</h1>')
     lb_body = f"""
@@ -764,7 +774,7 @@ def render(model: dict, out: Path):
             won = sum(1 for mp in m["maps"]
                       for s in mp["sides"] if s["id"] == t["id"] and s["won"])
             mrows.append(
-                '<tr><td class="name"><a href="m-%s.html">%s</a></td>'
+                '<tr><td class="name"><a href="/league/m-%s">%s</a></td>'
                 '<td class="num mono">%d / %d</td><td class="mono den">%s</td></tr>'
                 % (esc(m["id"]), esc(opp[0] if opp else "?"), won, len(m["maps"]),
                    esc(m["championship"])))
@@ -775,7 +785,7 @@ def render(model: dict, out: Path):
             others = ", ".join(sorted(d for d, v in t["divisions"].items()
                                       if v["maps"] and d != t["home_division"]))
             div_line += f' &middot; also played {esc(others)}'
-        head = (f'<p class="crumb"><a href="index.html">{esc(league)}</a> '
+        head = (f'<p class="crumb"><a href="/league/">{esc(league)}</a> '
                 f'&middot; {div_line}</p>'
                 f'<h1>{esc(t["name"])}</h1>')
         body = f"""
@@ -827,7 +837,7 @@ def render(model: dict, out: Path):
                 for pl in sorted(s["roster"], key=lambda x: -num(x["stats"], "ADR")):
                     ps = pl["stats"]
                     rows_.append(
-                        '<tr><td class="name"><a href="t-%s.html">%s</a></td>'
+                        '<tr><td class="name"><a href="/league/t-%s">%s</a></td>'
                         '<td class="num mono">%d-%d-%d</td><td class="num mono">%.0f</td>'
                         '<td class="num mono">%d%%</td><td class="num mono">%d/%d</td>'
                         '<td class="num mono">%d</td><td class="num mono">%d</td>'
@@ -853,9 +863,9 @@ def render(model: dict, out: Path):
                    int(mp["rounds"]), "".join(tables)))
 
         names = [m["names"].get(t, t) for t in m["team_ids"]]
-        links = " · ".join('<a href="t-%s.html">%s</a>' % (esc(t), esc(m["names"].get(t, t)))
+        links = " · ".join('<a href="/league/t-%s">%s</a>' % (esc(t), esc(m["names"].get(t, t)))
                            for t in m["team_ids"])
-        head = (f'<p class="crumb"><a href="index.html">{esc(league)}</a> · {esc(m["championship"])}</p>'
+        head = (f'<p class="crumb"><a href="/league/">{esc(league)}</a> · {esc(m["championship"])}</p>'
                 f'<h1>{esc(" vs ".join(names))}</h1><p class="crumb">{links}</p>')
         body = f"""
   <section>

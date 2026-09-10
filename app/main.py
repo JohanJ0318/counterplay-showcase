@@ -2382,8 +2382,53 @@ async def api_lead(request: Request):
 # ---------------------------------------------------------------- static
 
 @app.get("/", response_class=HTMLResponse)
-def index():
+def index(request: Request):
+    """The sales page, unless you already bought.
+
+    A signed-in coach reaching the root is almost always trying to get back
+    into the product rather than to read about it again, and the Counterplay
+    mark in the league pages is the commonest way to arrive here. Sending them
+    to their own dashboard makes that mark do what a mark is for.
+    """
+    if current(request):
+        return see_other("/dashboard")
     return HTMLResponse((SITE / "index.html").read_text(encoding="utf-8"))
+
+
+# ---- the league site, addressed without .html
+#
+# The pages are a folder of static files, but the address a coach sees should
+# not have to say so. This resolves /league/<name> to <name>.html on disk, and
+# permanently redirects the old .html address to the clean one so anything
+# already linked or bookmarked still lands.
+#
+# Declared BEFORE the StaticFiles mount further down, because Starlette matches
+# routes in the order they were added and the mount would otherwise take every
+# path under /league first.
+LEAGUE_DIR = SITE / "league"
+
+
+@app.get("/league/{path:path}", response_class=HTMLResponse)
+def league_page(path: str):
+    if not LEAGUE_DIR.is_dir():
+        return HTMLResponse("<h1>Not found</h1>", status_code=404)
+
+    # Nothing may climb out of the league folder.
+    clean = path.strip("/")
+    if clean and (".." in clean or clean.startswith("/") or "\\" in clean):
+        return HTMLResponse("<h1>Not found</h1>", status_code=404)
+
+    if clean.endswith(".html"):
+        target = "/league/" + clean[:-5]
+        return RedirectResponse("/league/" if clean == "index.html" else target,
+                                status_code=301)
+
+    for candidate in ((LEAGUE_DIR / "index.html") if not clean else None,
+                      LEAGUE_DIR / f"{clean}.html" if clean else None,
+                      LEAGUE_DIR / clean / "index.html" if clean else None):
+        if candidate is not None and candidate.is_file():
+            return HTMLResponse(candidate.read_text(encoding="utf-8"))
+    return HTMLResponse("<h1>Not found</h1>", status_code=404)
 
 
 @app.post("/api/zones")
@@ -2462,7 +2507,17 @@ def zones_page():
     return HTMLResponse((SITE / "zones.html").read_text(encoding="utf-8"))
 
 
-@app.get("/sample-report.html", response_class=HTMLResponse)
+@app.get("/sample-report.html", include_in_schema=False)
+def sample_report_dot_html():
+    """The old address. Kept, and permanently pointed at the clean one.
+
+    This link is on the landing page, in the league nav and in the outreach
+    email, so it exists in places nobody can edit after the fact.
+    """
+    return RedirectResponse("/sample-report", status_code=301)
+
+
+@app.get("/sample-report", response_class=HTMLResponse)
 def sample_report(request: Request):
     """The example report, rendered in the product's own components.
 
@@ -2479,7 +2534,7 @@ if (SITE / "radars").is_dir():
     app.mount("/radars", StaticFiles(directory=SITE / "radars"), name="radars")
 
 
-# The generated league site. Mounted last so it never shadows an app route.
-if (SITE / "league").is_dir():
-    app.mount("/league", StaticFiles(directory=SITE / "league", html=True),
-              name="league")
+# The generated league site is served by league_page above, which gives it
+# addresses without .html and redirects the old ones. It is deliberately not
+# mounted as static files as well: two ways to reach the same page is one way
+# too many, and the mount would have kept the .html addresses alive.
