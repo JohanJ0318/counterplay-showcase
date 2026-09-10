@@ -123,10 +123,59 @@ def find_zones(x, y, z=None, n_zones: int = DEFAULT_ZONES, seed: int = 7,
     return centres, remap[labels], counts[order]
 
 
+# Zone fills. One hue family, twelve steps of lightness and saturation, so a
+# picture of twenty zones reads as one map rather than as a pie chart. Indices
+# are walked with a stride that is coprime with the length, which spreads
+# consecutive zone numbers across the whole palette and stops two adjacent
+# zones sharing a shade.
+ZONE_FILLS = [
+    "#5B21B6", "#8B5CF6", "#6D28D9", "#A78BFA", "#4C1D95", "#7C3AED",
+    "#9F7AEA", "#5D3FD3", "#B39DDB", "#6941C6", "#C4B5FD", "#7E5BEF",
+]
+ZONE_STRIDE = 5
+
+
+def zone_fill(i: int) -> str:
+    """A colour for zone index `i`, chosen so neighbours are not alike."""
+    return ZONE_FILLS[(i * ZONE_STRIDE) % len(ZONE_FILLS)]
+
+
+def picture_extent(x, y, radar):
+    """The world rectangle a picture is drawn in: (x0, x1, y0, y1).
+
+    Factored out of svg() because the radar mask has to be resampled onto
+    exactly the box the drawing uses. Computed in two places they would drift,
+    and a mask a few cells off the map it is meant to bound is worse than no
+    mask at all.
+
+    The 0.02 percentile is not a rounding error. A player who walks to the
+    back wall once a match is a tenth of a percent of the samples, and on Nuke
+    that tenth of a percent is the whole of the ground behind both spawns.
+    0.02 keeps it while still discarding the genuine stray, a player clipped
+    out of the world.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    rx0, rx1 = float(radar["x0"]), float(radar["x1"])
+    ry0, ry1 = float(radar["y0"]), float(radar["y1"])
+    dx0, dx1 = np.percentile(x, [0.02, 99.98])
+    dy0, dy1 = np.percentile(y, [0.02, 99.98])
+    mx = max(120.0, (dx1 - dx0) * 0.06)
+    my = max(120.0, (dy1 - dy0) * 0.06)
+    return (max(rx0, dx0 - mx), min(rx1, dx1 + mx),
+            max(ry0, dy0 - my), min(ry1, dy1 + my))
+
+
+# How far the played area may grow into the map. Six cells of a 150 grid is
+# roughly a corridor's width in world units: enough to finish a corner that
+# people clip, not enough to walk through a building.
+GROW_PASSES = 6
+
+
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None) -> str:
+        anchors=None, mask=None) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -149,8 +198,20 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         # SVG viewport crops it.
         x0, x1, y0, y1 = (float(v) for v in extent)
     elif radar is not None:
-        x0, x1 = float(radar["x0"]), float(radar["x1"])
-        y0, y1 = float(radar["y0"]), float(radar["y1"])
+        # CROPPED TO WHAT IS THERE, not to the whole radar square.
+        #
+        # Valve's radar is a square covering the entire level including the
+        # skybox, the out-of-bounds and the parts of the map this game mode
+        # never uses. Drawing at its full extent puts the played area in the
+        # middle of a large empty frame: on Nuke's lower floor the map used
+        # about a fifth of the picture and the rest was blank, which reads as
+        # a map that failed to load rather than as a map with margins.
+        #
+        # So the frame is the bounding box of the samples, padded, and clamped
+        # to the radar so it can never ask for image that does not exist. The
+        # radar itself is still positioned by its own world coordinates, so it
+        # lines up and the viewport simply crops it.
+        x0, x1, y0, y1 = picture_extent(x, y, radar)
     elif geometry is not None and len(geometry[0]):
         gx = np.asarray(geometry[0], dtype=float)
         gy = np.asarray(geometry[1], dtype=float)
@@ -163,10 +224,19 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     scale = (width - 2 * pad) / span
     height = int((y1 - y0) * scale + 2 * pad)
 
+    # Centred in the frame.
+    #
+    # One scale serves both axes so the map is never stretched, which means
+    # the narrower axis does not fill the box. The height is computed from the
+    # drawing so the vertical is already tight; the horizontal was not, and a
+    # map taller than it is wide, which is Nuke's lower floor exactly, was
+    # drawn hard against the left edge with the slack piled up on the right.
+    off_x = pad + max(0.0, (width - 2 * pad - (x1 - x0) * scale) / 2.0)
+
     # CS2's Y axis points the opposite way to SVG's, so it is flipped here
     # rather than in the data; the stored coordinates stay game-native.
     def px(vx, vy):
-        return (pad + (vx - x0) * scale, pad + (y1 - vy) * scale)
+        return (off_x + (vx - x0) * scale, pad + (y1 - vy) * scale)
 
     # The map itself, under everything.
     base = []
@@ -190,24 +260,117 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                             f'width="{cwb:.1f}" height="{cwb:.1f}" '
                             f'fill="currentColor" opacity="0.10"/>')
 
-    # Bin to a grid so the dot field is a density, not 1.6 million circles.
+    # Bin to a grid, then paint each occupied cell in the colour of the zone it
+    # belongs to. A density of translucent squares reads as a smear and never
+    # says which zone anything is; a filled region is a picture of the zones.
     bins = 150
     h, xe, ye = np.histogram2d(x, y, bins=bins,
                               range=[[x0, x1], [y0, y1]])
-    hot = h.max() or 1
+    occupied = h > 0
+
+    # Close pinholes. A cell nobody happened to stand in, surrounded by cells
+    # they did, is a gap in the sampling rather than a hole in the map. Three
+    # passes, and only where a cell has at least three occupied neighbours, so
+    # this fills speckle without inventing corridors: a cell needs most of its
+    # neighbours occupied before it joins them, which cannot bridge a wall.
+    for _ in range(3):
+        n = np.zeros(occupied.shape, dtype=np.int8)
+        n[1:, :] += occupied[:-1, :]
+        n[:-1, :] += occupied[1:, :]
+        n[:, 1:] += occupied[:, :-1]
+        n[:, :-1] += occupied[:, 1:]
+        occupied = occupied | (n >= 3)
+
+    # GROW INTO THE MAP, BOUNDED BY VALVE'S OWN ALPHA CHANNEL.
+    #
+    # A corner somebody crosses twice a match is one or two samples in twenty
+    # thousand cells, and it came out as a hole: behind both spawns on Nuke,
+    # suicide and T plat on Dust2, the ground before second mid on Inferno.
+    # The map is there; the traffic is not.
+    #
+    # Valve's radar image already knows where the map is, so the played area
+    # is grown outward and a cell may only be entered where the alpha channel
+    # says there is map. That reaches into a corner attached to somewhere
+    # people go and stops dead at the void.
+    #
+    # BOUNDED, NOT FLOOD FILLED. The alpha covers roofs and the tops of walls
+    # as well as the floor, so an unbounded fill would paint zones across
+    # solid geometry. GROW_PASSES cells is roughly a corridor's width: far
+    # enough to finish a corner, not far enough to cross a building.
+    if mask is not None and mask.shape == occupied.shape:
+        for _ in range(GROW_PASSES):
+            n = np.zeros(occupied.shape, dtype=np.int8)
+            n[1:, :] += occupied[:-1, :]
+            n[:-1, :] += occupied[1:, :]
+            n[:, 1:] += occupied[:, :-1]
+            n[:, :-1] += occupied[:, 1:]
+            occupied = occupied | ((n >= 1) & mask)
+
+    # Which zone each occupied cell belongs to: nearest centre in the plane.
+    # The floor split has already separated stacked geometry, so two dimensions
+    # is the right question here rather than a Z-weighted three.
+    cx_mid = (xe[:-1] + xe[1:]) / 2.0
+    cy_mid = (ye[:-1] + ye[1:]) / 2.0
+    ii, jj = np.nonzero(occupied)
     dots = []
     cw = (xe[1] - xe[0]) * scale
-    for i in range(bins):
-        for j in range(bins):
-            v = h[i, j]
-            if v <= 0:
-                continue
-            a = min(0.85, 0.10 + 0.75 * (v / hot) ** 0.42)
-            if radar is not None:
-                a *= 0.55        # the map is underneath; this is traffic on it
-            cx, cy = px(xe[i], ye[j])
-            dots.append(f'<rect x="{cx:.1f}" y="{cy - cw:.1f}" width="{cw:.1f}" '
-                        f'height="{cw:.1f}" fill="currentColor" opacity="{a:.2f}"/>')
+    if len(ii):
+        px_mid = cx_mid[ii]
+        py_mid = cy_mid[jj]
+        d2 = ((px_mid[:, None] - centres[None, :, 0]) ** 2
+              + (py_mid[:, None] - centres[None, :, 1]) ** 2)
+        owner = np.argmin(d2, axis=1)
+        # ONE FLAT OPACITY. Shading means WHICH ZONE and nothing else.
+        #
+        # It used to also carry traffic, so a cell was darker where the team
+        # spent more time. Two variables in one channel, and the result said
+        # neither clearly. Worse, traffic in Counter-Strike is brutally skewed:
+        # a handful of chokepoints and spawn positions take most of the samples,
+        # so measured across five maps between 83% and 99% of drawn cells came
+        # out under 0.30 opacity. Against map art that is very close to
+        # invisible, and the corners a team crosses twice a match, behind T
+        # spawn, suicide, second mid, looked like holes in the map. They were
+        # never missing, only faint.
+        #
+        # Where the team actually lives is a question the tables answer with
+        # numbers and denominators. This picture answers "which zone is where",
+        # and one flat fill answers it.
+        strength = np.full(len(ii), 0.62)
+        if radar is not None:
+            strength[:] = 0.5    # the map underneath should still read through
+
+        # RUN-LENGTH ENCODED ALONG X.
+        #
+        # One rect per occupied cell is nine thousand rects per map, and five
+        # maps on the team page is most of why that page weighs six megabytes.
+        # Neighbouring cells in the same zone at the same opacity step are one
+        # rectangle, which cuts it by an order of magnitude and draws exactly
+        # the same picture. Opacity is quantised to sixteenths first, or almost
+        # nothing would merge.
+        grid_owner = np.full(occupied.shape, -1, dtype=np.int16)
+        grid_step = np.zeros(occupied.shape, dtype=np.int16)
+        grid_owner[ii, jj] = owner
+        grid_step[ii, jj] = np.round(strength * 16).astype(np.int16)
+
+        for j in range(bins):                       # each row of constant y
+            i = 0
+            while i < bins:
+                own = grid_owner[i, j]
+                if own < 0:
+                    i += 1
+                    continue
+                step = grid_step[i, j]
+                run = i + 1
+                while (run < bins and grid_owner[run, j] == own
+                       and grid_step[run, j] == step):
+                    run += 1
+                bx, by = px(xe[i], ye[j])
+                dots.append(
+                    f'<rect x="{bx:.1f}" y="{by - cw:.1f}" '
+                    f'width="{cw * (run - i) + .6:.1f}" height="{cw + .6:.1f}" '
+                    f'fill="{zone_fill(int(own))}" '
+                    f'opacity="{step / 16:.2f}"/>')
+                i = run
 
     marks = []
     if plant_x is not None and len(plant_x):

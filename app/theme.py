@@ -428,6 +428,21 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 .rt.few .pill{padding:0 7px;font-size:8px;border:0;border-radius:20px;display:inline-block}
 .rt.nil b{font-weight:400}
 
+/* ---- maps look like maps ----
+   Valve's radar, cropped to a circle, beside a map's name. A coach recognises
+   Mirage from this faster than they read the word, and the images have been
+   sitting in site/radars since the zone work.
+
+   `contain`, not a crop: at 22px the whole silhouette is recognisable to
+   anybody who plays the map, while a zoom into the middle is a grey smear
+   that happens to be from Mirage. */
+.mapchip{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
+.mapchip i{width:22px;height:22px;flex:none;border-radius:50%;
+  background-size:contain;background-repeat:no-repeat;background-position:center;
+  border:1px solid var(--border-strong);filter:var(--radar-dim);
+  background-color:var(--surface-2)}
+.mapchip.big i{width:28px;height:28px}
+
 /* ---- badges ---- */
 .pill{display:inline-block;font-size:.68rem;font-weight:600;letter-spacing:.04em;
   text-transform:uppercase;padding:3px 9px;border-radius:20px;white-space:nowrap;
@@ -672,3 +687,31 @@ def banner(title: str, crumb: str = "", label: str = "") -> str:
         bits.append(f'<p class="crumb">{crumb}</p>')
     bits.append(f"<h1>{esc(title)}</h1>")
     return "".join(bits)
+
+
+# Valve ships one radar per map, plus a second image for Nuke's lower floor.
+# The base one is the recognisable one, so a chip always uses that.
+RADAR_FOR = {
+    "de_ancient": "de_ancient", "de_anubis": "de_anubis",
+    "de_cache": "de_cache", "de_dust2": "de_dust2",
+    "de_inferno": "de_inferno", "de_mirage": "de_mirage",
+    "de_nuke": "de_nuke", "de_overpass": "de_overpass",
+    "de_train": "de_train",
+}
+
+
+def map_chip(map_name: str, big: bool = False, label: str = "") -> str:
+    """A map's radar as a small round chip, with its name beside it.
+
+    Falls back to the name alone for a map with no radar on disk, because a
+    missing image should read as a plain label rather than as a broken one.
+    """
+    key = (map_name or "").strip()
+    short = label or key.replace("de_", "")
+    art = RADAR_FOR.get(key)
+    if not art:
+        return esc(short)
+    size = " big" if big else ""
+    return (f'<span class="mapchip{size}">'
+            f'<i style="background-image:url(/radars/{art}_radar_psd.png)"></i>'
+            f'{esc(short)}</span>')

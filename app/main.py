@@ -30,7 +30,7 @@ from . import (advice, auth, charts, db, legal, mail, movement,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
-from .theme import banner, esc, page
+from .theme import banner, esc, map_chip, page
 
 ROOT = Path(__file__).resolve().parent.parent
 SITE = ROOT / "site"
@@ -1408,12 +1408,24 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
                         nm = names.get(i + 1, "")
                         labels.append(nm if (show is None or nm in show) else "")
                     rad = RD.available(map_name, level)
+                    # Valve's alpha channel says where the map is, which is
+                    # the one thing position data cannot say about a corner
+                    # nobody walks into.
+                    msk = None
+                    if rad is not None:
+                        from counterplay import radarmask as RM
+                        try:
+                            msk = RM.sample(map_name, level, *Z.picture_extent(
+                                x[sel], y[sel], rad), 150, rad)
+                        except Exception:
+                            msk = None
                     out.append({"level": level, "credit": rad and rad["credit"],
                                 "svg": Z.svg(x[sel], y[sel], centres, counts,
                                              width=width,
                                              first_number=idx[0] + 1,
                                              labels=labels, geometry=geom,
-                                             radar=rad, anchors=anchors)})
+                                             radar=rad, anchors=anchors,
+                                             mask=msk)})
     except Exception:
         out = []            # a missing picture must never break the page
     _ZONE_PIC[key] = out
@@ -1648,8 +1660,11 @@ def matches_page(request: Request):
         else:
             score = '<span class="den">&ndash;</span>'
 
-        name = (f'<a href="/match/{esc(m["match_key"])}">{esc(m["map"] or "match")}</a>'
-                if m["match_key"] else esc(m["map"] or m["filename"]))
+        chip = map_chip(f'de_{m["map"]}' if m["map"] and not
+                        str(m["map"]).startswith("de_") else (m["map"] or ""),
+                        label=m["map"] or "match")
+        name = (f'<a href="/match/{esc(m["match_key"])}">{chip}</a>'
+                if m["match_key"] else (chip if m["map"] else esc(m["filename"])))
         tag = END_LABEL.get(m.get("end_reason") or "")
         cut = f' <span class="pill">{tag}</span>' if tag else ""
         status = ('' if m["status"] == "parsed"
@@ -2042,14 +2057,14 @@ def stats_page(request: Request):
     for name, m in st["maps"].items():
         if known:
             maprows.append(
-                f'<tr><td class="name">{esc(name.replace("de_", ""))}</td>'
+                f'<tr><td class="name">{map_chip(name)}</td>'
                 f'<td class="num mono">{m["matches"]}</td>'
                 f'<td class="num">{rate(m["you_won"], m["you_played"])}</td>'
                 f'<td class="num">{rate(m["you_ct_won"], m["you_ct"])}</td>'
                 f'<td class="num">{rate(m["you_t_won"], m["you_t"])}</td></tr>')
         else:
             maprows.append(
-                f'<tr><td class="name">{esc(name.replace("de_", ""))}</td>'
+                f'<tr><td class="name">{map_chip(name)}</td>'
                 f'<td class="num mono">{m["matches"]}</td>'
                 f'<td class="num mono">{m["rounds"]}</td>'
                 f'<td class="num">{rate(m["ct_won"], m["rounds"])}</td>'
@@ -2210,7 +2225,7 @@ def player_page(request: Request, steamid: str):
         blind = (f'{m["blind_per_flash"]:.2f}' if m["flashes_thrown"] else "&ndash;")
         rows.append(
             f'<tr><td class="name">'
-            f'<a href="/match/{esc(m["match_key"])}">{esc(m["map_name"].replace("de_", ""))}</a>'
+            f'<a href="/match/{esc(m["match_key"])}">{map_chip(m["map_name"])}</a>'
             f'<div class="den" style="font-weight:400">{esc((m["played_at"] or "")[:10])}</div></td>'
             f'<td>{res}</td>'
             f'<td class="num mono">{esc(m["score"])}</td>'
