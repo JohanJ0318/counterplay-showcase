@@ -390,6 +390,14 @@ def round_splits(team_id: int) -> dict:
     return out
 
 
+# Named, because the sample report prints this line too.
+FLASH_ROUND_PATTERN = (
+    "You win the round after blinding an opponent",
+    "Rounds where at least one of your flashes blinded somebody on the other "
+    "side. A flash that lands is not the same as a flash that helps, and this "
+    "is the difference between the two.")
+
+
 def round_patterns(team_id: int) -> list[tuple]:
     """Utility findings in the shape the Recurring patterns table already uses.
 
@@ -400,7 +408,4 @@ def round_patterns(team_id: int) -> list[tuple]:
     hit, of = round_splits(team_id).get("enemy_flash", (0, 0))
     if not of:
         return []
-    return [("You win the round after blinding an opponent", hit, of,
-             "Rounds where at least one of your flashes blinded somebody on "
-             "the other side. A flash that lands is not the same as a flash "
-             "that helps, and this is the difference between the two.")]
+    return [(FLASH_ROUND_PATTERN[0], hit, of, FLASH_ROUND_PATTERN[1])]

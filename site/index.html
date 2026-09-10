@@ -212,12 +212,15 @@ ol.steps p{color:var(--muted);font-size:.95rem}
   display:flex;flex-direction:column;gap:9px}
 .notyet p{font-size:.93rem;color:var(--muted)}
 
-/* ---------- signup ---------- */
+/* ---------- the close ---------- */
+/* One row, not a section. The nav's button is sticky and never leaves the
+   screen, so the foot of the page does not need to repeat the hero; it needs
+   to say the price and get out of the way. */
 .signup{background:var(--surface);border-top:1px solid var(--border)}
-.signup .hero-cta{margin-top:22px}
-.endnote{margin-top:18px;font-size:.86rem;color:var(--faint)}
-.endnote a{color:var(--muted);border-bottom:1px solid var(--border-strong)}
-.endnote a:hover{color:var(--ink)}
+.closer{display:flex;align-items:center;justify-content:space-between;
+  gap:24px;flex-wrap:wrap;padding:30px 0}
+.closer p{font-size:.95rem;color:var(--muted);max-width:60ch}
+.closer p strong{color:var(--ink);font-weight:600}
 
 footer{border-top:1px solid var(--border);padding:30px 0 56px;font-size:.85rem;color:var(--faint)}
 footer .fin{display:flex;flex-direction:column;gap:7px;max-width:70ch}
@@ -272,7 +275,7 @@ footer a{color:var(--muted)}
       <span class="fig"><span class="pct">65%</span><span class="den">84 / 130</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.21s">
-      <span class="what">Rounds won after losing it</span>
+      <span class="what">Rounds won after losing the opening duel</span>
       <span class="fig"><span class="pct">32%</span><span class="den">39 / 120</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.29s">
@@ -422,19 +425,11 @@ footer a{color:var(--muted)}
   
 </div>
 
-<div class="signup" id="signup"><div class="wrap"><section style="padding-top:56px">
-  <div class="sec-head">
-    <span class="label">Add your team</span>
-    <h2>Free for the season. Takes about a minute.</h2>
-    <p>Make an account, upload a few demos, and the first report is waiting when the
-      parse finishes. If it is not worth your time, tell us and we will stop.</p>
-  </div>
-  <div class="hero-cta">
-    <a class="btn" href="/signup">Add your team, free this season</a>
-    <a class="btn btn-ghost" href="sample-report">See a real report</a>
-  </div>
-  <p class="endnote">Already have an account? <a href="/login">Log in</a>.</p>
-</section></div></div>
+<div class="signup" id="signup"><div class="wrap"><div class="closer">
+  <p><strong>Free for the season.</strong> Takes about a minute: make an account,
+    upload a few demos, and the first report is waiting when the parse finishes.</p>
+  <a class="btn" href="/signup">Add your team</a>
+</div></div></div>
 
 <div class="wrap"><footer><div class="fin">
   <span><strong>Counterplay</strong>: match analysis for league Counter-Strike.</span>

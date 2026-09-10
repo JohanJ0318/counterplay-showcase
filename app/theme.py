@@ -351,6 +351,15 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 /* Near the right edge the balloon would run off the page, so rows can flip it. */
 .info.left .tip{left:auto;right:0}
 .info.left .tip::after{left:auto;right:5px}
+/* A stat card past the first one is never far from the right edge of the page,
+   and the balloon is up to 320px wide. Opening rightward from the last card of
+   a four-card row put 175px of hidden balloon past the page edge, which is
+   enough to give the whole document a horizontal scrollbar: `visibility:hidden`
+   still occupies space. So every card but the first opens its balloon leftward
+   from its own right edge, which cannot leave the page whatever the row wraps
+   to. */
+.stat-row .stat:not(:first-child) .info .tip{left:auto;right:0}
+.stat-row .stat:not(:first-child) .info .tip::after{left:auto;right:5px}
 
 /* A table that hosts tooltips cannot also be a scroll container: `overflow-x`
    clips the balloon on every axis. These tables are two columns of short text

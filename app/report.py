@@ -656,6 +656,32 @@ BUY_BLURB = {
 }
 DEFAULT_BUY_BLURB = "How often this buy turns into a round."
 
+# The four fixed patterns, named once. They are printed on the team stats page
+# and again on the sample report, and while each lived as a literal at its one
+# call site the preview drifted: the sample was still showing a shape the
+# product had stopped using. A name in one place is the cheapest way to stop
+# that happening twice.
+PATTERNS = {
+    "opening_won": (
+        "You win the round after winning the opening duel",
+        "The first kill of the round is the cheapest advantage there is. "
+        "How often you convert it says more than aim does."),
+    "opening_lost": (
+        "You win the round after losing the opening duel",
+        "Recovering a round down a player. Low here and the problem is "
+        "retakes and trades, not the opening duel itself."),
+    "ct": ("You win the round as CT",
+           "Your record on the defending side, across every map."),
+    "t": ("You win the round as T",
+          "Your record on the attacking side, across every map."),
+}
+
+
+def buy_pattern(kind: str) -> tuple[str, str]:
+    """The name and the explanation for one buy type."""
+    return (f"You win {BUY_ARTICLE.get(kind, 'a')} {kind} round",
+            BUY_BLURB.get(kind, DEFAULT_BUY_BLURB))
+
 
 def _team_match_keys(team_id: int) -> list[str]:
     return [r["match_key"] for r in db.query(
@@ -828,21 +854,16 @@ def recurring_patterns(team_id: int) -> list[dict]:
     # side-based version only when there is nothing to infer a roster from.
     y = st["you"]
     if st["anchors"]["confident"] and y["rounds"]:
-        add("You win the round after winning the opening duel",
-            y["opening_converted"], y["opening_took"],
-            "The first kill of the round is the cheapest advantage there is. "
-            "How often you convert it says more than aim does.")
-        add("You win the round after losing the opening duel",
-            y["opening_saved"], y["opening_lost"],
-            "Recovering a round down a player. Low here and the problem is "
-            "retakes and trades, not the opening duel itself.")
-        add("You win the round as CT", y["ct"]["won"], y["ct"]["rounds"],
-            "Your record on the defending side, across every map.")
-        add("You win the round as T", y["t"]["won"], y["t"]["rounds"],
-            "Your record on the attacking side, across every map.")
+        for key, (hit, of) in (
+                ("opening_won", (y["opening_converted"], y["opening_took"])),
+                ("opening_lost", (y["opening_saved"], y["opening_lost"])),
+                ("ct", (y["ct"]["won"], y["ct"]["rounds"])),
+                ("t", (y["t"]["won"], y["t"]["rounds"]))):
+            name, detail = PATTERNS[key]
+            add(name, hit, of, detail)
         for kind, v in sorted(st["you_buys"].items()):
-            add(f"You win {BUY_ARTICLE.get(kind, 'a')} {kind} round",
-                v["won"], v["n"], BUY_BLURB.get(kind, DEFAULT_BUY_BLURB))
+            name, detail = buy_pattern(kind)
+            add(name, v["won"], v["n"], detail)
         # Utility, in the same shape and the same column as everything else.
         # Imported here rather than at the top: `app.utility` reads this
         # module's roster helpers, so the dependency only runs one way.

@@ -1403,10 +1403,28 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
                                         for i in idx])
                     anchors = np.array([ZM.label_pos(zs[i]) for i in idx])
                     counts = np.array([zs[i]["share"] for i in idx])
+                    # One pill per NAME, not per cluster.
+                    #
+                    # Zones were named by hand, and a place a person thinks of
+                    # as one place is often three clusters: Mirage came back
+                    # with "A main" written across the middle of the picture
+                    # three times, which reads as a drawing error rather than
+                    # as one area covered by three shapes. The shapes still all
+                    # draw, so the extent is unchanged; only the biggest one of
+                    # each name carries the label.
+                    biggest: dict[str, int] = {}
+                    for i in idx:
+                        nm = names.get(i + 1, "")
+                        if not nm:
+                            continue
+                        if (nm not in biggest
+                                or zs[i]["share"] > zs[biggest[nm]]["share"]):
+                            biggest[nm] = i
                     labels = []
                     for i in idx:
                         nm = names.get(i + 1, "")
-                        labels.append(nm if (show is None or nm in show) else "")
+                        wanted = (show is None or nm in show) and biggest.get(nm) == i
+                        labels.append(nm if wanted else "")
                     rad = RD.available(map_name, level)
                     # Valve's alpha channel says where the map is, which is
                     # the one thing position data cannot say about a corner
@@ -2525,7 +2543,10 @@ def sample_report(request: Request):
     the pages it is previewing — which is exactly what the old static copy had
     done, down to a different typeface and a different palette.
     """
-    return HTMLResponse(sample_page.render(current(request)))
+    # zone_pictures is handed in rather than imported: it lives here, and
+    # app.sample importing main would close the loop.
+    return HTMLResponse(sample_page.render(current(request),
+                                           pictures=zone_pictures))
 
 
 # Map overview images, fetched by counterplay/radar.py. Absent until someone
