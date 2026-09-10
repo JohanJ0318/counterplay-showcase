@@ -214,23 +214,10 @@ ol.steps p{color:var(--muted);font-size:.95rem}
 
 /* ---------- signup ---------- */
 .signup{background:var(--surface);border-top:1px solid var(--border)}
-form{display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:640px;margin-top:8px}
-@media (max-width:620px){form{grid-template-columns:1fr}}
-.field{display:flex;flex-direction:column;gap:5px}
-.field.full{grid-column:1/-1}
-label{font-family:var(--f-mono);font-size:.66rem;letter-spacing:.12em;text-transform:uppercase;
-  color:var(--faint)}
-input,select{font-family:var(--f-body);font-size:.95rem;padding:11px 13px;
-  background:var(--bg);color:var(--ink);border:1px solid var(--border-strong);border-radius:0}
-input:focus,select:focus{outline:2px solid var(--purple);outline-offset:1px}
-button{grid-column:1/-1;justify-self:start;background:var(--purple);color:var(--on-purple);
-  font-family:var(--f-display);font-weight:600;font-size:1rem;padding:13px 24px;
-  border:1px solid var(--purple);cursor:pointer}
-button:hover{filter:brightness(1.07)}
-.formnote{grid-column:1/-1;font-size:.84rem;color:var(--faint)}
-#status{grid-column:1/-1;font-size:.92rem;padding:11px 14px;border-left:3px solid var(--purple);
-  background:var(--purple-soft);display:none}
-#status.show{display:block}
+.signup .hero-cta{margin-top:22px}
+.endnote{margin-top:18px;font-size:.86rem;color:var(--faint)}
+.endnote a{color:var(--muted);border-bottom:1px solid var(--border-strong)}
+.endnote a:hover{color:var(--ink)}
 
 footer{border-top:1px solid var(--border);padding:30px 0 56px;font-size:.85rem;color:var(--faint)}
 footer .fin{display:flex;flex-direction:column;gap:7px;max-width:70ch}
@@ -439,47 +426,14 @@ footer a{color:var(--muted)}
   <div class="sec-head">
     <span class="label">Add your team</span>
     <h2>Free for the season. Takes about a minute.</h2>
-    <p>Send us a few demos and we will come back with your first report. If it is not worth your time, tell us and we will stop.</p>
+    <p>Make an account, upload a few demos, and the first report is waiting when the
+      parse finishes. If it is not worth your time, tell us and we will stop.</p>
   </div>
-  <form id="teamform" novalidate>
-    <div class="field full">
-      <label for="team">Team / program</label>
-      <input id="team" name="team" required autocomplete="organization" placeholder="Riverbend State">
-    </div>
-    <div class="field">
-      <label for="league">League</label>
-      <select id="league" name="league">
-        <option>NECC</option><option>NACE Starleague</option><option>ECAC</option>
-        <option>Playfly</option><option>ESEA</option><option>FACEIT League</option>
-        <option>Other</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="role">Your role</label>
-      <select id="role" name="role">
-        <option>Coach</option><option>In-game leader</option><option>Player</option>
-        <option>Program director</option><option>Other</option>
-      </select>
-    </div>
-    <div class="field">
-      <label for="name">Your name</label>
-      <input id="name" name="name" required autocomplete="name">
-    </div>
-    <div class="field">
-      <label for="email">Email</label>
-      <input id="email" name="email" type="email" required autocomplete="email">
-    </div>
-    <div class="field full">
-      <label for="faceit">FACEIT team page (optional)</label>
-      <input id="faceit" name="faceit" inputmode="url" placeholder="https://www.faceit.com/en/teams/...">
-    </div>
-    <div class="field full">
-      <label for="next">Anything you are trying to fix? (optional)</label>
-      <input id="next" name="next" placeholder="We keep losing rounds we are winning">
-    </div>
-    <button type="submit">Send it</button>
-    <p id="status" role="status"></p>
-  </form>
+  <div class="hero-cta">
+    <a class="btn" href="/signup">Add your team, free this season</a>
+    <a class="btn btn-ghost" href="sample-report">See a real report</a>
+  </div>
+  <p class="endnote">Already have an account? <a href="/login">Log in</a>.</p>
 </section></div></div>
 
 <div class="wrap"><footer><div class="fin">
@@ -490,62 +444,12 @@ footer a{color:var(--muted)}
 </div></footer></div>
 
 <script>
-// ---------------------------------------------------------------------------
-// CONFIGURE THESE TWO LINES, THEN DEPLOY.
-//   FORM_ENDPOINT: a POST URL that accepts JSON (Formspree, Cloudflare Worker,
-//                   Google Apps Script). Leave empty to fall back to a mailto:
-//                   draft, which works with no backend at all.
-//   CONTACT_EMAIL: where the mailto fallback and the footer link point.
-// ---------------------------------------------------------------------------
-var FORM_ENDPOINT = "/api/lead";
+// The one line to configure: where the footer and the "questions" link point.
 var CONTACT_EMAIL = "hello@counterplaycs.com";
 
 document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a) {
   a.href = "mailto:" + CONTACT_EMAIL;
   if (a.textContent.trim() === "CONTACT_EMAIL") a.textContent = CONTACT_EMAIL;
-});
-
-var form = document.getElementById("teamform");
-var status = document.getElementById("status");
-
-function say(message) {
-  status.textContent = message;
-  status.classList.add("show");
-}
-
-form.addEventListener("submit", function (event) {
-  event.preventDefault();
-  var data = Object.fromEntries(new FormData(form).entries());
-
-  if (!data.team || !data.name || !data.email) {
-    say("Team, name and email are needed; the rest is optional.");
-    return;
-  }
-
-  if (!FORM_ENDPOINT) {
-    var lines = Object.keys(data).map(function (k) { return k + ": " + data[k]; });
-    window.location.href =
-      "mailto:" + CONTACT_EMAIL +
-      "?subject=" + encodeURIComponent("Counterplay: " + data.team) +
-      "&body=" + encodeURIComponent(lines.join("\n"));
-    say("Opening your email app with the details filled in. Send it and we will reply.");
-    return;
-  }
-
-  say("Sending…");
-  fetch(FORM_ENDPOINT, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify(data)
-  })
-    .then(function (response) {
-      if (!response.ok) throw new Error(response.status);
-      form.reset();
-      say("Got it. You will hear back before your next match.");
-    })
-    .catch(function () {
-      say("That did not send. Email " + CONTACT_EMAIL + " and we will sort it out.");
-    });
 });
 </script>
 </body>
