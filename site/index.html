@@ -131,15 +131,22 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .receipt-body{padding:18px 20px 20px;display:flex;flex-direction:column}
 .receipt-top{display:flex;justify-content:space-between;align-items:baseline;
   padding-bottom:12px;border-bottom:1px solid var(--border-strong)}
-.rline{display:grid;grid-template-columns:1fr auto;gap:12px;align-items:baseline;
+.rline{display:grid;grid-template-columns:1fr auto;gap:14px;align-items:center;
   padding:11px 0;border-bottom:1px solid var(--border)}
 .rline:last-of-type{border-bottom:none}
 .rline .what{font-size:.88rem;line-height:1.35}
-.rline .fig{display:flex;align-items:baseline;gap:8px;white-space:nowrap}
+/* The figure over its denominator, which is how every rate inside the product
+   is drawn. Side by side they read as one long string and the denominator
+   competes with the number it is supporting; stacked, the eye takes the
+   percentage and the evidence is there the moment it is wanted.
+   Fixed line boxes in whole pixels, so nothing lands on a half pixel. */
+.rline .fig{display:inline-flex;flex-direction:column;align-items:center;
+  gap:1px;min-width:84px;text-align:center;white-space:nowrap}
 .rline .pct{font-family:var(--f-display);font-weight:800;font-size:1.15rem;
-  font-variant-numeric:tabular-nums;letter-spacing:-.02em}
-.rline .den{font-family:var(--f-mono);font-size:.74rem;color:var(--muted);
-  font-variant-numeric:tabular-nums}
+  font-variant-numeric:tabular-nums;letter-spacing:-.02em;
+  display:block;height:22px;line-height:22px}
+.rline .den{font-family:var(--f-mono);font-size:.72rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;display:block;height:15px;line-height:15px}
 .rline .thin{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.1em;
   text-transform:uppercase;color:var(--t);border:1px solid var(--t);padding:1px 5px}
 .receipt-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-strong);
@@ -270,20 +277,20 @@ footer a{color:var(--muted)}
       <span class="label">observed / chances</span>
     </div>
     <div class="rline fade" style="animation-delay:.05s">
-      <span class="what">Flashes that blind your own side</span>
-      <span class="fig"><span class="pct">67%</span><span class="den">249 / 374</span></span>
+      <span class="what">Flashes that got somebody killed</span>
+      <span class="fig"><span class="pct">8%</span><span class="den">30 / 374</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.13s">
-      <span class="what">Two of you hold T ramp at 12 seconds, Inferno</span>
-      <span class="fig"><span class="pct">92%</span><span class="den">24 / 26</span></span>
+      <span class="what">Rounds won after winning the opening duel</span>
+      <span class="fig"><span class="pct">65%</span><span class="den">84 / 130</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.21s">
-      <span class="what">Rounds won when the group never gets past lobby, Nuke</span>
-      <span class="fig"><span class="pct">25%</span><span class="den">2 / 8</span></span>
+      <span class="what">Rounds won after losing it</span>
+      <span class="fig"><span class="pct">32%</span><span class="den">39 / 120</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.29s">
-      <span class="what">Rounds won after a first death in Stairs, CT Mirage</span>
-      <span class="fig"><span class="den">5 / 7</span><span class="thin">thin</span></span>
+      <span class="what">Your first death is in A main, T-side Mirage</span>
+      <span class="fig"><span class="pct">29%</span><span class="den">10 / 34</span></span>
     </div>
     </div>
   </div>
