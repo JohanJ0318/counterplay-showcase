@@ -238,7 +238,6 @@ footer a{color:var(--muted)}
   <div class="nav-links">
     <a href="#features">What you get</a>
     <a href="#numbers">The numbers</a>
-    <a href="#beta">Beta</a>
     <a href="#data">Your demos</a>
     <a href="/league/">League</a>
     <a href="/login">Log in</a>
@@ -259,7 +258,6 @@ footer a{color:var(--muted)}
       <a class="btn" href="/signup">Add your team, free this season</a>
       <a class="btn btn-ghost" href="sample-report">See a real report</a>
     </div>
-    <p class="hero-note">No card. No install. You get a link before your next match.</p>
   </div>
 
   <div class="receipt" aria-label="Example of how figures are reported">
@@ -287,8 +285,6 @@ footer a{color:var(--muted)}
       <span class="what">Rounds won after a first death in Stairs, CT Mirage</span>
       <span class="fig"><span class="den">5 / 7</span><span class="thin">thin</span></span>
     </div>
-    <p class="receipt-foot">Every one of these came out of eleven real demos, and every
-      line in a report carries its denominator and the rounds it came from.</p>
     </div>
   </div>
 </div></div>
@@ -333,12 +329,6 @@ footer a{color:var(--muted)}
         <h3>2D replay of the moments</h3>
         <p>Top-down playback of the rounds a report flags: ten seconds either side, so you
           watch the thing that mattered instead of scrubbing a whole demo to find it.</p>
-      </div>
-      <div class="pcard">
-        <div class="top"><span class="label">Per round</span><span class="badge beta">Beta</span></div>
-        <h3>Decision scoring</h3>
-        <p>Which decisions cost you rounds you were winning. The part nobody else does,
-          and the part still being calibrated. <a href="#beta">What "beta" means here &rarr;</a></p>
       </div>
     </div>
   </section>
@@ -401,30 +391,6 @@ footer a{color:var(--muted)}
     <p style="margin-top:22px"><a class="btn btn-ghost" href="sample-report">See a full report &rarr;</a></p>
   </section>
 
-  <section id="beta" style="border-top:1px solid var(--border)">
-    <div class="sec-head">
-      <span class="label">Beta: read this before you trust it</span>
-      <h2>Decision scoring, and what beta means.</h2>
-      <p>Everything else on this page is counting. This one is a model, so it gets its own
-        label and its own warning.</p>
-    </div>
-    <div class="beta-block">
-      <p class="lead">It answers a question no other Counter-Strike tool answers: not
-        <em>how did we play</em>, but <em>which decision cost us that round</em>.</p>
-      <div class="beta-eg">3v1 post-plant, Inferno, round 14, peeked pit at 0:19
-        &middot; <b>cost 21 points of win probability</b></div>
-      <p>The engine estimates how often a situation like that one is won, then compares what
-        you did to what teams in the same tier actually did from the same spot. Rounds you
-        were comfortably winning and threw away surface first, because those are the ones
-        worth talking about.</p>
-      <p><strong>Why it is beta:</strong> the comparison is only as good as the pool it
-        compares against, and the league pool is still being built by the teams using
-        this. Until it is big enough, decision scoring shows its sample size on every row and
-        stays out of anything that looks like a grade. If it says something that does not
-        match what you remember, tell us. That feedback is worth more to us than the
-        subscription would be.</p>
-    </div>
-  </section>
 
   
 
@@ -433,7 +399,8 @@ footer a{color:var(--muted)}
       <span class="label">Your demos</span>
       <h2>What we do with them, in plain language.</h2>
       <p>If your athletics department or IT office asks, this section is the answer, and you
-        are welcome to forward it.</p>
+        are welcome to forward it. The full version is the
+        <a href="/privacy">privacy policy</a>.</p>
     </div>
     <ul>
       <li><span class="tick">&check;</span><span><strong>We parse them and keep the round data.</strong>
@@ -504,8 +471,6 @@ footer a{color:var(--muted)}
       <input id="next" name="next" placeholder="We keep losing rounds we are winning">
     </div>
     <button type="submit">Send it</button>
-    <p class="formnote">One person reads these. You will get a reply from a human, not a
-      drip sequence.</p>
     <p id="status" role="status"></p>
   </form>
 </section></div></div>
