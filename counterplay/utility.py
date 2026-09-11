@@ -77,6 +77,17 @@ NADE_COST = {
 # duration; this only decides which ones are counted.
 MIN_BLIND_SECONDS = 0.7
 
+# How long after a blind ends a death still belongs to it.
+#
+# The window used to be the blind exactly: died while blind, or it did not
+# count. That drew a line through the middle of one event. Across a season 30
+# blinded opponents died inside the window and another 10 died to us within a
+# second of it lifting, which is the same play: you flash, they turn away, it
+# drops, and they are dead before they have found you again. Beyond a second or
+# so the round has moved on and the flash is no longer why anybody died, so it
+# stops there rather than running to the end of the round.
+KILL_GRACE_SECONDS = 1.0
+
 
 def blinding(duration) -> bool:
     """Did this blind last long enough to count as one."""
@@ -339,13 +350,16 @@ def blinds(parser, round_of, tainted, freeze_by_round, side_of, deaths, credit):
         # coach's point of view they are the same mistake with the same fix.
         own = (v_side is not None and v_side == t_side) or victim == thrower
 
-        # Did the blinded player die before it wore off, and to whom?
-        end = tick + duration * TICK_RATE
+        # Did the blinded player die before it wore off, or in the second
+        # after, and to whom?
+        end = tick + (duration + KILL_GRACE_SECONDS) * TICK_RATE
         killer = None
         for d_tick, d_att in died_at.get(victim, ()):
             if tick <= d_tick <= end:
                 killer = d_att
                 break
+        ours = (killer is not None and not own
+                and side_of.get((rn, killer)) == t_side)
 
         rows.append({
             "round_num": rn,
@@ -355,7 +369,16 @@ def blinds(parser, round_of, tainted, freeze_by_round, side_of, deaths, credit):
             "thrower_steamid": thrower, "thrower_side": t_side,
             "duration": duration,
             "own_side": int(own),
-            "died_blind": int(killer is not None),
+            # A KILL THIS FLASH IS RESPONSIBLE FOR, which is narrower than "the
+            # blinded player died". It has to be an opponent, and they have to
+            # have died to one of the thrower's own side: a blinded teammate
+            # who then dies is not a flash kill, and neither is an opponent who
+            # falls or is killed by their own team while blind. This used to be
+            # any death at all, which put a `died_blind` on 31 own-side blinds
+            # in a season. Nothing read it, because every consumer checked
+            # `own_side` first, but a column that means one thing and is named
+            # for another is a bug waiting for its second reader.
+            "died_blind": int(ours),
         })
 
         # The row is stored either way: a blind too short to count is still
@@ -369,14 +392,13 @@ def blinds(parser, round_of, tainted, freeze_by_round, side_of, deaths, credit):
             continue
         credit(rn, thrower, "enemies_flashed")
         credit(rn, thrower, "blind_enemy_secs", duration)
-        if killer is None:
+        if not ours:
             continue
         # The flash is credited to whoever threw it and the kill to whoever
         # took it, and they are usually not the same player. Crediting one
         # number to both is how a duo's work becomes one player's stat.
         credit(rn, thrower, "flash_assists")
-        if side_of.get((rn, killer)) == t_side:
-            credit(rn, killer, "flash_kills")
+        credit(rn, killer, "flash_kills")
     return rows
 
 

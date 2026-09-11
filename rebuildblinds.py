@@ -2,30 +2,33 @@
 
     python rebuildblinds.py [--check]
 
-`counterplay.utility.MIN_BLIND_SECONDS` decides how long a flash has to hold
-somebody before it counts as having blinded them. That decision is made while a
-demo is parsed, so changing it would normally mean parsing every demo again,
-and the demo files do not have to still be on disk for a season to be in the
-database.
+Two constants in `counterplay.utility` decide what a flash is credited with:
+`MIN_BLIND_SECONDS`, how long it has to hold somebody before it counts as
+having blinded them, and `KILL_GRACE_SECONDS`, how long after a blind lifts a
+death still belongs to it. Both decisions are made while a demo is parsed, so
+moving either would normally mean parsing every demo again, and a demo file
+does not have to still be on disk for its season to be in the database.
 
-They do not need to be. Every `player_blind` event is stored in `blinds` with
-its duration, whether or not it was counted, precisely so this is a query
-rather than a re-parse. This rewrites the two sets of derived counters from
-those rows:
+It does not need to be. Every `player_blind` event is stored with its duration,
+counted or not, and every death is in `events`, precisely so this is a query
+rather than a re-parse. It rewrites:
 
+  * `blinds.died_blind`, the one stored column that is a judgement rather than
+    a reading. True when the blinded opponent died to one of the thrower's own
+    side inside the blind plus the grace.
   * `grenades.hit_enemy`, `hit_own` and `kills`, for flashes. One flashbang
     blinds everyone who can see it, and the blinds from one flash all carry the
     same tick, so grouping on thrower and time rebuilds the grenade.
-  * `player_rounds.enemies_flashed`, `teammates_flashed`, `blind_enemy_secs`
-    and `blind_team_secs`.
+  * `player_rounds.enemies_flashed`, `teammates_flashed`, `blind_enemy_secs`,
+    `blind_team_secs`, `flash_assists` and `flash_kills`. The last two are
+    behind the same threshold as the rest: a flash that "got somebody killed"
+    has to be one that blinded them first, or two numbers on the same card
+    contradict each other.
 
-  * `player_rounds.flash_assists` and `flash_kills`, which are credited in
-    the same place and therefore behind the same threshold: a flash that
-    "got somebody killed" has to be one that blinded them first, or the two
-    numbers on the page contradict each other. The killer is not in a blind
-    row, so those two are read back off the death events.
+Set both constants to zero and this must change nothing. That is the test that
+it is a rebuild rather than a second implementation that happens to be close.
 
-Idempotent. Run it after changing the threshold, on any database, as often as
+Idempotent. Run it after changing either constant, on any database, as often as
 you like.
 """
 from __future__ import annotations
@@ -33,7 +36,8 @@ from __future__ import annotations
 import sys
 
 from app import db
-from counterplay.utility import MIN_BLIND_SECONDS, blinding
+from counterplay.utility import (KILL_GRACE_SECONDS, MIN_BLIND_SECONDS,
+                                 blinding)
 
 
 def rebuild(check: bool = False) -> dict:
@@ -43,18 +47,13 @@ def rebuild(check: bool = False) -> dict:
     if not rows:
         return {"blinds": 0}
 
-    # ---- per flash: the blinds from one flashbang share a thrower and a tick
-    flash: dict = {}
-    # ---- per player-round: what the thrower did
-    player: dict = {}
-    counted = 0
-
     # Deaths, and the side everybody was on, so a kill behind a flash can be
     # credited the way the parser credits it: the assist to whoever threw it
     # and the kill to whoever took it, which are usually not the same player.
     deaths: dict = {}
     for e in db.query("""SELECT match_key, round_num, seconds, victim_steamid,
-                                attacker_steamid FROM events WHERE type = 'death'"""):
+                                attacker_steamid
+                           FROM events WHERE type = 'death'"""):
         deaths.setdefault((e["match_key"], e["round_num"],
                            e["victim_steamid"]), []).append(e)
     for v in deaths.values():
@@ -63,46 +62,70 @@ def rebuild(check: bool = False) -> dict:
                for r in db.query("""SELECT match_key, round_num, steamid, side
                                       FROM player_rounds""")}
 
+    # ---- did this blind end in a kill, and who took it
+    #
+    # Recomputed rather than read back, because the width of the window is a
+    # decision this code makes rather than something the demo said.
+    killer: dict = {}
+    died_now: dict = {}
+    n_blind = 0
+    for i, b in enumerate(rows):
+        end = b["seconds"] + (b["duration"] or 0.0) + KILL_GRACE_SECONDS
+        hit = next((d for d in deaths.get((b["match_key"], b["round_num"],
+                                           b["victim_steamid"]), ())
+                    if b["seconds"] <= d["seconds"] <= end), None)
+        att = hit["attacker_steamid"] if hit else None
+        t_side = side_of.get((b["match_key"], b["round_num"],
+                              b["thrower_steamid"]))
+        # An own-side blind is never credited with a kill, and a blinded
+        # opponent who dies to their own teammate is not something your
+        # flashbang did.
+        ours = bool(att) and side_of.get((b["match_key"], b["round_num"],
+                                          att)) == t_side
+        died = int(ours and not b["own_side"])
+        killer[i] = att if died else None
+        died_now[i] = died
+        if died != b["died_blind"]:
+            n_blind += 1
+            if not check:
+                db.execute("""UPDATE blinds SET died_blind = ?
+                               WHERE match_key=? AND round_num=? AND seconds=?
+                                 AND victim_steamid=? AND thrower_steamid=?""",
+                           died, b["match_key"], b["round_num"], b["seconds"],
+                           b["victim_steamid"], b["thrower_steamid"])
+
     def blank():
         return {"enemies_flashed": 0, "teammates_flashed": 0,
                 "blind_enemy_secs": 0.0, "blind_team_secs": 0.0,
                 "flash_assists": 0, "flash_kills": 0}
-    for b in rows:
+
+    # ---- per flash, and per player-round
+    flash: dict = {}
+    player: dict = {}
+    counted = 0
+    for i, b in enumerate(rows):
         if not blinding(b["duration"]):
             continue
         counted += 1
         fk = (b["match_key"], b["round_num"], b["thrower_steamid"], b["seconds"])
         f = flash.setdefault(fk, {"hit_enemy": 0, "hit_own": 0, "kills": 0})
-        pk = (b["match_key"], b["round_num"], b["thrower_steamid"])
-        p = player.setdefault(pk, blank())
+        p = player.setdefault((b["match_key"], b["round_num"],
+                               b["thrower_steamid"]), blank())
         if b["own_side"]:
+            # `hit_own` counts the thrower's own screen as well as a
+            # teammate's; the split between the two lives in the blind rows.
             f["hit_own"] += 1
             p["teammates_flashed"] += 1
             p["blind_team_secs"] += b["duration"] or 0.0
-        else:
-            f["hit_enemy"] += 1
-            p["enemies_flashed"] += 1
-            p["blind_enemy_secs"] += b["duration"] or 0.0
-            if b["died_blind"]:
-                f["kills"] += 1
-                p["flash_assists"] += 1
-                # Which of our players took the kill, from the death inside
-                # this blind's own window.
-                key = (b["match_key"], b["round_num"], b["victim_steamid"])
-                end = b["seconds"] + (b["duration"] or 0.0)
-                hit = next((d for d in deaths.get(key, ())
-                            if b["seconds"] <= d["seconds"] <= end), None)
-                att = hit and hit["attacker_steamid"]
-                t_side = side_of.get((b["match_key"], b["round_num"],
-                                      b["thrower_steamid"]))
-                if att and side_of.get((b["match_key"], b["round_num"],
-                                        att)) == t_side:
-                    k = (b["match_key"], b["round_num"], att)
-                    player.setdefault(k, blank())["flash_kills"] += 1
-
-    # `hit_own` counts the thrower's own screen as well as a teammate's, which
-    # is what the flash counters have always meant. The split between the two
-    # lives in the blind rows and is read from there.
+            continue
+        f["hit_enemy"] += 1
+        p["enemies_flashed"] += 1
+        p["blind_enemy_secs"] += b["duration"] or 0.0
+        if died_now[i]:
+            f["kills"] += 1
+            p["flash_assists"] += 1
+            player.setdefault((b["match_key"], b["round_num"], killer[i]),
+                              blank())["flash_kills"] += 1
 
     # ONLY matches that actually have blind rows.
     #
@@ -113,9 +136,6 @@ def rebuild(check: bool = False) -> dict:
     # with no blind rows is a match this script knows nothing about.
     scope = [r["match_key"] for r in
              db.query("SELECT DISTINCT match_key FROM blinds")]
-    if not scope:
-        return {"blinds": len(rows), "counted": counted,
-                "matches": 0, "grenades_changed": 0, "player_rounds_changed": 0}
     marks = ",".join("?" * len(scope))
 
     nades = db.query(f"""SELECT id, match_key, round_num, seconds, steamid,
@@ -124,7 +144,7 @@ def rebuild(check: bool = False) -> dict:
                           WHERE kind = 'flash' AND match_key IN ({marks})""",
                      *scope)
     # A blind lands within a few ticks of the detonation it came from, not
-    # necessarily on it, so each flash takes the nearest unclaimed group.
+    # necessarily on it, so each flash takes the nearest candidate.
     by_thrower: dict = {}
     for g in nades:
         by_thrower.setdefault((g["match_key"], g["round_num"], g["steamid"]),
@@ -156,14 +176,13 @@ def rebuild(check: bool = False) -> dict:
                        w["hit_enemy"], w["hit_own"], w["kills"], g["id"])
 
     n_pr = 0
-    prs = db.query(f"""SELECT match_key, round_num, steamid, enemies_flashed,
-                              teammates_flashed, blind_enemy_secs,
-                              blind_team_secs, flash_assists, flash_kills
-                         FROM player_rounds WHERE match_key IN ({marks})""",
-                   *scope)
     INTS = ("enemies_flashed", "teammates_flashed", "flash_assists", "flash_kills")
     SECS = ("blind_enemy_secs", "blind_team_secs")
-    for r in prs:
+    for r in db.query(f"""SELECT match_key, round_num, steamid, enemies_flashed,
+                                 teammates_flashed, blind_enemy_secs,
+                                 blind_team_secs, flash_assists, flash_kills
+                            FROM player_rounds
+                           WHERE match_key IN ({marks})""", *scope):
         w = player.get((r["match_key"], r["round_num"], r["steamid"]), blank())
         if (all(r[k] == w[k] for k in INTS)
                 and all(abs((r[k] or 0) - w[k]) < 1e-6 for k in SECS)):
@@ -181,7 +200,8 @@ def rebuild(check: bool = False) -> dict:
                        r["match_key"], r["round_num"], r["steamid"])
 
     return {"blinds": len(rows), "counted": counted, "matches": len(scope),
-            "grenades_changed": n_nade, "player_rounds_changed": n_pr}
+            "blinds_changed": n_blind, "grenades_changed": n_nade,
+            "player_rounds_changed": n_pr}
 
 
 if __name__ == "__main__":
@@ -191,13 +211,15 @@ if __name__ == "__main__":
     if not out["blinds"]:
         print("No blind rows in this database. Nothing to rebuild.")
         raise SystemExit(0)
-    print(f"threshold            {MIN_BLIND_SECONDS}s")
-    print(f"matches with blinds  {out['matches']:,}")
-    print(f"blind events         {out['blinds']:,}")
-    print(f"counted as blinds    {out['counted']:,} "
+    print(f"blind at least        {MIN_BLIND_SECONDS}s")
+    print(f"kill within           {KILL_GRACE_SECONDS}s of it lifting")
+    print(f"matches with blinds   {out['matches']:,}")
+    print(f"blind events          {out['blinds']:,}")
+    print(f"counted as blinds     {out['counted']:,} "
           f"({100 * out['counted'] / out['blinds']:.0f}%)")
     verb = "would change" if check else "changed"
-    print(f"flashes {verb}      {out['grenades_changed']:,}")
-    print(f"player rounds {verb}  {out['player_rounds_changed']:,}")
+    print(f"blind rows {verb}    {out['blinds_changed']:,}")
+    print(f"flashes {verb}       {out['grenades_changed']:,}")
+    print(f"player rounds {verb} {out['player_rounds_changed']:,}")
     if check:
         print("\n--check: nothing was written.")

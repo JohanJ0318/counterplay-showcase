@@ -1908,17 +1908,23 @@ def stats_page(request: Request):
               f'blinds everyone who can see it. Those {uf["hit_enemy"]} '
               f'flashes took {uf["enemy_secs"]:.0f} seconds of sight off the '
               f'opposition. {uf["hit_own"]} of your flashes also blinded your '
-              f'own side, for {uf["own_secs"]:.0f} seconds. Blinded means held '
-              f'for at least {utility.MIN_BLIND_SECONDS} seconds: the game '
-              f'reports the quarter second somebody catches while turning '
-              f'away, and that is a flinch rather than a flash.')
+              f'own side, for {uf["own_secs"]:.0f} seconds, though '
+              f'{uf["own_and_enemy"]} of those blinded an opponent as well: '
+              f'only {uf["team_no_enemy"]} blinded a teammate and nobody on '
+              f'the other side. Blinded means held for at least '
+              f'{utility.MIN_BLIND_SECONDS} seconds, because the game reports '
+              f'the quarter second somebody catches while turning away and '
+              f'that is a flinch rather than a flash.')
         kill_pct = 100.0 * uf["got_a_kill"] / uf["thrown"] if uf["thrown"] else 0
         ucard(f"{kill_pct:.0f}%", "of your flashes get somebody killed",
               f'{uf["got_a_kill"]} of {uf["thrown"]} thrown',
               f'An opponent this flash blinded, who then died to one of you '
-              f'before it wore off. {uf["kills_from"]} opponents in all. This '
-              f'is the only reason to throw one, and it is a long way below '
-              f'the share that merely land.')
+              f'before it wore off or inside the '
+              f'{utility.KILL_GRACE_SECONDS:.0f} second after it lifted: they '
+              f'turn away, it drops, and they are dead before they have found '
+              f'you again. {uf["kills_from"]} opponents in all. This is the '
+              f'only reason to throw one, and it is a long way below the share '
+              f'that merely land.')
         if us and us["molotovs"]:
             deny_pct = 100.0 * us["denied"] / us["molotovs"]
             ucard(f"{deny_pct:.0f}%", "of your molotovs deny space",

@@ -306,15 +306,23 @@ def monday(team_id: int) -> dict:
     if uf and uf["thrown"] >= MIN_UTILITY:
         own = _pct(uf["hit_own"], uf["thrown"])
         if own >= OWN_FLASH_LIMIT:
+            # The headline is the whole own-side number, and the second
+            # sentence takes it apart, because most of it is not the problem
+            # the third sentence describes. A flash that blinds two defenders
+            # and clips your entry on the way through worked. The one to drill
+            # is the flash that blinded a teammate and nobody else.
             add("Fix who your flashes land on",
                 f"{own:.0f}% of the flashes you throw blind someone on your own "
-                f"side. A flash that blinds your entry is worse than no flash: "
-                f"the site is still held and the man going in cannot see it. "
-                f"This is a pop-flash and a timing problem, and it is fixed in "
-                f"practice rather than in a match.",
+                f"side, but only {_pct(uf['team_no_enemy'], uf['thrown']):.0f}% "
+                f"blind a teammate and no opponent at all. Those "
+                f"{uf['team_no_enemy']} are the ones to drill: the site is "
+                f"still held and the man going in cannot see it. A pop-flash "
+                f"and a timing problem, fixed in practice rather than in a "
+                f"match.",
                 f"{uf['hit_own']} of {uf['thrown']} flashes blinded a teammate "
-                f"or the thrower, for {uf['own_secs']:.0f} seconds against "
-                f"{uf['enemy_secs']:.0f} seconds of the opposition",
+                f"or the thrower: {uf['own_and_enemy']} of those also blinded "
+                f"an opponent, {uf['team_no_enemy']} blinded a teammate only, "
+                f"and {uf['self_no_enemy']} blinded only the thrower",
                 uf["hit_own"], uf["thrown"],
                 stake=_round_stake("own_flash"),
                 foot=_round_foot("own_flash"))

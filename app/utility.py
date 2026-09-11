@@ -24,7 +24,8 @@ import numpy as np
 from . import db
 from .report import _side_by_round, _team_match_keys, team_anchors
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
-from counterplay.utility import MIN_BLIND_SECONDS, blinding
+from counterplay.utility import (KILL_GRACE_SECONDS, MIN_BLIND_SECONDS,
+                                 blinding)
 
 # A CS2 molotov spreads to roughly 150 units. 220 is generous on purpose: the
 # question is whether someone had to move, and a player standing 200 units from
@@ -117,8 +118,8 @@ def flashes(team_id: int) -> dict | None:
     keys = _match_keys(team_id)
     marks = ",".join("?" * len(keys))
     sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
-    rows = db.query(f"""SELECT match_key, round_num, thrower_side, own_side,
-                               duration, died_blind,
+    rows = db.query(f"""SELECT match_key, round_num, seconds, thrower_side,
+                               own_side, duration, died_blind,
                                victim_steamid, thrower_steamid
                           FROM blinds WHERE match_key IN ({marks})""", *keys)
     enemy_secs = own_secs = kills = 0.0
@@ -127,6 +128,13 @@ def flashes(team_id: int) -> dict | None:
     # meant a teammate or the thrower's own screen, and those are different
     # mistakes with different fixes.
     blinded_team = blinded_self = 0
+    # The blinds from one flashbang are emitted on the same tick, so grouping
+    # on thrower and time reconstructs the flash. That is what lets this say
+    # which flashes blinded an opponent AND their own side, and the difference
+    # matters: a flash going through a doorway that catches your entry's edge
+    # while taking two defenders' sight is not the same mistake as one that
+    # blinded a teammate and nobody else.
+    by_flash: dict = {}
     for b in rows:
         mine = sides.get((b["match_key"], b["round_num"]))
         if mine is None or b["thrower_side"] != mine:
@@ -138,6 +146,14 @@ def flashes(team_id: int) -> dict | None:
         # teammate.
         if not blinding(b["duration"]):
             continue
+        fl = by_flash.setdefault(
+            (b["match_key"], b["round_num"], b["thrower_steamid"], b["seconds"]),
+            {"enemy": False, "team": False, "self": False})
+        if b["own_side"]:
+            fl["self" if b["victim_steamid"] == b["thrower_steamid"]
+               else "team"] = True
+        else:
+            fl["enemy"] = True
         if b["own_side"]:
             own_secs += b["duration"] or 0.0
             if b["victim_steamid"] == b["thrower_steamid"]:
@@ -147,8 +163,23 @@ def flashes(team_id: int) -> dict | None:
         else:
             enemy_secs += b["duration"] or 0.0
             kills += int(b["died_blind"] or 0)
+    # The three ways an own-side flash goes, which are three different
+    # conversations at practice.
+    own_and_enemy = sum(1 for v in by_flash.values()
+                        if v["enemy"] and (v["team"] or v["self"]))
+    team_no_enemy = sum(1 for v in by_flash.values()
+                        if v["team"] and not v["enemy"])
+    self_no_enemy = sum(1 for v in by_flash.values()
+                        if v["self"] and not v["team"] and not v["enemy"])
     return {
         "thrown": f["thrown"],
+        # Of the flashes that blinded your own side: how many also blinded an
+        # opponent (so the flash worked and clipped somebody on the way), how
+        # many blinded a teammate and nobody else (the actual mistake), and how
+        # many blinded only the thrower.
+        "own_and_enemy": own_and_enemy,
+        "team_no_enemy": team_no_enemy,
+        "self_no_enemy": self_no_enemy,
         # The two that matter: how often a flash takes an opponent's sight,
         # and how often somebody dies behind it. The rest is context.
         "got_a_kill": f["got_a_kill"], "kills_from": f["kills"],
