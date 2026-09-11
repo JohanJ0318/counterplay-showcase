@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import (advice, auth, charts, db, legal, mail, movement,
-               report as report_mod, resets, smokes, sample as sample_page,
+               report as report_mod, resets, sample as sample_page,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
@@ -1943,23 +1943,6 @@ def stats_page(request: Request):
                   f'not waste. Across {uu["rounds"]} rounds that is '
                   f'{uu["unused"]} grenades that bought nothing.')
 
-        smoke_line = ""
-        if us and us["smokes"]:
-            # The old line said "an opponent walked through 140 of your 407"
-            # and left it there. Two thirds of that was a smoke doing its job
-            # for most of its life before somebody finally came, and a tenth
-            # was a smoke thrown onto a player who was already standing there,
-            # which is not walking through anything.
-            held = (f'{us["held_secs"] / us["entered"]:.0f}'
-                    if us["entered"] else "0")
-            smoke_line = (
-                f'<p class="den" style="margin-top:2px">Nobody was inside '
-                f'{us["uncrossed"]} of your {us["smokes"]} smokes while they '
-                f'were up, which is not the same as nobody wanting to be. An '
-                f'opponent walked into {us["entered"]}, and those held the '
-                f'space {held} seconds on average before anybody did. The '
-                f'other {us["landed_on"]} landed on somebody already standing '
-                f'there.</p>')
         utility_block = f"""
   <section>
     <div class="sec-head"><span class="label">What your grenades did</span>
@@ -1967,138 +1950,9 @@ def stats_page(request: Request):
     <p class="lede">What the utility achieved, counted per grenade from the
       demo, not how much of it was thrown.</p>
     <div class="stat-row">{"".join(cards)}</div>
-    {smoke_line}
   </section>"""
     else:
         utility_block = ""
-
-    # ---- smoke calls
-    #
-    # A smoke is not only a wall nobody walks through. Most are thrown to take
-    # a sightline away so your own side can move somewhere else, which is why
-    # "was an opponent standing in the cloud" answers the wrong question about
-    # half of them: nobody was ever going to stand in mid doors.
-    #
-    # Three questions per call, none of which needs a lineup site: what it was
-    # for, how consistently it is thrown, and who else throws it. The zone rows
-    # are the careful part. They say what the call IS rather than what the
-    # smoke caused, because you throw the X box smoke in the rounds you were
-    # going up cat anyway.
-    calls = smokes.analyse(team["id"])
-    if calls:
-        SHOWN = 6
-        cards = []
-        for i_, c in enumerate(calls[:SHOWN]):
-            a, b = c["with"], c["without"]
-            rows = [("Rounds won", a["won"], a["n"], b["won"], b["n"]),
-                    ("An opponent in it", a["seen"], a["n"], b["seen"], b["n"])]
-            for z in c["reach"]:
-                rows.append((f'You reach {z["zone"]}',
-                             z["with"], a["n"], z["without"], b["n"]))
-            body = "".join(
-                f'<tr><td class="name">{esc(label)}</td>'
-                f'<td class="num">{rate(hit, of)}</td>'
-                f'<td class="num">{rate(hit2, of2)}</td></tr>'
-                for label, hit, of, hit2, of2 in rows)
-
-            tid = f"sp{i_}"
-            why = smokes.PURPOSE_BLURB.get(c["purpose"], "")
-            tag = (f'<span class="pill">{esc(c["purpose"])}'
-                   f'<span class="info" tabindex="0" role="button"'
-                   f' aria-describedby="{tid}" aria-label="What this means">i'
-                   f'<span class="tip" role="tooltip" id="{tid}">{esc(why)} '
-                   f'{c["purpose_n"]} of the {c["thrown"]} throws.</span>'
-                   f'</span></span>')
-
-            # How consistently it is thrown, and the outcome split only when
-            # both halves are big enough to be worth reading. On most calls
-            # every throw lands on the spot, which is itself the finding.
-            on, off = c["on_spot"], c["off_spot"]
-            lines = [f'Your throws land a median of {c["median_off"]:.0f} units '
-                     f'from your own spot.']
-            if on["n"] >= smokes.MIN_EACH and off["n"] >= smokes.MIN_EACH:
-                lines.append(
-                    f'Won {on["won"]} of the {on["n"]} rounds it landed inside '
-                    f'{smokes.ON_SPOT:.0f} units of that, and {off["won"]} of '
-                    f'the {off["n"]} it did not.')
-            elif off["n"] == 0:
-                lines.append(f'All {c["thrown"]} landed inside '
-                             f'{smokes.ON_SPOT:.0f} units of it.')
-            r = c["reference"]
-            lines.append(
-                f'{r["thrown"]} throws by {r["matches"]} of the sides you '
-                f'played land within {r["off"]:.0f} units of the same spot.'
-                if r else 'No side you played threw a smoke here.')
-
-            cards.append(
-                f'<div class="card">'
-                f'<div class="sec-head" style="margin:0">'
-                f'<span class="label">{map_chip(c["map"])} '
-                f'<span class="pill {c["side"]}">{c["side"].upper()}</span> '
-                f'&middot; around {c["at"]:.0f}s &middot; thrown {c["thrown"]}'
-                f'</span>'
-                f'<div style="display:flex;gap:9px;align-items:center;'
-                f'flex-wrap:wrap"><h3>{esc(c["where"] or "Smoke")}</h3>{tag}</div>'
-                f'</div>'
-                f'<div class="tbl-wrap"><table><thead><tr><th></th>'
-                f'<th class="num">With it</th>'
-                f'<th class="num">Without</th></tr></thead>'
-                f'<tbody>{body}</tbody></table></div>'
-                f'<p class="den">{" ".join(esc(l) for l in lines)}</p></div>')
-
-        cov = smokes.coverage(team["id"])
-        cov_block = ""
-        if cov:
-            # A plain fraction, not `rate`. Everywhere else a denominator is a
-            # number of chances and "thin" means the rate could be luck. Here
-            # it is a census of their spots: you either throw one or you do
-            # not, and there is no luck in it to warn anybody about.
-            crows = "".join(
-                f'<tr><td class="name">{map_chip(mp)} '
-                f'<span class="pill {sd}">{sd.upper()}</span></td>'
-                f'<td class="num mono">{v["yours_hit"]} / {v["theirs"]}</td>'
-                f'<td class="num den">'
-                f'{v["theirs"] - v["yours_hit"] or "&ndash;"}</td></tr>'
-                for (mp, sd), v in sorted(cov.items(),
-                                          key=lambda kv: -kv[1]["theirs"]))
-            cov_block = (
-                f'<div><div class="sec-head" style="margin-top:22px">'
-                f'<span class="label">Out of the spots they use</span>'
-                f'<h3>Smokes you never throw</h3></div>'
-                f'<p class="lede">A spot the sides you played come back to, '
-                f'that nothing of yours lands near. Not a mistake and not a '
-                f'homework list: the cheapest thing to notice about a map pool '
-                f'and the hardest to see from inside your own demos. Eleven '
-                f'opposing sides is a small reference and it sharpens with '
-                f'every match you send in.</p>'
-                f'<div class="tbl-plain"><table><thead><tr><th>Map and side</th>'
-                f'<th class="num">Of their spots you throw</th>'
-                f'<th class="num">Never</th></tr></thead>'
-                f'<tbody>{crows}</tbody></table></div></div>')
-
-        more = (f'<p class="note">{len(calls) - SHOWN} more smokes repeat often '
-                f'enough to compare; these {SHOWN} have the most rounds behind '
-                f'them.</p>' if len(calls) > SHOWN else "")
-        smoke_block = f"""
-  <section>
-    <div class="sec-head"><span class="label">What each smoke goes with</span>
-      <h2>Smoke calls</h2></div>
-    <p class="lede">Smokes you throw at the same spot over and over, with your
-      rounds split into the ones you threw it in and the ones you did not, over
-      the same stretch of the clock in both. <strong>The places you reach
-      describe the call, not the smoke.</strong> You throw the mid smoke in the
-      rounds you were going through mid anyway, so that row says what this
-      smoke goes with rather than proving it made anything work. The row to
-      read as a result is whether an opponent was in the space it covered.
-      These rounds also differ in every other way rounds differ, so a gap here
-      is two sets of rounds going differently and never a cause.</p>
-    <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
-      {"".join(cards)}</div>
-    {more}
-    {cov_block}
-  </section>"""
-    else:
-        smoke_block = ""
 
     # ---- positional patterns: where they actually play
     #
@@ -2323,8 +2177,6 @@ def stats_page(request: Request):
   </section>
 
   {utility_block}
-
-  {smoke_block}
 
   {positional_block}
 

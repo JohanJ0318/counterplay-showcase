@@ -140,12 +140,6 @@ UTILITY = [
      "into the next round is not waste. Across 148 rounds that is 402 grenades "
      "that bought nothing."),
 ]
-SMOKE_LINE = ("Nobody was inside 118 of your 161 smokes while they were up, "
-              "which is not the same as nobody wanting to be. An opponent "
-              "walked into 31, and those held the space 8 seconds on average "
-              "before anybody did. The other 12 landed on somebody already "
-              "standing there.")
-
 # ---------------------------------------------------------------- positions
 #
 # (side, map, zone, rounds it happened in, rounds of that map and side,
@@ -460,7 +454,6 @@ def render(user=None, pictures=None) -> str:
     <p class="lede">What the utility achieved, counted per grenade from the demo,
       not how much of it was thrown.</p>
     <div class="stat-row">{ucards}</div>
-    <p class="den" style="margin-top:2px">{SMOKE_LINE}</p>
   </section>
 
   {"".join(pos_blocks)}

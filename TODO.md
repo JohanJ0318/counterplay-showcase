@@ -27,6 +27,31 @@ Ordered by what it costs you if it does not get done.
 - [ ] Optional: have somebody qualified read `/privacy` and `/terms`, then set
       `COUNTERPLAY_LEGAL_REVIEWED=1` to drop the draft banner.
 
+## Built, and deliberately not on a page
+
+- [ ] **Smoke calls.** `app/smokes.py`, with tests, and nothing imports it.
+      Finds the smokes a team throws at the same spot repeatedly and reports,
+      per call: what it was for (execute, lurk, retake, map control, read off
+      the thrower's distance to his own side and the plant), how far each throw
+      lands from the team's own median for that call, and which spots the
+      opposing sides in the same demos also use.
+
+      Taken off the team stats page on 2026-09-11 because it was too much page
+      for what it could honestly claim. `git show 96f1acd` is the rendering, and
+      `git show cd4f733` the first version of it; both revert cleanly.
+
+      Before it goes back, the thing it needs is not code. It is repetitions of
+      the SAME call, so good executions can be compared against bad ones with
+      the plan held constant. Eleven matches gives six calls worth printing and
+      splits of 7 against 12. The `app/pull.py` cache cannot supply more: its
+      1,681 FACEIT demo links have expired, six of six dead on 403 or DNS.
+
+- [ ] **The smoke line under Utility.** One sentence, removed at the same time:
+      how many smokes nobody was inside, how many an opponent walked into, and
+      how long those held the space first. The numbers behind it are still
+      computed in `utility.space()` and still correct; only the sentence is
+      gone.
+
 ## Product gaps a coach will notice
 
 - [ ] **The dashboard is a brochure.** Six feature cards, two of them "coming",
