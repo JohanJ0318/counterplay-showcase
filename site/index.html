@@ -212,6 +212,33 @@ ol.steps p{color:var(--muted);font-size:.95rem}
   display:flex;flex-direction:column;gap:9px}
 .notyet p{font-size:.93rem;color:var(--muted)}
 
+/* ---------- the film band ---------- */
+/* Thirteen seconds of Counter-Strike between the argument and the evidence. It
+   proves nothing about the product and is not trying to: it says who this is
+   for, in the half second before anybody reads a word.
+
+   The words and the scrim behind them are baked into the file rather than laid
+   over it in HTML. That costs the things HTML gives you for nothing, so the
+   text alternative below carries the same line for a screen reader, and the
+   poster frame carries it for anyone who does not get video. */
+.filmband{position:relative;overflow:hidden;background:#0B0910;
+  height:clamp(260px,40vh,430px);
+  border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
+.filmband video,.filmband img.poster{position:absolute;inset:0;width:100%;
+  height:100%;object-fit:cover}
+.filmband video{z-index:1}
+/* Under about 460px the band is taller than 16:9 is wide, so `cover` starts
+   cropping the SIDES, and the words are on the left. Below 600 the band takes
+   the film's own shape instead and nothing is cut off. */
+@media (max-width:600px){.filmband{height:auto;aspect-ratio:16/9}}
+/* A loop nobody can stop is a problem for anyone who finds movement painful,
+   and the browser already knows who they are. They get the still frame, which
+   has the same words on it. */
+@media (prefers-reduced-motion:reduce){.filmband video{display:none}}
+/* Off-screen but not hidden from a screen reader. */
+.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
+  clip:rect(0 0 0 0);white-space:nowrap;border:0}
+
 /* ---------- the close ---------- */
 /* One row, not a section. The nav's button is sticky and never leaves the
    screen, so the foot of the page does not need to repeat the hero; it needs
@@ -285,6 +312,16 @@ footer a{color:var(--muted)}
     </div>
   </div>
 </div></div>
+
+<section class="filmband">
+  <h2 class="vh">Level up your gaming with Counterplay. Your own demos, read
+    round by round, with every number printed beside the rounds it came from.</h2>
+  <img class="poster" src="/media/loop-poster.jpg" alt="" aria-hidden="true">
+  <video autoplay muted loop playsinline preload="metadata"
+         poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1">
+    <source src="/media/loop.mp4" type="video/mp4">
+  </video>
+</section>
 
 <div class="wrap">
 

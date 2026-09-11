@@ -2563,6 +2563,13 @@ if (SITE / "radars").is_dir():
     app.mount("/radars", StaticFiles(directory=SITE / "radars"), name="radars")
 
 
+# The landing page's video loop and its poster frame. StaticFiles answers Range
+# requests, which a <video> needs; the page also works with the directory
+# missing, because the band falls back to its poster and then to nothing.
+if (SITE / "media").is_dir():
+    app.mount("/media", StaticFiles(directory=SITE / "media"), name="media")
+
+
 # The generated league site is served by league_page above, which gives it
 # addresses without .html and redirects the old ones. It is deliberately not
 # mounted as static files as well: two ways to reach the same page is one way
