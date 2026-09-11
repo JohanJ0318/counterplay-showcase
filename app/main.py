@@ -877,6 +877,24 @@ def match_report(request: Request, match_key: str):
                                      'another team.</p></section>', user),
                                 status_code=403)
 
+    # A MATCH COUNTS, IT DOES NOT RATE.
+    #
+    # `rate` warns below MIN_CHANCES because eight chances cannot support a
+    # tendency. Every split of one match is small by construction - two pistol
+    # rounds, six forces, five rounds through apartments - so twelve of the
+    # nineteen figures on this page came back wearing a warning label about a
+    # claim the page was not making. `count` prints the fraction and no
+    # percentage, because the denominator here is the whole match.
+    #
+    # The season rate sits beside it where there is one, which is the number
+    # that gives a match figure meaning: 3 of 6 forces is not high or low until
+    # you know what your forces usually do.
+    count = report_mod.count
+    # Whose report the reader is looking at, established once and early:
+    # three separate blocks below need it and one of them used to run
+    # before it existed.
+    team = db.team_for_user(user["id"]) if user else None
+
     r = report_mod.build(match_key)
     if r is None:
         return HTMLResponse(page("Not found", banner("Not found"),
@@ -914,24 +932,39 @@ def match_report(request: Request, match_key: str):
         rounds_lost = ", ".join(str(n) for n in o["lost_rounds"]) or "-"
         od.append(
             f'<tr><td class="name">{side.upper()}</td>'
-            f'<td class="num">{rate(o["saved"], o["lost"])}</td>'
-            f'<td class="num">{rate(o["converted"], o["taken"])}</td>'
+            f'<td class="num">{count(o["saved"], o["lost"])}</td>'
+            f'<td class="num">{count(o["converted"], o["taken"])}</td>'
             f'<td class="den">{esc(rounds_lost)}</td></tr>')
+
+    # The season's own record for the same buy, so the match figure has
+    # something to be high or low against. Absent until a team has a season.
+    season_buys = None
+    if team:
+        st_all = report_mod.team_stats(team["id"])
+        if st_all and st_all["anchors"]["confident"]:
+            season_buys = st_all["you_buys"]
 
     br = []
     for side in ("ct", "t"):
         for kind, v in sorted(r["buys"][side].items()):
             which = ", ".join(str(n) for n in v["rounds"])
+            season = ""
+            if season_buys is not None:
+                sv = season_buys.get(kind)
+                season = (f'<td class="num">{rate(sv["won"], sv["n"])}</td>'
+                          if sv else '<td class="num">'
+                                     f'{rate(0, 0)}</td>')
             br.append(f'<tr><td class="name">{side.upper()} {esc(kind)}</td>'
-                      f'<td class="num">{rate(v["won"], v["n"])}</td>'
+                      f'<td class="num">{count(v["won"], v["n"])}</td>'
+                      f'{season}'
                       f'<td class="den">{esc(which)}</td></tr>')
 
     # ---- scoreboard
     ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
     sb_blocks = []
-    for team in r["scoreboard"]:
+    for sb_side in r["scoreboard"]:
         prows = []
-        for a in team["players"]:
+        for a in sb_side["players"]:
             cls = ROLE_CLASS.get(a["role"], "role")
             util = a.get("util_damage", 0) or 0
             tk = a.get("trade_kills", 0) or 0
@@ -951,12 +984,12 @@ def match_report(request: Request, match_key: str):
                 f'<td class="num mono">{util:.0f}</td>'
                 f'<td class="num mono">{a["awp_kills"] or "&ndash;"}</td>'
                 f'<td class="num mono">{a["rounds"]}</td></tr>')
-        pill = "pill ct" if team["side"] == "ct" else (
-            "pill t" if team["side"] == "t" else "pill")
+        pill = "pill ct" if sb_side["side"] == "ct" else (
+            "pill t" if sb_side["side"] == "t" else "pill")
         sb_blocks.append(
             f'<div style="display:flex;align-items:center;gap:10px;margin-top:6px">'
-            f'<span class="{pill}">{esc(team["label"])}</span>'
-            f'<span class="den">{len(team["players"])} players</span></div>'
+            f'<span class="{pill}">{esc(sb_side["label"])}</span>'
+            f'<span class="den">{len(sb_side["players"])} players</span></div>'
             f'<div class="tbl-wrap"><table><thead><tr><th>Player</th><th>Role</th>'
             f'<th class="num">K{DASH}D{DASH}A</th><th class="num">ADR</th>'
             f'<th class="num">K/D</th><th class="num">HS</th>'
@@ -990,7 +1023,6 @@ def match_report(request: Request, match_key: str):
     # A round timeline is a time series and it was a table. Bars are rounds —
     # up for won, height for what was brought — and the line is the running
     # score difference, so a comeback looks like one.
-    team = db.team_for_user(user["id"]) if user else None
     _sides = (report_mod._side_by_round(
         team["id"], report_mod.team_anchors(team["id"]).get("anchors", {}))
         if team else {})
@@ -1009,9 +1041,9 @@ def match_report(request: Request, match_key: str):
             rows_ = "".join(
                 f'<tr><td class="name">{esc(z["zone"])}</td>'
                 f'<td class="num">{z["n"]}</td>'
-                + (f'<td class="num">{rate(z["traded"] or 0, z["n"])}</td>'
+                + (f'<td class="num">{count(z["traded"] or 0, z["n"])}</td>'
                    if trades else "")
-                + f'<td class="num">{rate(z["won"], z["n"])}</td></tr>'
+                + f'<td class="num">{count(z["won"], z["n"])}</td></tr>'
                 for z in items)
             head = (f'<th class="num" title="First deaths here that a teammate '
                     f'traded back">Traded</th>' if trades else "")
@@ -1072,18 +1104,34 @@ def match_report(request: Request, match_key: str):
     </details>
   </section>"""
 
-    # ---- what this one match says, kept deliberately thin
+    # ---- what this one match says
+    #
+    # Every card names its rounds. A section called "worth pulling up at
+    # practice" whose findings do not say WHICH rounds to pull up is asking a
+    # coach to go and find them, which is the work the page exists to do.
     match_notes = advice.for_match(match_key, team["id"]) if team else []
     notes_block = ""
     if match_notes:
-        notes_block = (
-            '<section><div class="sec-head"><span class="label">'
-            'Worth pulling up at practice</span><h2>From this match</h2></div>'
-            + "".join(
-                f'<div class="card"><h3>{esc(n["do"])}</h3>'
+        cards = []
+        for n in match_notes:
+            tag = "keep doing this" if n["good"] else "watch these back"
+            rounds = ", ".join(str(x) for x in n["rounds"])
+            cards.append(
+                f'<div class="card advice{" good" if n["good"] else ""}">'
+                f'<span class="pill {"on" if n["good"] else "t"}">{tag}</span>'
+                f'<h3>{esc(n["do"])}</h3>'
                 f'<p class="lede">{esc(n["because"])}</p>'
-                f'<p class="den">{esc(n["evidence"])}</p></div>'
-                for n in match_notes) + '</section>')
+                f'<p class="den">{esc(n["evidence"])}</p>'
+                f'<p class="rounds"><span class="label">Rounds</span> '
+                f'<span class="mono">{esc(rounds)}</span></p></div>')
+        notes_block = (
+            '<section class="lead"><div class="sec-head"><span class="label">'
+            'Worth pulling up at practice</span><h2>From this match</h2></div>'
+            '<p class="lede">Not recommendations: one game cannot earn those, '
+            'and the season view is where coaching belongs. This is the list of '
+            'rounds worth the projector, and why each group of them is worth '
+            'it.</p>'
+            f'<div class="grid2">{"".join(cards)}</div></section>')
 
     # THE SCORE.
     #
@@ -1171,7 +1219,11 @@ def match_report(request: Request, match_key: str):
     <div class="sec-head"><span class="label">By what they could afford</span>
       <h2>Buys</h2></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Side and buy</th><th class="num">Rounds won</th>
+      <thead><tr><th>Side and buy</th><th class="num">This match</th>
+        {'<th class="num" title="Your record on this buy across every match you '
+          'have sent in, both sides together. It is a rate because it has the '
+          'chances behind it; the column beside it does not.">Your season</th>'
+          if season_buys is not None else ''}
         <th>Which rounds</th></tr></thead>
       <tbody>{"".join(br)}</tbody></table></div>
   </section>
@@ -1196,10 +1248,13 @@ def match_report(request: Request, match_key: str):
 
   <section>
     <p class="note"><strong>Everything above is counted.</strong> Nothing on this
-      page is modeled, estimated or predicted. It is arithmetic over the
-      rounds in this demo, with the denominator beside every rate. Anything under
-      {report_mod.MIN_CHANCES} chances shows raw counts and a
-      <span class="pill beta">thin</span> label instead of a percentage.</p>
+      page is modeled, estimated or predicted. It is arithmetic over the rounds
+      in this demo. <strong>A match reports counts, not percentages.</strong>
+      One game gives two pistol rounds and a handful of forces, and a
+      percentage off a denominator that small invites you to read a tendency
+      into a single night. The fractions here are complete: that is all the
+      rounds there were. Where a season figure exists it sits beside them, and
+      that one is a rate, because it has the chances behind it.</p>
     <p class="warn"><strong>Not here yet: decision scoring.</strong> Which decision
       cost you a round you were winning is the one thing on a Counterplay report
       that needs a trained model, and the league corpus does not exist yet. It

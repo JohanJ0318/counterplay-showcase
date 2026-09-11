@@ -426,6 +426,13 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
    rule wins: `.rt.thin` was quietly inheriting its padding, background and
    border, which is what made those cells sit askew from every other row. */
 /* No bar, same footprint. */
+/* A match report's tally. Same box as every other rate cell so a column still
+   lines up, but the figure IS the fraction: there is no percentage to show and
+   no thinness to warn about, because the denominator is the whole match. */
+.rt.tally{padding-bottom:0}
+.rt.tally::after,.rt.tally::before{display:none}
+.rt.tally b{font-family:var(--f-mono);font-weight:500;font-size:.92rem;
+  color:var(--ink);letter-spacing:0}
 .rt.few::after,.rt.nil::after{display:none}
 .rt.few::before,.rt.nil::before{background:transparent}
 .rt.few b{font-family:var(--f-mono);font-size:11px;color:var(--muted)}
@@ -474,6 +481,11 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
 /* A recommendation is the one card that should read as an instruction, so it
    carries a left rail: brass when something needs changing, purple when the
    advice is to keep doing what is already working. */
+/* The round numbers a finding is about, set apart from the reasoning above
+   them because they are the thing a coach copies onto a whiteboard. */
+.rounds{display:flex;align-items:baseline;gap:9px;flex-wrap:wrap;
+  padding-top:9px;border-top:1px solid var(--border)}
+.rounds .mono{font-size:.86rem;color:var(--ink);letter-spacing:.02em}
 .card.advice{border-left:3px solid var(--t);border-radius:0 var(--r) var(--r) 0}
 .card.advice.good{border-left-color:var(--purple)}
 .chart{background:var(--surface);border:1px solid var(--border);

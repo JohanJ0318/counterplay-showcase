@@ -415,50 +415,197 @@ def _merge_same_place(raw: list[dict]) -> list[dict]:
     return out
 
 
-def for_match(match_key: str, team_id: int) -> list[dict]:
-    """The same idea for one match: what this game says, not the season.
+# ---- one match
+#
+# A match cannot support a claim about habits, and the old version of this knew
+# that and then said almost nothing: two possible findings, both of the shape
+# "N full buys went down, worth watching those rounds together", neither naming
+# a round. A section titled "worth pulling up at practice" that does not say
+# WHICH rounds to pull up has not done its job.
+#
+# So every finding below names its rounds, and every one is a thing that
+# happened in this game rather than a rate dressed as one.
 
-    Deliberately thinner. One match cannot support a recommendation about
-    habits, so this reports only what happened in it and leaves the coaching to
-    the season view.
+# A round lost from a man up is the most expensive kind there is, and the one
+# most likely to be a habit rather than an accident.
+MIN_THROWN = 2
+
+# BUT A MAN UP HAS TO MEAN SOMETHING. Every opening kill puts a team one ahead
+# for as long as it takes the other side to trade it, so counting any advantage
+# at all gave the same eight rounds two different headings: lost from a man up,
+# and took first blood and lost. An advantage is only a position a team was in
+# if they were in it, so either it lasted long enough to play or it was bigger
+# than one.
+HELD_UP_SECONDS = 10.0
+CLEAR_ADVANTAGE = 2
+
+# Most of the rounds have to have gone badly before a repeated first death is
+# worth the projector. Dying first in the same place and winning anyway is a
+# trade working, not a default being read.
+# A losing run shorter than this is a bad patch, not a collapse.
+MIN_STREAK = 3
+# First deaths in the same place, in one match.
+MIN_SAME_PLACE = 3
+MOSTLY_LOST = 0.6
+
+
+def _alive_swings(match_key: str, sides: dict, ends: dict) -> dict:
+    """Per round: the best man advantage this team held, and for how long.
+
+    Read off the death events in time order. Five a side at freeze-end, then
+    every death takes one off whichever side it belonged to; the running
+    difference is the advantage. Both numbers matter and for different reasons:
+    the size says how good the position was, the duration says whether it was a
+    position at all or only the gap between an opening kill and the trade.
+    """
+    per: dict = {}
+    by_round: dict = {}
+    for e in db.query("""SELECT round_num, seconds, victim_side
+                           FROM events
+                          WHERE type = 'death' AND match_key = ?
+                       ORDER BY round_num, seconds""", match_key):
+        by_round.setdefault(e["round_num"], []).append(e)
+    for rn, deaths in by_round.items():
+        mine = sides.get((match_key, rn))
+        if mine not in ("ct", "t"):
+            continue
+        us = them = 5
+        best = 0
+        held = 0.0
+        last = deaths[0]["seconds"] if deaths else 0.0
+        for d in deaths:
+            # Credit the stretch that just ended to whatever the state was
+            # during it, then apply this death.
+            if us > 0 and them > 0 and us > them:
+                held += max(0.0, d["seconds"] - last)
+            last = d["seconds"]
+            if d["victim_side"] == mine:
+                us -= 1
+            elif d["victim_side"]:
+                them -= 1
+            # 5v0 is a won round, not an advantage that was held and lost.
+            if us > 0 and them > 0:
+                best = max(best, us - them)
+        # And the stretch from the last death to the end of the round.
+        if us > 0 and them > 0 and us > them:
+            held += max(0.0, ends.get(rn, last) - last)
+        per[rn] = {"best": best, "held": held}
+    return per
+
+
+def for_match(match_key: str, team_id: int) -> list[dict]:
+    """What THIS game says, with the rounds to watch.
+
+    Not a set of recommendations: one match cannot earn those, and the season
+    view is where coaching belongs. This is a list of the rounds worth the
+    projector, and why each group of them is worth it.
     """
     from .report import build
 
     r = build(match_key)
     if r is None:
         return []
-    anchors = team_anchors(team_id).get("anchors", {})
-    sides = _side_by_round(team_id, anchors)
+    sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
 
-    out = []
-    lost_full = won_full = 0
-    lost_after_open = took_open = 0
+    ours = []
     for row in r["rows"]:
         side = sides.get((match_key, row["round_num"]))
         if side not in ("ct", "t"):
             continue
-        ct = side == "ct"
-        won = bool(row["ct_won"]) == ct
-        buy = row["buy_ct"] if ct else row["buy_t"]
-        if buy == "full":
-            won_full += won
-            lost_full += not won
-        if row["opening_loser"] and row["opening_loser"] != side:
-            took_open += 1
-            lost_after_open += not won
+        ours.append({
+            "n": row["round_num"], "side": side,
+            "won": bool(row["ct_won"]) == (side == "ct"),
+            "buy": row["buy_ct"] if side == "ct" else row["buy_t"],
+            "took_opening": bool(row["opening_loser"])
+                            and row["opening_loser"] != side,
+        })
+    if not ours:
+        return []
+    ours.sort(key=lambda x: x["n"])
+    won_of = {x["n"]: x["won"] for x in ours}
+    lost_total = sum(1 for x in ours if not x["won"])
+    out = []
 
-    if lost_full >= 4:
-        out.append({
-            "do": f"{lost_full} full buys went down in this match",
-            "because": "Worth watching those rounds together rather than "
-                       "separately, because a repeated loss on a full buy is usually one "
-                       "habit, not four bad rounds.",
-            "evidence": f"{won_full} of {won_full + lost_full} full buys won"})
-    if took_open >= 4 and lost_after_open >= took_open * 0.5:
-        out.append({
-            "do": f"You took the opening duel {took_open} times and lost "
-                  f"{lost_after_open} of those rounds anyway",
-            "because": "The man advantage was made and given back inside the same "
-                       "round. Those are the clips to pull.",
-            "evidence": f"{took_open - lost_after_open} of {took_open} converted"})
+    def add(do, because, evidence, rounds, good=False):
+        if rounds:
+            out.append({"do": do, "because": because, "evidence": evidence,
+                        "rounds": sorted(rounds), "good": good})
+
+    # ---- rounds given back from a man up
+    ends = {row["round_num"]: (row["duration"] or 0.0) for row in r["rows"]}
+    swings = _alive_swings(match_key, sides, ends)
+    thrown = [x["n"] for x in ours if not x["won"]
+              and (swings.get(x["n"], {}).get("held", 0) >= HELD_UP_SECONDS
+                   or swings.get(x["n"], {}).get("best", 0) >= CLEAR_ADVANTAGE)]
+    if len(thrown) >= MIN_THROWN:
+        add(f"{len(thrown)} rounds lost from a man up",
+            f"In each of these you were a player up for at least "
+            f"{int(HELD_UP_SECONDS)} seconds, or up by two, and lost it anyway. "
+            "That is the most expensive shape a round can take and the one most "
+            "likely to be the same mistake repeated: playing the advantage like "
+            "an even round, or all five arriving at once.",
+            f"{len(thrown)} of the {lost_total} rounds you lost", thrown)
+
+    # ---- the run that decided it
+    best_run, run = [], []
+    for x in ours:
+        run = run + [x["n"]] if not x["won"] else []
+        if len(run) > len(best_run):
+            best_run = list(run)
+    if len(best_run) >= MIN_STREAK:
+        before = sum(1 for x in ours if x["n"] < best_run[0] and x["won"])
+        DASH = "\u2013"
+        add(f"{len(best_run)} rounds lost in a row",
+            "A run like this is rarely that many separate problems. Watched "
+            "back to back, the same read, the same default or the same economy "
+            "hole usually turns up in all of them.",
+            f"rounds {best_run[0]} to {best_run[-1]}, and the score went from "
+            f"{before}{DASH}{best_run[0] - 1 - before} to "
+            f"{before}{DASH}{best_run[-1] - before}", best_run)
+
+    # ---- the advantage made and handed back
+    gave_back = [x["n"] for x in ours if x["took_opening"] and not x["won"]]
+    took = sum(1 for x in ours if x["took_opening"])
+    # Only the rounds the finding above did not already cover. An opening kill
+    # traded back immediately is this finding; one that was held is that one,
+    # and a round printed under both headings says nothing twice.
+    gave_back = [n for n in gave_back if n not in set(thrown)]
+    if len(gave_back) >= MIN_THROWN and took:
+        add(f"First blood taken and the round lost {len(gave_back)} times",
+            "The man advantage was made and given back inside the same round. "
+            "These are the clips where whatever you do after an opening kill "
+            "is visible, because there was time for it to happen.",
+            f"{took - len(gave_back)} of {took} converted", gave_back)
+
+    # ---- the same place, over and over
+    where = movement.match_positions(match_key, team_id) or {}
+    by_place: dict = {}
+    for q in where.get("rounds", []):
+        if q.get("died_in"):
+            by_place.setdefault((q["side"], q["died_in"]), []).append(q["round_num"])
+    for (side, place), rounds in sorted(by_place.items(),
+                                        key=lambda kv: -len(kv[1])):
+        if len(rounds) >= MIN_SAME_PLACE:
+            lost = [n for n in rounds if not won_of.get(n, True)]
+            if len(lost) < MOSTLY_LOST * len(rounds):
+                continue
+            add(f"First death in {place} {len(rounds)} times as {side.upper()}",
+                "The same spot, taken the same way. One of these is a duel; "
+                "this many in one game is a default the other side had read by "
+                "the third time.",
+                f"{len(lost)} of those {len(rounds)} rounds lost", rounds)
+            break
+
+    # ---- and one thing that went right
+    stolen = [x["n"] for x in ours if x["won"] and x["buy"] in ("eco", "force")]
+    cheap = sum(1 for x in ours if x["buy"] in ("eco", "force"))
+    if len(stolen) >= MIN_THROWN:
+        add(f"{len(stolen)} rounds won on an eco or a force",
+            "Worth the projector for the opposite reason. You were not "
+            "expected to win these, so whatever you did in them is worth "
+            "naming out loud and doing on purpose next time.",
+            f"{len(stolen)} of {cheap} eco and force rounds", stolen, good=True)
+
+    # Most rounds at stake first, and the good news last whatever its size.
+    out.sort(key=lambda f: (f["good"], -len(f["rounds"])))
     return out

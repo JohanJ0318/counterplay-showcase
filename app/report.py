@@ -334,6 +334,27 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
     return teams
 
 
+def count(hit: int, of: int) -> str:
+    """A census, not a rate. For one match, where the denominator is everything.
+
+    `rate` exists to answer "how often does this happen", and it marks anything
+    under MIN_CHANCES as thin because eight chances cannot support a tendency.
+    That is the right warning on a season page and the wrong one on a match
+    report, where a team plays twenty-odd rounds and every split of them is
+    small by construction: two pistol rounds, six forces, five rounds through
+    apartments. Twelve of nineteen figures on a real match report came back
+    wearing a warning label.
+
+    Nothing about those numbers is unreliable. There WERE two CT pistol rounds
+    and you DID win both. The denominator is not a sample of anything, it is
+    the whole match. So a match prints the count and no percentage: 2 / 2 is
+    the honest way to say it, and 100% is not.
+    """
+    if of == 0:
+        return '<span class="rt nil"><b class="den">&ndash;</b></span>'
+    return (f'<span class="rt tally"><b>{hit} / {of}</b></span>')
+
+
 def rate(won: int, total: int) -> str:
     """A rate, or raw counts when the sample is too thin to carry a percentage.
 
