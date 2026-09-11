@@ -140,9 +140,11 @@ UTILITY = [
      "into the next round is not waste. Across 148 rounds that is 402 grenades "
      "that bought nothing."),
 ]
-SMOKE_LINE = ("An opponent walked through 52 of your 161 smokes. The other 109 "
-              "nobody crossed while they were up &ndash; which is not the same "
-              "as nobody wanting to.")
+SMOKE_LINE = ("Nobody was inside 118 of your 161 smokes while they were up, "
+              "which is not the same as nobody wanting to be. An opponent "
+              "walked into 31, and those held the space 8 seconds on average "
+              "before anybody did. The other 12 landed on somebody already "
+              "standing there.")
 
 # ---------------------------------------------------------------- positions
 #

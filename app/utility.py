@@ -32,8 +32,26 @@ from counterplay.utility import (KILL_GRACE_SECONDS, MIN_BLIND_SECONDS,
 # the edge of a fire in a corridor has to move.
 MOLOTOV_RADIUS = 220.0
 
-# A CS2 smoke is about 144 units across at ground level.
-SMOKE_RADIUS = 165.0
+# A CS2 smoke's radius. 165 was here before and it was wrong twice over: the
+# note beside it said 144 units ACROSS, which would put the radius at 72, and
+# the constant it was justifying was 165. 144 is the radius.
+SMOKE_RADIUS = 144.0
+
+# And it blocks for 18 seconds.
+#
+# `smokegrenade_expired` is not that moment. Across 756 smokes it fires at a
+# very tight 22.1 seconds after detonation, because it marks the end of the
+# dissipation rather than the end of the cover. Trusting it gave every smoke
+# four seconds of life it did not have, which is four more seconds for somebody
+# to wander in and be counted as having walked through it.
+SMOKE_LIFE = 18.0
+
+# A molotov burns for about seven.
+MOLOTOV_LIFE = 7.0
+
+# Under this, an opponent was standing there as the smoke landed rather than
+# walking into it afterwards. Two position samples at 8 Hz.
+LANDED_ON_SECONDS = 0.25
 
 # Two zones can share an x and y and be different floors. Nuke's bombsites sit
 # 495 units apart vertically, so without this a molotov on the upper site would
@@ -278,7 +296,11 @@ def space(team_id: int) -> dict | None:
     enemies who are alive, and measure their distance to where it landed. A
     molotov "moved someone" when an enemy is inside the radius as it lands and
     outside it before it burns out. A smoke was "crossed" when an enemy is
-    inside the radius at any point while it is up.
+    inside the radius at any point while it is up, and a crossed smoke also
+    carries HOW LONG it held the space first: the seconds from landing to the
+    first opponent inside it. An opponent who was already standing there is
+    counted apart, because a smoke thrown onto somebody is not the same event
+    as a smoke somebody walked into.
 
     Neither says anything about intent, and neither is a score. A molotov that
     burned an empty corridor is reported as exactly that.
@@ -289,7 +311,8 @@ def space(team_id: int) -> dict | None:
     sides = _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
 
     out = {"molotovs": 0, "moved": 0, "empty": 0, "burned": 0, "denied": 0,
-           "denied_secs": 0.0, "smokes": 0, "crossed": 0, "uncrossed": 0}
+           "denied_secs": 0.0, "smokes": 0, "crossed": 0, "uncrossed": 0,
+           "landed_on": 0, "entered": 0, "held_secs": 0.0}
     cache: dict = {}
     for g in rows:
         mine = sides.get((g["match_key"], g["round_num"]))
@@ -307,12 +330,19 @@ def space(team_id: int) -> dict | None:
         radius = MOLOTOV_RADIUS if g["kind"] == "molotov" else SMOKE_RADIUS
         # A grenade with no recorded expiry gets the kind's nominal life, so a
         # missing expiry event costs precision rather than dropping the row.
-        life = g["life"] if g["life"] else (7.0 if g["kind"] == "molotov" else 18.0)
+        # The game's own numbers rather than the expiry event. A molotov's
+        # recorded life is real, because a fire goes out when the event says it
+        # does; a smoke's is four seconds late, so the constant wins and the
+        # recorded life only caps it when a round ended early.
+        if g["kind"] == "molotov":
+            life = g["life"] if g["life"] else MOLOTOV_LIFE
+        else:
+            life = min(g["life"], SMOKE_LIFE) if g["life"] else SMOKE_LIFE
         window = (secs >= g["seconds"]) & (secs <= g["seconds"] + life)
         if not window.any():
             continue
 
-        block = samples[window]
+        block, t = samples[window], secs[window]
         alive = (block["flags"] & FLAG_ALIVE) != 0
         enemy = _enemy_mask(block, mine)
         near = (
@@ -324,10 +354,24 @@ def space(team_id: int) -> dict | None:
 
         if g["kind"] == "smoke":
             out["smokes"] += 1
-            if inside.any():
-                out["crossed"] += 1
-            else:
+            if not inside.any():
                 out["uncrossed"] += 1
+                continue
+            out["crossed"] += 1
+            # HOW LONG IT HELD THE SPACE. The seconds between the smoke landing
+            # and the first opponent inside it, which is what a bare "somebody
+            # crossed it" cannot say: a smoke they walked through at eleven
+            # seconds did nearly its whole job and one they walked through at
+            # two did not.
+            when = float(t[inside.any(axis=1)][0] - g["seconds"])
+            if when < LANDED_ON_SECONDS:
+                # They were already standing there. A smoke thrown onto
+                # somebody is a different thing from a smoke somebody walked
+                # into, and it is often deliberate.
+                out["landed_on"] += 1
+            else:
+                out["entered"] += 1
+                out["held_secs"] += when
             continue
 
         out["molotovs"] += 1

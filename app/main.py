@@ -1945,11 +1945,21 @@ def stats_page(request: Request):
 
         smoke_line = ""
         if us and us["smokes"]:
+            # The old line said "an opponent walked through 140 of your 407"
+            # and left it there. Two thirds of that was a smoke doing its job
+            # for most of its life before somebody finally came, and a tenth
+            # was a smoke thrown onto a player who was already standing there,
+            # which is not walking through anything.
+            held = (f'{us["held_secs"] / us["entered"]:.0f}'
+                    if us["entered"] else "0")
             smoke_line = (
-                f'<p class="den" style="margin-top:2px">An opponent walked '
-                f'through {us["crossed"]} of your {us["smokes"]} smokes. '
-                f'The other {us["uncrossed"]} nobody crossed while they were up '
-                f'&ndash; which is not the same as nobody wanting to.</p>')
+                f'<p class="den" style="margin-top:2px">Nobody was inside '
+                f'{us["uncrossed"]} of your {us["smokes"]} smokes while they '
+                f'were up, which is not the same as nobody wanting to be. An '
+                f'opponent walked into {us["entered"]}, and those held the '
+                f'space {held} seconds on average before anybody did. The '
+                f'other {us["landed_on"]} landed on somebody already standing '
+                f'there.</p>')
         utility_block = f"""
   <section>
     <div class="sec-head"><span class="label">What your grenades did</span>
