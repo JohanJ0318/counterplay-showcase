@@ -213,14 +213,16 @@ ol.steps p{color:var(--muted);font-size:.95rem}
 .notyet p{font-size:.93rem;color:var(--muted)}
 
 /* ---------- the film band ---------- */
-/* Eighteen seconds of Counter-Strike between the argument and the evidence. It
+/* Fourteen seconds of Counter-Strike between the argument and the evidence. It
    proves nothing about the product and is not trying to: it says who this is
    for, in the half second before anybody reads a word.
 
-   The words and the scrim behind them are baked into the file rather than laid
-   over it in HTML, which costs the things HTML gives for nothing. The text
-   alternative below carries the same line for a screen reader, and the poster
-   frame carries it for anyone who gets no video. */
+   THE WORDS ARE HTML OVER THE FILM, NOT BAKED INTO IT. Baking them was tried
+   and the type was the giveaway: no font on this machine is Space Grotesk, so
+   the band read as a video with text on it rather than as part of the page.
+   Fetching the real face fixed that and left the reason that actually decides
+   it, which is the scrim. A gradient burned into a file is one gradient. This
+   page has two themes. */
 .filmband{position:relative;overflow:hidden;background:#0B0910;
   height:clamp(420px,66vh,720px);max-height:56.25vw;
   border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
@@ -232,52 +234,54 @@ ol.steps p{color:var(--muted);font-size:.95rem}
    While the band is wider than 16:9 that is the top and bottom, which is free
    because the words sit in the middle. Once the band is TALLER than 16:9 the
    crop moves to the SIDES, and the words are on the left. 56.25vw is the film's
-   own height at full width, so the band can never be taller than the picture
-   and the crop can never reach the type.
+   own height at full width, so the crop can never reach the type. A breakpoint
+   was the first attempt and it missed a browser docked to half a tall monitor. */
 
-   A breakpoint was the first attempt and it was wrong: it caught phones and
-   missed a narrow tall window, which is a browser docked to half a tall
-   monitor. 601 by 1200 would have cut the headline in half. */
+/* Half the weight the baked one carried, because HTML type can take a shadow
+   and does not need a wall of black behind it. Deeper in dark, where the page
+   is darker than the film and the words have less to push against. */
+.scrim{position:absolute;inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(90deg,rgba(11,9,16,.72) 0%,rgba(11,9,16,.58) 30%,
+    rgba(13,10,22,.22) 52%,rgba(40,20,80,.10) 74%,rgba(76,29,149,.07) 100%)}
+.film-copy{position:relative;z-index:3;height:100%;display:flex;
+  flex-direction:column;justify-content:center;gap:12px;padding-bottom:0}
+.film-copy .label{color:#C4B5FD}
+.film-copy h2{color:#fff;font-family:var(--f-display);font-weight:500;
+  font-size:clamp(2.2rem,5.2vw,3.9rem);line-height:.98;letter-spacing:-.042em;
+  max-width:16ch;text-shadow:0 2px 30px rgba(0,0,0,.55)}
+.film-copy p.under{color:rgba(255,255,255,.82);font-size:1.06rem;max-width:44ch;
+  text-shadow:0 1px 16px rgba(0,0,0,.6)}
 
-/* DARK MODE ONLY, BOTH OF THESE.
-   
-   Daylight Mirage against a #141119 page is a lightbox in a dark room. Against
-   the light page the same frames sit fine, which is why the correction lives
-   here and not in the file: the scrim is baked in and cannot know which theme
-   it is in.
-
-   The edge fade is the same story told twice. In dark mode it lets the film
-   melt into the page instead of sitting in a hole. In light mode it would be
-   fading a near-black scrim to white, which is not a soft edge, it is a grey
-   smear across the top of the picture. So light keeps the crisp border it
-   already had, which was never the thing that looked wrong. */
-:root[data-theme="dark"] .filmband video,
-:root[data-theme="dark"] .filmband img.poster,
-:root:not([data-theme="light"]) .filmband video,
-:root:not([data-theme="light"]) .filmband img.poster{filter:none}
+/* DARK MODE. Daylight Mirage against a #141119 page is a lightbox in a dark
+   room, so the picture is dimmed; the words are not, because they are not in
+   the picture. Then both edges fade into the page so the film sits inside it
+   rather than in a hole. In light mode that same fade would be taking a dark
+   frame to white, which is a grey smear rather than a soft edge, so light
+   keeps its crisp border. */
 :root[data-theme="dark"] .filmband video,
 :root[data-theme="dark"] .filmband img.poster{filter:brightness(.62) saturate(.88)}
-:root[data-theme="dark"] .filmband::after{content:"";position:absolute;
-  inset:0;z-index:2;pointer-events:none;
-  background:linear-gradient(to bottom,var(--bg) 0,transparent 8%,
-    transparent 92%,var(--bg) 100%)}
+:root[data-theme="dark"] .scrim{background:linear-gradient(90deg,
+  rgba(11,9,16,.80) 0%,rgba(11,9,16,.66) 30%,rgba(13,10,22,.30) 52%,
+  rgba(40,20,80,.14) 74%,rgba(76,29,149,.09) 100%)}
+:root[data-theme="dark"] .filmband::after{content:"";position:absolute;inset:0;
+  z-index:4;pointer-events:none;background:linear-gradient(to bottom,
+    var(--bg) 0,transparent 8%,transparent 92%,var(--bg) 100%)}
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]) .filmband video,
   :root:not([data-theme="light"]) .filmband img.poster{
     filter:brightness(.62) saturate(.88)}
+  :root:not([data-theme="light"]) .scrim{background:linear-gradient(90deg,
+    rgba(11,9,16,.80) 0%,rgba(11,9,16,.66) 30%,rgba(13,10,22,.30) 52%,
+    rgba(40,20,80,.14) 74%,rgba(76,29,149,.09) 100%)}
   :root:not([data-theme="light"]) .filmband::after{content:"";position:absolute;
-    inset:0;z-index:2;pointer-events:none;
-    background:linear-gradient(to bottom,var(--bg) 0,transparent 8%,
-      transparent 92%,var(--bg) 100%)}
+    inset:0;z-index:4;pointer-events:none;background:linear-gradient(to bottom,
+      var(--bg) 0,transparent 8%,transparent 92%,var(--bg) 100%)}
 }
 
 /* A loop nobody can stop is a problem for anyone who finds movement painful,
-   and the browser already knows who they are. They get the still frame, which
-   has the same words on it. */
+   and the browser already knows who they are. They get the still frame, and
+   the words are HTML so they lose nothing but the motion. */
 @media (prefers-reduced-motion:reduce){.filmband video{display:none}}
-/* Off-screen but not hidden from a screen reader. */
-.vh{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;
-  clip:rect(0 0 0 0);white-space:nowrap;border:0}
 
 /* ---------- the close ---------- */
 /* One row, not a section. The nav's button is sticky and never leaves the
@@ -354,18 +358,21 @@ footer a{color:var(--muted)}
 </div></div>
 
 <section class="filmband">
-  <h2 class="vh">Level up your gaming with Counterplay. Your own demos, read
-    round by round, with every number printed beside the rounds it came from.</h2>
   <img class="poster" src="/media/loop-poster.jpg" alt="" aria-hidden="true">
-  <!-- `preload="none"` and no `src`: five megabytes is a real cost and a
+  <!-- `preload="none"` and no `src`: six megabytes is a real cost and a
        visitor who never scrolls past the hero should not pay it. The source is
-       attached when the band comes near the viewport. -->
-  <!-- `autoplay` alongside the script is belt and braces, not a contradiction:
-       with no `src` it does nothing at all, and the moment one is attached the
-       browser starts playback itself rather than the page depending on a
-       play() promise that some browsers reject. Muted, so it is allowed to. -->
+       attached when the band comes near the viewport, and `autoplay` starts it
+       the moment one appears rather than the page relying on a play() promise
+       that a browser is free to reject. -->
   <video autoplay muted loop playsinline preload="none" data-src="/media/loop.mp4"
          poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1"></video>
+  <div class="scrim" aria-hidden="true"></div>
+  <div class="wrap film-copy">
+    <span class="label">For the game you actually play</span>
+    <h2>Level up your gaming with Counterplay.</h2>
+    <p class="under">Your own demos, read round by round, with every number
+      printed beside the rounds it came from.</p>
+  </div>
 </section>
 
 <div class="wrap">
