@@ -360,7 +360,11 @@ footer a{color:var(--muted)}
   <!-- `preload="none"` and no `src`: five megabytes is a real cost and a
        visitor who never scrolls past the hero should not pay it. The source is
        attached when the band comes near the viewport. -->
-  <video muted loop playsinline preload="none" data-src="/media/loop.mp4"
+  <!-- `autoplay` alongside the script is belt and braces, not a contradiction:
+       with no `src` it does nothing at all, and the moment one is attached the
+       browser starts playback itself rather than the page depending on a
+       play() promise that some browsers reject. Muted, so it is allowed to. -->
+  <video autoplay muted loop playsinline preload="none" data-src="/media/loop.mp4"
          poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1"></video>
 </section>
 
