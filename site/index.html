@@ -213,30 +213,64 @@ ol.steps p{color:var(--muted);font-size:.95rem}
 .notyet p{font-size:.93rem;color:var(--muted)}
 
 /* ---------- the film band ---------- */
-/* Thirteen seconds of Counter-Strike between the argument and the evidence. It
+/* Eighteen seconds of Counter-Strike between the argument and the evidence. It
    proves nothing about the product and is not trying to: it says who this is
    for, in the half second before anybody reads a word.
 
    The words and the scrim behind them are baked into the file rather than laid
-   over it in HTML. That costs the things HTML gives you for nothing, so the
-   text alternative below carries the same line for a screen reader, and the
-   poster frame carries it for anyone who does not get video. */
+   over it in HTML, which costs the things HTML gives for nothing. The text
+   alternative below carries the same line for a screen reader, and the poster
+   frame carries it for anyone who gets no video. */
 .filmband{position:relative;overflow:hidden;background:#0B0910;
-  height:clamp(320px,52vh,560px);max-height:56.25vw;
+  height:clamp(420px,66vh,720px);max-height:56.25vw;
   border-top:1px solid var(--border);border-bottom:1px solid var(--border)}
 .filmband video,.filmband img.poster{position:absolute;inset:0;width:100%;
   height:100%;object-fit:cover}
 .filmband video{z-index:1}
+
 /* THE max-height IS NOT DECORATION. `cover` crops whichever axis has to give.
-   While the band is wider than 16:9 that is the top and bottom, which is fine
+   While the band is wider than 16:9 that is the top and bottom, which is free
    because the words sit in the middle. Once the band is TALLER than 16:9 the
-   crop moves to the sides, and the words are on the left. 56.25vw is the film's
+   crop moves to the SIDES, and the words are on the left. 56.25vw is the film's
    own height at full width, so the band can never be taller than the picture
    and the crop can never reach the type.
 
    A breakpoint was the first attempt and it was wrong: it caught phones and
-   missed a narrow, tall window, which is a browser docked to half a tall
-   monitor. 601 by 1200 would have cut the words in half. */
+   missed a narrow tall window, which is a browser docked to half a tall
+   monitor. 601 by 1200 would have cut the headline in half. */
+
+/* DARK MODE ONLY, BOTH OF THESE.
+   
+   Daylight Mirage against a #141119 page is a lightbox in a dark room. Against
+   the light page the same frames sit fine, which is why the correction lives
+   here and not in the file: the scrim is baked in and cannot know which theme
+   it is in.
+
+   The edge fade is the same story told twice. In dark mode it lets the film
+   melt into the page instead of sitting in a hole. In light mode it would be
+   fading a near-black scrim to white, which is not a soft edge, it is a grey
+   smear across the top of the picture. So light keeps the crisp border it
+   already had, which was never the thing that looked wrong. */
+:root[data-theme="dark"] .filmband video,
+:root[data-theme="dark"] .filmband img.poster,
+:root:not([data-theme="light"]) .filmband video,
+:root:not([data-theme="light"]) .filmband img.poster{filter:none}
+:root[data-theme="dark"] .filmband video,
+:root[data-theme="dark"] .filmband img.poster{filter:brightness(.62) saturate(.88)}
+:root[data-theme="dark"] .filmband::after{content:"";position:absolute;
+  inset:0;z-index:2;pointer-events:none;
+  background:linear-gradient(to bottom,var(--bg) 0,transparent 8%,
+    transparent 92%,var(--bg) 100%)}
+@media(prefers-color-scheme:dark){
+  :root:not([data-theme="light"]) .filmband video,
+  :root:not([data-theme="light"]) .filmband img.poster{
+    filter:brightness(.62) saturate(.88)}
+  :root:not([data-theme="light"]) .filmband::after{content:"";position:absolute;
+    inset:0;z-index:2;pointer-events:none;
+    background:linear-gradient(to bottom,var(--bg) 0,transparent 8%,
+      transparent 92%,var(--bg) 100%)}
+}
+
 /* A loop nobody can stop is a problem for anyone who finds movement painful,
    and the browser already knows who they are. They get the still frame, which
    has the same words on it. */
@@ -323,10 +357,11 @@ footer a{color:var(--muted)}
   <h2 class="vh">Level up your gaming with Counterplay. Your own demos, read
     round by round, with every number printed beside the rounds it came from.</h2>
   <img class="poster" src="/media/loop-poster.jpg" alt="" aria-hidden="true">
-  <video autoplay muted loop playsinline preload="metadata"
-         poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1">
-    <source src="/media/loop.mp4" type="video/mp4">
-  </video>
+  <!-- `preload="none"` and no `src`: five megabytes is a real cost and a
+       visitor who never scrolls past the hero should not pay it. The source is
+       attached when the band comes near the viewport. -->
+  <video muted loop playsinline preload="none" data-src="/media/loop.mp4"
+         poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1"></video>
 </section>
 
 <div class="wrap">
@@ -482,6 +517,27 @@ footer a{color:var(--muted)}
 </div></footer></div>
 
 <script>
+// The film loads when it is nearly on screen, not before. Anything without an
+// IntersectionObserver, or with JavaScript off, keeps the poster: it carries
+// the same words, so nothing is lost but the motion.
+(function () {
+  var f = document.querySelector(".filmband video");
+  if (!f || !f.dataset.src) return;
+  var start = function () {
+    if (f.src) return;
+    f.src = f.dataset.src;
+    var go = f.play();
+    if (go && go.catch) go.catch(function () {});
+  };
+  if (!("IntersectionObserver" in window)) return start();
+  var io = new IntersectionObserver(function (rows) {
+    rows.forEach(function (r) {
+      if (r.isIntersecting) { start(); io.disconnect(); }
+    });
+  }, { rootMargin: "300px" });
+  io.observe(f);
+})();
+
 // The one line to configure: where the footer and the "questions" link point.
 var CONTACT_EMAIL = "hello@counterplaycs.com";
 
