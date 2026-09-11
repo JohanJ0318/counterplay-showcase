@@ -24,6 +24,7 @@ import numpy as np
 from . import db
 from .report import _side_by_round, _team_match_keys, team_anchors
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
+from counterplay.utility import MIN_BLIND_SECONDS, blinding
 
 # A CS2 molotov spreads to roughly 150 units. 220 is generous on purpose: the
 # question is whether someone had to move, and a player standing 200 units from
@@ -101,8 +102,13 @@ def flashes(team_id: int) -> dict | None:
     """Every flash this team threw, and what it landed on.
 
     Own-side blinds sit beside enemy blinds rather than being filtered out of
-    them. They are not a failure to measure, they are the finding: on a real
-    match 29 of 62 flashes that blinded anybody blinded the thrower's own side.
+    them. They are not a failure to measure, they are the finding.
+
+    "Blinded" means held for at least `MIN_BLIND_SECONDS`. Everything shorter
+    is in the `blinds` table and is not counted here, because a flash that
+    catches somebody for a quarter second while they turn away is not the same
+    event as one that holds them through a duel, and counting the two together
+    made own-side flashes look like the majority of a team's utility.
     """
     kinds = by_kind(team_id)
     f = kinds.get("flash")
@@ -124,6 +130,13 @@ def flashes(team_id: int) -> dict | None:
     for b in rows:
         mine = sides.get((b["match_key"], b["round_num"]))
         if mine is None or b["thrower_side"] != mine:
+            continue
+        # The same threshold the flash counters were built with. Every blind is
+        # stored, including the quarter second somebody catches at the edge of
+        # one while turning away, and without this line the split here would
+        # count more teammates blinded than there were flashes that blinded a
+        # teammate.
+        if not blinding(b["duration"]):
             continue
         if b["own_side"]:
             own_secs += b["duration"] or 0.0

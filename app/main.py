@@ -1908,14 +1908,17 @@ def stats_page(request: Request):
               f'blinds everyone who can see it. Those {uf["hit_enemy"]} '
               f'flashes took {uf["enemy_secs"]:.0f} seconds of sight off the '
               f'opposition. {uf["hit_own"]} of your flashes also blinded your '
-              f'own side, for {uf["own_secs"]:.0f} seconds.')
+              f'own side, for {uf["own_secs"]:.0f} seconds. Blinded means held '
+              f'for at least {utility.MIN_BLIND_SECONDS} seconds: the game '
+              f'reports the quarter second somebody catches while turning '
+              f'away, and that is a flinch rather than a flash.')
         kill_pct = 100.0 * uf["got_a_kill"] / uf["thrown"] if uf["thrown"] else 0
         ucard(f"{kill_pct:.0f}%", "of your flashes get somebody killed",
               f'{uf["got_a_kill"]} of {uf["thrown"]} thrown',
-              f'An opponent this flash blinded, who then died before it wore '
-              f'off. {uf["kills_from"]} opponents in all. This is the only '
-              f'reason to throw one, and it is a long way below the share that '
-              f'merely land.')
+              f'An opponent this flash blinded, who then died to one of you '
+              f'before it wore off. {uf["kills_from"]} opponents in all. This '
+              f'is the only reason to throw one, and it is a long way below '
+              f'the share that merely land.')
         if us and us["molotovs"]:
             deny_pct = 100.0 * us["denied"] / us["molotovs"]
             ucard(f"{deny_pct:.0f}%", "of your molotovs deny space",
@@ -2271,6 +2274,12 @@ def player_page(request: Request, steamid: str):
             f'<div class="stat"><span class="stat-n">{t["enemies_flashed"]}</span>'
             f'<span class="label">opponents blinded</span>'
             f'<span class="den">from {t["flashes_thrown"]} flashes</span></div>')
+        # Same threshold as the team page, said once where the numbers are.
+        blind_note = (
+            f'<p class="den" style="margin-top:2px">Blinded means held for at '
+            f'least {utility.MIN_BLIND_SECONDS} seconds. The game reports any '
+            f'exposure at all, including the quarter second somebody catches '
+            f'while turning away.</p>')
         if t["flashes_landed"]:
             ucards.append(
                 f'<div class="stat"><span class="stat-n">'
@@ -2294,6 +2303,7 @@ def player_page(request: Request, steamid: str):
     <div class="sec-head"><span class="label">What they threw</span>
       <h2>Utility</h2></div>
     <div class="stat-row">{"".join(ucards)}</div>
+    {blind_note}
   </section>"""
     else:
         util_block = ""

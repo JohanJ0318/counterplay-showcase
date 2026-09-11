@@ -32,7 +32,7 @@ from . import charts
 from .movement import COMMIT_TO, SETUP_AT
 from .report import MIN_CHANCES, MIN_PATTERN_CHANCES, PATTERNS, buy_pattern, rate
 from .theme import banner, esc, map_chip, page
-from .utility import FLASH_ROUND_PATTERN
+from .utility import FLASH_ROUND_PATTERN, MIN_BLIND_SECONDS
 
 # The fictional team. Named so nobody mistakes it for a real program.
 TEAM = "Northlake University"
@@ -122,11 +122,13 @@ UTILITY = [
      "Counted per flash, not per player blinded: one flashbang blinds everyone "
      "who can see it. Those 88 flashes took 383 seconds of sight off the "
      "opposition. 91 of your flashes also blinded your own side, for 249 "
-     "seconds."),
+     f"seconds. Blinded means held for at least {MIN_BLIND_SECONDS} seconds: "
+     "the game reports the quarter second somebody catches while turning away, "
+     "and that is a flinch rather than a flash."),
     ("9%", "of your flashes get somebody killed", "13 of 144 thrown",
-     "An opponent this flash blinded, who then died before it wore off. 14 "
-     "opponents in all. This is the only reason to throw one, and it is a long "
-     "way below the share that merely land."),
+     "An opponent this flash blinded, who then died to one of you before it "
+     "wore off. 14 opponents in all. This is the only reason to throw one, and "
+     "it is a long way below the share that merely land."),
     ("26%", "of your molotovs deny space", "34 of 131 thrown",
      "A molotov an opponent had to stand in, walk out of, or go round, read "
      "from the position samples. Between them they took 71 seconds of ground "

@@ -61,6 +61,28 @@ NADE_COST = {
     "Decoy Grenade": 50,
 }
 
+# How long a flash has to hold somebody before it counts as having blinded
+# them.
+#
+# CS2 fires `player_blind` for anything at all, including the quarter second a
+# player catches at the edge of a flash while turning away. Counting those the
+# same as a full four-second blind put the season at "67% of your flashes blind
+# your own side" against 62% blinding an opponent, which reads as a team that
+# flashes itself more than the opposition. It is an artefact: half the own-side
+# blinds were under a second while half the enemy blinds ran past three.
+#
+# 0.7s is the line because that is about where a blind stops being a flinch and
+# starts being time somebody cannot fight through. It is one number and it is
+# meant to be argued with, which is why every blind is still STORED with its
+# duration; this only decides which ones are counted.
+MIN_BLIND_SECONDS = 0.7
+
+
+def blinding(duration) -> bool:
+    """Did this blind last long enough to count as one."""
+    return (duration or 0.0) >= MIN_BLIND_SECONDS
+
+
 # The detonation event for each kind, and where it lands.
 NADE_EVENTS = (
     ("flashbang_detonate", "flash"),
@@ -227,6 +249,9 @@ def attribute(grenade_rows, blind_rows, parser, round_of, tainted, side_of):
         best = min(cands, key=lambda g: abs(g["tick"] - tick))
         if abs(best["tick"] - tick) > SAME_EVENT_TICKS:
             continue
+        # A flash is credited with what it actually held somebody through.
+        if not blinding(b.get("duration")):
+            continue
         best["hit_own" if b["own_side"] else "hit_enemy"] += 1
         if not b["own_side"] and b.get("died_blind"):
             best["kills"] += 1
@@ -333,6 +358,11 @@ def blinds(parser, round_of, tainted, freeze_by_round, side_of, deaths, credit):
             "died_blind": int(killer is not None),
         })
 
+        # The row is stored either way: a blind too short to count is still
+        # something that happened, and keeping it means this threshold can be
+        # moved later without parsing every demo again.
+        if not blinding(duration):
+            continue
         if own:
             credit(rn, thrower, "teammates_flashed")
             credit(rn, thrower, "blind_team_secs", duration)
@@ -351,13 +381,18 @@ def blinds(parser, round_of, tainted, freeze_by_round, side_of, deaths, credit):
 
 
 def unused(parser, roster, freeze_by_round, end_by_round, deaths, tainted, credit):
-    """Grenades bought and grenades still in hand when the round ended.
+    """Grenades bought, and grenades still in hand on the player who died.
 
     Read from `inventory` at two ticks per player-round: freeze-end, which is
-    everything they paid for, and the moment they died, which is everything
-    they did not get to use. A player who survives is read at the round's end
-    instead, because a grenade carried into the next round was still not thrown
-    in this one.
+    everything they paid for, and just before the moment they died, which is
+    everything they did not get to use.
+
+    A PLAYER WHO SURVIVES THE ROUND CONTRIBUTES NOTHING HERE. Their grenades
+    go into the next round, so they were not wasted; they were saved. An
+    earlier version read survivors at the round end as well, and it made the
+    number meaningless: rounds where somebody finished holding a flash were won
+    93% of the time, because you keep your utility in rounds you are already
+    winning. Carrying a smoke out is not waste. Dying with it is.
 
     This is the cheapest number in the module and close to the most useful. A
     team that dies holding two hundred grenades a season is not short of
@@ -377,9 +412,6 @@ def unused(parser, roster, freeze_by_round, end_by_round, deaths, tainted, credi
             death_tick.setdefault(sid, []).append(int(d.tick))
     for sid in death_tick:
         death_tick[sid].sort()
-    for rn, tick in end_by_round.items():
-        if rn not in tainted:
-            want_ticks.add(int(tick))
     # Read the inventory just BEFORE the death tick. On the tick a player dies
     # their inventory is already empty in the demo, so sampling at the death
     # itself says every player died holding nothing, which is how this number

@@ -222,7 +222,7 @@ def test_one_flashbang_that_blinds_three_people_is_still_one_flash():
     )
     grens = parse_util.grenades(parser, round_of, tainted, fz, side)
     blinds = [{"round_num": 1, "tick": 2000, "own_side": 0,
-               "thrower_steamid": ALICE} for _ in range(3)]
+               "thrower_steamid": ALICE, "duration": 3.0} for _ in range(3)]
     parse_util.attribute(grens, blinds, parser, round_of, tainted, side)
     assert len(grens) == 1
     assert grens[0]["hit_enemy"] == 3      # three people
@@ -241,9 +241,55 @@ def test_a_blind_from_a_different_flash_is_not_credited_to_this_one():
     grens = parse_util.grenades(parser, round_of, tainted, fz, side)
     parse_util.attribute(
         grens, [{"round_num": 1, "tick": 4000, "own_side": 0,
-                 "thrower_steamid": ALICE}],
+                 "thrower_steamid": ALICE, "duration": 3.0}],
         parser, round_of, tainted, side)
     assert [g["hit_enemy"] for g in grens] == [0, 1]
+
+
+def test_a_blind_too_short_to_matter_is_not_counted_as_one():
+    """The quarter second somebody catches while turning away.
+
+    CS2 fires `player_blind` for any exposure at all. Counting those the same
+    as a full blind put a real season at "67% of your flashes blind your own
+    side" against 62% blinding an opponent, which is an artefact of the
+    measurement rather than a fact about the team.
+    """
+    parser, round_of, tainted, fz, end, side, credit, got = _fixture(
+        flashbang_detonate=[{"tick": 2000, "user_steamid": ALICE,
+                             "entityid": 1, "x": 0.0, "y": 0.0, "z": 0.0}],
+        player_hurt=[],
+    )
+    grens = parse_util.grenades(parser, round_of, tainted, fz, side)
+    below = parse_util.MIN_BLIND_SECONDS - 0.01
+    parse_util.attribute(
+        grens, [{"round_num": 1, "tick": 2000, "own_side": 0,
+                 "thrower_steamid": ALICE, "duration": below}],
+        parser, round_of, tainted, side)
+    assert grens[0]["hit_enemy"] == 0
+
+    # And the same flash, held a hundredth of a second longer, does count.
+    grens = parse_util.grenades(parser, round_of, tainted, fz, side)
+    parse_util.attribute(
+        grens, [{"round_num": 1, "tick": 2000, "own_side": 0,
+                 "thrower_steamid": ALICE,
+                 "duration": parse_util.MIN_BLIND_SECONDS}],
+        parser, round_of, tainted, side)
+    assert grens[0]["hit_enemy"] == 1
+
+
+def test_a_kill_behind_a_blind_too_short_to_count_is_not_a_flash_kill():
+    """Otherwise the page says a flash that blinded nobody got somebody killed."""
+    parser, round_of, tainted, fz, end, side, credit, got = _fixture(
+        flashbang_detonate=[{"tick": 2000, "user_steamid": ALICE,
+                             "entityid": 1, "x": 0.0, "y": 0.0, "z": 0.0}],
+        player_hurt=[],
+    )
+    grens = parse_util.grenades(parser, round_of, tainted, fz, side)
+    parse_util.attribute(
+        grens, [{"round_num": 1, "tick": 2000, "own_side": 0,
+                 "thrower_steamid": ALICE, "duration": 0.2, "died_blind": 1}],
+        parser, round_of, tainted, side)
+    assert grens[0]["kills"] == 0
 
 
 def test_he_damage_lands_on_the_he_that_caused_it():
