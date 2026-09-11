@@ -26,7 +26,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from . import (advice, auth, charts, db, legal, mail, movement,
-               report as report_mod, resets, sample as sample_page,
+               report as report_mod, resets, smokes, sample as sample_page,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
@@ -1972,6 +1972,70 @@ def stats_page(request: Request):
     else:
         utility_block = ""
 
+    # ---- smoke calls
+    #
+    # A smoke is not only a wall nobody walks through. Most are thrown to take
+    # a sightline away so your own side can move somewhere else, which is why
+    # "was an opponent standing in the cloud" answers the wrong question about
+    # half of them: nobody was ever going to stand in mid doors.
+    #
+    # So each recurring smoke gets its rounds split two ways and the difference
+    # printed. The zones are the honest part and the careful part at once: they
+    # say what the call IS rather than what the smoke caused, because you throw
+    # the X box smoke in the rounds you were going up cat anyway.
+    calls = smokes.analyse(team["id"])
+    if calls:
+        SHOWN = 6
+        cards = []
+        for c in calls[:SHOWN]:
+            a, b = c["with"], c["without"]
+            # Short labels. Each card is a third of the page wide and every
+            # row carries two stacked rate cells, so a four-word label wraps to
+            # three lines and the card stops being readable at a glance.
+            rows = [("Rounds won", a["won"], a["n"], b["won"], b["n"]),
+                    ("An opponent in it", a["seen"], a["n"], b["seen"], b["n"])]
+            for z in c["reach"]:
+                rows.append((f'You reach {z["zone"]}',
+                             z["with"], a["n"], z["without"], b["n"]))
+            body = "".join(
+                f'<tr><td class="name">{esc(label)}</td>'
+                f'<td class="num">{rate(hit, of)}</td>'
+                f'<td class="num">{rate(hit2, of2)}</td></tr>'
+                for label, hit, of, hit2, of2 in rows)
+            cards.append(
+                f'<div class="card">'
+                f'<div class="sec-head" style="margin:0">'
+                f'<span class="label">{map_chip(c["map"])} '
+                f'<span class="pill {c["side"]}">{c["side"].upper()}</span> '
+                f'&middot; thrown around {c["at"]:.0f}s</span>'
+                f'<h3>{esc(c["where"] or "Smoke")}</h3></div>'
+                f'<div class="tbl-wrap"><table><thead><tr><th></th>'
+                f'<th class="num">With it</th>'
+                f'<th class="num">Without</th></tr></thead>'
+                f'<tbody>{body}</tbody></table></div></div>')
+        more = (f'<p class="note">{len(calls) - SHOWN} more smokes repeat often '
+                f'enough to compare; these {SHOWN} have the most rounds behind '
+                f'them.</p>' if len(calls) > SHOWN else "")
+        smoke_block = f"""
+  <section>
+    <div class="sec-head"><span class="label">What each smoke goes with</span>
+      <h2>Smoke calls</h2></div>
+    <p class="lede">Smokes you throw at the same spot over and over, with your
+      rounds split into the ones you threw it in and the ones you did not, over
+      the same stretch of the clock in both. <strong>The places you reach
+      describe the call, not the smoke.</strong> You throw the mid smoke in the
+      rounds you were going through mid anyway, so that line says what this
+      smoke goes with rather than proving it made anything work. The line to
+      read as a result is whether an opponent was in the space it covered.
+      These rounds also differ in every other way rounds differ, so a gap here
+      is two sets of rounds going differently and never a cause.</p>
+    <div class="grid2" style="grid-template-columns:repeat(auto-fit,minmax(330px,1fr))">
+      {"".join(cards)}</div>
+    {more}
+  </section>"""
+    else:
+        smoke_block = ""
+
     # ---- positional patterns: where they actually play
     #
     # Grouped by what the pattern is ABOUT rather than sorted into one list.
@@ -2195,6 +2259,8 @@ def stats_page(request: Request):
   </section>
 
   {utility_block}
+
+  {smoke_block}
 
   {positional_block}
 
