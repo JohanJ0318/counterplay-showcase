@@ -21,9 +21,13 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import db
+from . import db, memo
 from .report import _side_by_round, _team_match_keys, team_anchors
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
+# KILL_GRACE_SECONDS is imported to be RE-EXPORTED: the stats page prints the
+# window in its own words ("within a second of it lifting") and reads the
+# number from here rather than retyping it, so the sentence cannot drift from
+# the constant it describes.
 from counterplay.utility import (KILL_GRACE_SECONDS, MIN_BLIND_SECONDS,
                                  blinding)
 
@@ -78,6 +82,7 @@ def _match_keys(team_id):
 
 # ------------------------------------------------------------------ flashes
 
+@memo.by_team
 def by_kind(team_id: int) -> dict:
     """Every grenade this team threw, grouped by kind, with what it did.
 
@@ -117,6 +122,7 @@ def by_kind(team_id: int) -> dict:
     return out
 
 
+@memo.by_team
 def flashes(team_id: int) -> dict | None:
     """Every flash this team threw, and what it landed on.
 
@@ -216,6 +222,7 @@ def flashes(team_id: int) -> dict | None:
 
 # ------------------------------------------------------------------- unused
 
+@memo.by_team
 def unused(team_id: int) -> dict | None:
     """Grenades bought and never thrown, and the rounds people died holding them.
 
@@ -289,6 +296,7 @@ def _enemy_mask(samples, mine: str):
     return is_ct if mine == "t" else ~is_ct
 
 
+@memo.by_team
 def space(team_id: int) -> dict | None:
     """Did the molotov move anyone, and did an enemy walk through the smoke.
 
@@ -405,6 +413,7 @@ def space(team_id: int) -> dict | None:
 
 # ------------------------------------------------------------------ per team
 
+@memo.by_team
 def summary(team_id: int) -> dict | None:
     """The four numbers that go on the team page, and nothing else.
 
@@ -423,6 +432,7 @@ def summary(team_id: int) -> dict | None:
 
 # ------------------------------------------------------------- round patterns
 
+@memo.by_team
 def round_splits(team_id: int) -> dict:
     """Rounds grouped by what the team's utility did in them, with the outcome.
 
@@ -486,6 +496,7 @@ FLASH_ROUND_PATTERN = (
     "is the difference between the two.")
 
 
+@memo.by_team
 def round_patterns(team_id: int) -> list[tuple]:
     """Utility findings in the shape the Recurring patterns table already uses.
 

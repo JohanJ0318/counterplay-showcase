@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import hashlib
 import os
+import threading
 import secrets
 from pathlib import Path
 
@@ -843,17 +844,6 @@ def team_page(request: Request, slug: str):
 
 
 
-def _demo_link(d) -> str:
-    """A parsed demo links to its report; anything else is just a filename."""
-    name = esc(d["filename"])
-    if d["status"] != "parsed":
-        return name
-    m = db.one("SELECT match_key FROM matches WHERE demo_id = ?", d["id"])
-    if m is None:
-        return name
-    return f'<a href="/match/{esc(m["match_key"])}">{name}</a>'
-
-
 @app.get("/match/{match_key}", response_class=HTMLResponse)
 def match_report(request: Request, match_key: str):
     user, redirect = require_user(request)
@@ -895,7 +885,7 @@ def match_report(request: Request, match_key: str):
     # before it existed.
     team = db.team_for_user(user["id"]) if user else None
 
-    r = report_mod.build(match_key)
+    r = report_mod.build(match_key, team["id"] if team else None)
     if r is None:
         return HTMLResponse(page("Not found", banner("Not found"),
                                  '<section><p class="lede">Nothing parsed for that '
@@ -926,15 +916,40 @@ def match_report(request: Request, match_key: str):
             f'<td>{opening}</td>'
             f'<td class="den">{"yes" if x["planted"] else "&ndash;"}</td></tr>')
 
+    # ONE ROW, YOURS -- not one row per side.
+    #
+    # Sides swap at the half, so a CT row spanning a whole match held this
+    # team's first half and their opponent's second: "3 of 16" was eight of
+    # your rounds and eight of theirs added together. Where the side is known
+    # per round the table is about the reader's team and says so.
     od = []
-    for side in ("ct", "t"):
-        o = r["opening"][side]
-        rounds_lost = ", ".join(str(n) for n in o["lost_rounds"]) or "-"
+    you_open = r.get("you_opening")
+    if you_open:
+        rounds_lost = ", ".join(str(n) for n in you_open["lost_rounds"]) or "-"
         od.append(
-            f'<tr><td class="name">{side.upper()}</td>'
-            f'<td class="num">{count(o["saved"], o["lost"])}</td>'
-            f'<td class="num">{count(o["converted"], o["taken"])}</td>'
+            f'<tr><td class="name">You</td>'
+            f'<td class="num">{count(you_open["saved"], you_open["lost"])}</td>'
+            f'<td class="num">{count(you_open["converted"], you_open["taken"])}</td>'
             f'<td class="den">{esc(rounds_lost)}</td></tr>')
+        open_head = "Rounds you lost it"
+        open_lede = ("Your rounds, not both sides\u2019. Who lost the first "
+                     "player and what happened next, counted from the demo. "
+                     "The round numbers are listed so you can open the match "
+                     "and watch them.")
+    else:
+        for side in ("ct", "t"):
+            o = r["opening"][side]
+            rounds_lost = ", ".join(str(n) for n in o["lost_rounds"]) or "-"
+            od.append(
+                f'<tr><td class="name">{side.upper()}</td>'
+                f'<td class="num">{count(o["saved"], o["lost"])}</td>'
+                f'<td class="num">{count(o["converted"], o["taken"])}</td>'
+                f'<td class="den">{esc(rounds_lost)}</td></tr>')
+        open_head = "Rounds they lost it"
+        open_lede = ("By side, because there is no way yet to tell which of "
+                     "these two teams is yours. Sides swap at the half, so "
+                     "neither row is one team. Upload a second match and this "
+                     "becomes your rounds alone.")
 
     # The season's own record for the same buy, so the match figure has
     # something to be high or low against. Absent until a team has a season.
@@ -944,20 +959,30 @@ def match_report(request: Request, match_key: str):
         if st_all and st_all["anchors"]["confident"]:
             season_buys = st_all["you_buys"]
 
+    # Same correction as the table above, and it mattered more here: the
+    # season column beside it has always been this team's, so a per-side match
+    # column put two different teams in one row.
     br = []
-    for side in ("ct", "t"):
-        for kind, v in sorted(r["buys"][side].items()):
-            which = ", ".join(str(n) for n in v["rounds"])
-            season = ""
-            if season_buys is not None:
-                sv = season_buys.get(kind)
-                season = (f'<td class="num">{rate(sv["won"], sv["n"])}</td>'
-                          if sv else '<td class="num">'
-                                     f'{rate(0, 0)}</td>')
-            br.append(f'<tr><td class="name">{side.upper()} {esc(kind)}</td>'
-                      f'<td class="num">{count(v["won"], v["n"])}</td>'
-                      f'{season}'
-                      f'<td class="den">{esc(which)}</td></tr>')
+    you_buys = r.get("you_buys")
+    buy_head = "Your buy"
+    if you_buys:
+        source = [(None, kind, v) for kind, v in sorted(you_buys.items())]
+    else:
+        buy_head = "Side and buy"
+        source = [(side, kind, v) for side in ("ct", "t")
+                  for kind, v in sorted(r["buys"][side].items())]
+    for side, kind, v in source:
+        which = ", ".join(str(n) for n in v["rounds"])
+        season = ""
+        if season_buys is not None:
+            sv = season_buys.get(kind)
+            season = (f'<td class="num">{rate(sv["won"], sv["n"])}</td>'
+                      if sv else f'<td class="num">{rate(0, 0)}</td>')
+        label = (f'{side.upper()} {esc(kind)}' if side else esc(kind))
+        br.append(f'<tr><td class="name">{label}</td>'
+                  f'<td class="num">{count(v["won"], v["n"])}</td>'
+                  f'{season}'
+                  f'<td class="den">{esc(which)}</td></tr>')
 
     # ---- scoreboard
     ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
@@ -990,7 +1015,8 @@ def match_report(request: Request, match_key: str):
             f'<div style="display:flex;align-items:center;gap:10px;margin-top:6px">'
             f'<span class="{pill}">{esc(sb_side["label"])}</span>'
             f'<span class="den">{len(sb_side["players"])} players</span></div>'
-            f'<div class="tbl-wrap"><table><thead><tr><th>Player</th><th>Role</th>'
+            f'<div class="tbl-wrap"><table class="dense">'
+            f'<thead><tr><th>Player</th><th>Role</th>'
             f'<th class="num">K{DASH}D{DASH}A</th><th class="num">ADR</th>'
             f'<th class="num">K/D</th><th class="num">HS</th>'
             f'<th class="num" title="Opening duels won, of those taken">Opening</th>'
@@ -1007,9 +1033,12 @@ def match_report(request: Request, match_key: str):
   <section>
     <div class="sec-head"><span class="label">Both rosters, counted from the demo</span>
       <h2>Scoreboard</h2></div>
-    <p class="lede">Teams are the side each player started on. A demo carries no
-      team names, but players do not swap teams while sides swap every half. Roles come
-      from what a player actually did; hover one to see the number behind it.</p>
+    <p class="lede">{"Yours first." if r["scoreboard"] and
+      r["scoreboard"][0]["label"] == "Your team" else
+      "Teams are the side each player started on."} A demo carries no team
+      names, but players do not swap teams while sides swap every half, so the
+      two rosters are the two starting sides. Roles come from what a player
+      actually did; hover one to see the number behind it.</p>
     {"".join(sb_blocks)}
   </section>""" if sb_blocks else "")
 
@@ -1049,7 +1078,8 @@ def match_report(request: Request, match_key: str):
                     f'traded back">Traded</th>' if trades else "")
             return (f'<div><div class="sec-head"><span class="label">{label}</span>'
                     f'<h3>{heading}</h3></div>'
-                    f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
+                    f'<div class="tbl-wrap"><table class="dense">'
+                    f'<thead><tr><th>Place</th>'
                     f'<th class="num">Rounds</th>{head}'
                     f'<th class="num">Won</th></tr>'
                     f'</thead><tbody>{rows_}</tbody></table></div></div>')
@@ -1091,10 +1121,9 @@ def match_report(request: Request, match_key: str):
   <section>
     <div class="sec-head"><span class="label">From position data, this match</span>
       <h2>Where you went tonight</h2></div>
-    <p class="lede">The reading the season page does, asked of this match alone.
-      Where three of you got to together and held, where the first of you died,
-      and whether a teammate got him back. Counted only in rounds where your
-      side is known.</p>
+    <p class="lede">The season page's reading, asked of this match alone:
+      where three of you got to together, where the first of you died, and
+      whether a teammate got him back.</p>
     <div class="grid2">{"".join(blocks)}</div>
     <div class="zonerow">{figs}</div>
     <details><summary>Round by round</summary>
@@ -1127,10 +1156,8 @@ def match_report(request: Request, match_key: str):
         notes_block = (
             '<section class="lead"><div class="sec-head"><span class="label">'
             'Worth pulling up at practice</span><h2>From this match</h2></div>'
-            '<p class="lede">Not recommendations: one game cannot earn those, '
-            'and the season view is where coaching belongs. This is the list of '
-            'rounds worth the projector, and why each group of them is worth '
-            'it.</p>'
+            '<p class="lede">One match is too small to draw conclusions '
+            'from. These are the rounds worth watching back, and why.</p>'
             f'<div class="grid2">{"".join(cards)}</div></section>')
 
     # THE SCORE.
@@ -1206,12 +1233,11 @@ def match_report(request: Request, match_key: str):
   <section>
     <div class="sec-head"><span class="label">The first duel of the round</span>
       <h2>Opening duels</h2></div>
-    <p class="lede">Who lost the first player, and what happened next. Counted from
-      the demo, not estimated. The round numbers are listed so you can open
-      the match and watch them.</p>
+    <p class="lede">{esc(open_lede)}</p>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Side</th><th class="num">Won after losing it</th>
-        <th class="num">Won after winning it</th><th>Rounds they lost it</th></tr></thead>
+      <thead><tr><th>{"Team" if r.get("you_opening") else "Side"}</th>
+        <th class="num">Won after losing it</th>
+        <th class="num">Won after winning it</th><th>{open_head}</th></tr></thead>
       <tbody>{"".join(od)}</tbody></table></div>
   </section>
 
@@ -1219,7 +1245,7 @@ def match_report(request: Request, match_key: str):
     <div class="sec-head"><span class="label">By what they could afford</span>
       <h2>Buys</h2></div>
     <div class="tbl-wrap"><table>
-      <thead><tr><th>Side and buy</th><th class="num">This match</th>
+      <thead><tr><th>{buy_head}</th><th class="num">This match</th>
         {'<th class="num" title="Your record on this buy across every match you '
           'have sent in, both sides together. It is a rate because it has the '
           'chances behind it; the column beside it does not.">Your season</th>'
@@ -1230,10 +1256,9 @@ def match_report(request: Request, match_key: str):
 
   <section>
     <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
-    <p class="lede">Each bar is a round: above the line if you won it, as tall
-      as the equipment you brought to it. A tall bar pointing down is a full buy you
-      lost; a stub pointing up is a round won on nothing. The grey line is the score
-      difference as it moved.</p>
+    <p class="lede">One bar per round: above the line if you won it, as tall as
+      the equipment you brought. The band above is how many rounds ahead or
+      behind you were, and the strip below says which side you were on.</p>
     <div class="chart">{timeline_chart}</div>
     <details><summary>Every round as a table</summary>
       <div class="tbl-wrap"><table>
@@ -1247,18 +1272,10 @@ def match_report(request: Request, match_key: str):
   {where_block}
 
   <section>
-    <p class="note"><strong>Everything above is counted.</strong> Nothing on this
-      page is modeled, estimated or predicted. It is arithmetic over the rounds
-      in this demo. <strong>A match reports counts, not percentages.</strong>
-      One game gives two pistol rounds and a handful of forces, and a
-      percentage off a denominator that small invites you to read a tendency
-      into a single night. The fractions here are complete: that is all the
-      rounds there were. Where a season figure exists it sits beside them, and
-      that one is a rate, because it has the chances behind it.</p>
-    <p class="warn"><strong>Not here yet: decision scoring.</strong> Which decision
-      cost you a round you were winning is the one thing on a Counterplay report
-      that needs a trained model, and the league corpus does not exist yet. It
-      stays off rather than showing a number that came out of a simulator.</p>
+    <p class="note"><strong>Counted, not modelled.</strong> A match shows counts
+      rather than percentages: one night's denominators are too small for a
+      rate to mean anything. Where a season rate exists, it sits beside
+      them.</p>
   </section>"""
     return html_page("Match report", head, body, user)
 
@@ -1299,6 +1316,11 @@ def players_page(request: Request):
             clutch = (f'{a["clutch_won"]}/{a["clutch_tried"]}'
                       if a["clutch_tried"] else "&ndash;")
             traded = (f'{a["traded_pct"]:.0f}%' if a["deaths"] else "&ndash;")
+            # A share, like every other column here. "22/45" next to "17%" is
+            # two units in one row and the eye has to change gear for it; the
+            # counts are on the player's own page.
+            opening = (f'{100.0 * a["opening_kills"] / a["opens"]:.0f}%'
+                       if a["opens"] else "&ndash;")
             out.append(
                 f'<tr><td class="name">'
                 f'<a href="/player/{esc(a["steamid"])}">{esc(a["name"])}</a>{thin}</td>'
@@ -1307,10 +1329,10 @@ def players_page(request: Request):
                 f'<td class="num mono">{a["matches"]}</td>'
                 f'<td class="num mono">{a["rounds"]}</td>'
                 f'<td class="num mono">{a["adr"]:.0f}</td>'
-                f'<td class="num mono">{ct_adr} / {t_adr}</td>'
+                f'<td class="num mono">{ct_adr}/{t_adr}</td>'
                 f'<td class="num mono">{a["kd"]:.2f}</td>'
                 f'<td class="num mono">{a["hs_pct"]:.0f}%</td>'
-                f'<td class="num mono">{a["opening_kills"]}/{a["opens"]}</td>'
+                f'<td class="num mono">{opening}</td>'
                 f'<td class="num mono">{traded}</td>'
                 f'<td class="num mono">{a["util_adr"]:.1f}</td>'
                 f'<td class="num mono">{a["awp_kills"] or "&ndash;"}</td></tr>')
@@ -1325,27 +1347,49 @@ def players_page(request: Request):
     # where a coach is when they care about them.
     HEAD = (f'<thead><tr><th>Player</th><th>Role</th><th class="num">Matches</th>'
             f'<th class="num">Rounds</th><th class="num">ADR</th>'
-            f'<th class="num">ADR CT / T</th><th class="num">K/D</th>'
+            f'<th class="num" title="Damage per round as CT and as T, kept apart because a player strong on one side and weak on the other has a specific problem">CT / T</th><th class="num">K/D</th>'
             f'<th class="num">HS</th>'
-            f'<th class="num" title="Opening duels won, of those taken">Opening</th>'
+            f'<th class="num" title="Share of the opening duels this player '
+            f'took that they won">Opening</th>'
             f'<th class="num" title="Share of this player&rsquo;s deaths that a '
             f'teammate traded back">Traded</th>'
             f'<th class="num" title="Grenade and molotov damage per round">'
-            f'Nade dmg</th>'
+            f'Nades</th>'
             f'<th class="num">AWP</th></tr></thead>')
 
     yours, others = squad["yours"], squad["others"]
+    # Regulars and one-offs are both YOURS -- they stood on your side -- and
+    # they are not the same thing to a coach. The roster is the people who
+    # keep coming back; the rest played with you once and their numbers are
+    # still yours rather than the opposition's.
+    regulars = [a for a in yours if a["matches"] >= 2]
+    once = [a for a in yours if a["matches"] < 2]
+    if not regulars:
+        regulars, once = once, []
+
     blocks = []
-    if yours:
+    if regulars:
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'Who keeps turning up</span><h2>Your players</h2></div>'
-            f'<p class="lede">A demo carries no roster, so these are the players who '
-            f'appear in more than one of your matches. Your opponents each play you '
-            f'once; your own team plays all of them, which is enough to tell the two '
-            f'apart without anyone typing in a Steam ID.</p>'
-            f'<div class="tbl-wrap"><table>{HEAD}'
-            f'<tbody>{player_rows(yours)}</tbody></table></div></section>')
+            f'<p class="lede">A demo carries no roster, so these are the players '
+            f'who stood on your side of the match and came back for more than '
+            f'one of them. Which side was yours is read off whoever appears '
+            f'across your season; nobody types in a Steam ID.</p>'
+            f'<div class="tbl-wrap"><table class="dense">{HEAD}'
+            f'<tbody>{player_rows(regulars)}</tbody></table></div></section>')
+    if once:
+        blocks.append(
+            f'<section><div class="sec-head"><span class="label">'
+            f'On your side, once</span><h2>Played with you once</h2></div>'
+            f'<p class="lede">Also your team, on the night. Stand-ins, a fifth '
+            f'who could make one match, or a queue that never repeated. Their '
+            f'rounds count as yours and they are not your roster, so they sit '
+            f'apart rather than in it.</p>'
+            f'<details><summary>Show {len(once)} player'
+            f'{"s" if len(once) != 1 else ""}</summary>'
+            f'<div class="tbl-wrap"><table class="dense">{HEAD}'
+            f'<tbody>{player_rows(once)}</tbody></table></div></details></section>')
     if others:
         note = ('' if yours else
                 '<p class="note">Only one match so far, so everyone appears in all of '
@@ -1353,22 +1397,24 @@ def players_page(request: Request):
                 'second match and this splits itself.</p>')
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
-            f'Seen once, in one of your matches</span>'
-            f'<h2>Everyone else in your demos</h2></div>{note}'
-            f'<p class="lede">Opponents, kept because their numbers are the context '
-            f'yours sit in, but they are not your team and they do not belong in '
-            f'the same table.</p>'
-            f'<details><summary>Show {len(others)} other players</summary>'
-            f'<div class="tbl-wrap"><table>{HEAD}'
+            f'The other side of your matches</span>'
+            f'<h2>Opponents</h2></div>{note}'
+            f'<p class="lede">Kept because their numbers are the context yours '
+            f'sit in, but they are not your team and they do not belong in the '
+            f'same table.</p>'
+            f'<details><summary>Show {len(others)} opponent'
+            f'{"s" if len(others) != 1 else ""}</summary>'
+            f'<div class="tbl-wrap"><table class="dense">{HEAD}'
             f'<tbody>{player_rows(others)}</tbody></table></div></details></section>')
 
     total_rounds = sum(a["rounds"] for a in yours) or sum(a["rounds"] for a in others)
     matches = max((a["matches"] for a in (yours or others)), default=0)
+    n_roster = len(regulars) or len(others)
     body = f"""
   <section>
     <div class="stat-row">
-      <div class="stat"><span class="stat-n">{len(yours) or len(others)}</span>
-        <span class="label">{"your players" if yours else "players"}</span></div>
+      <div class="stat"><span class="stat-n">{n_roster}</span>
+        <span class="label">{"your players" if regulars else "players"}</span></div>
       <div class="stat"><span class="stat-n">{matches}</span>
         <span class="label">matches</span></div>
       <div class="stat"><span class="stat-n">{total_rounds}</span>
@@ -1400,7 +1446,19 @@ END_LABEL = {"surrender": "surrendered", "cut": "recording cut short"}
 #
 # Rendering costs a clustering pass over a map's samples, so it is cached: the
 # stored zone model only changes when someone deliberately rebuilds it.
-_ZONE_PIC: dict[tuple, str] = {}
+#
+# BOUNDED, because the values are not small. Each entry is a finished SVG of
+# tens of kilobytes and the key includes the set of places a page asked to be
+# labelled, so a busy box accumulates one per team per section. Oldest out
+# first: a map drawn for a page nobody is reading any more is the right thing
+# to lose.
+_ZONE_PIC: dict[tuple, list] = {}
+ZONE_PIC_MAX = 64
+# One drawing per key even when several readers ask at once. Same reasoning as
+# the season cache: the work is seconds, and doing it once per person looking
+# is the difference between a slow first load and a stalled box.
+_ZONE_PIC_LOCKS: dict[tuple, threading.Lock] = {}
+_ZONE_PIC_GUARD = threading.Lock()
 
 
 def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
@@ -1417,7 +1475,18 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
     key = (map_name, tuple(sorted(show)) if show else None, width)
     if key in _ZONE_PIC:
         return _ZONE_PIC[key]
+    with _ZONE_PIC_GUARD:
+        lock = _ZONE_PIC_LOCKS.setdefault(key, threading.Lock())
+    with lock:
+        if key in _ZONE_PIC:
+            return _ZONE_PIC[key]
+        out = _draw_zones(map_name, show, width, key)
+    with _ZONE_PIC_GUARD:
+        _ZONE_PIC_LOCKS.pop(key, None)
+    return out
 
+
+def _draw_zones(map_name: str, show, width: int, key) -> list[dict]:
     out: list[dict] = []
     try:
         import numpy as np
@@ -1501,6 +1570,8 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
                                              mask=msk)})
     except Exception:
         out = []            # a missing picture must never break the page
+    if len(_ZONE_PIC) >= ZONE_PIC_MAX:
+        _ZONE_PIC.pop(next(iter(_ZONE_PIC)))
     _ZONE_PIC[key] = out
     return out
 
@@ -1618,19 +1689,43 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
     # A label that distinguishes three Mirages from each other: the map plus
     # where the match sits in the season. Truncating to three characters made
     # every Mirage read "mir".
-    pts = [(f'{m["map"][:6]} {i + 1}', m[metric], m["result"] or "")
+    # Eleven labels in a row cannot each carry "inferno". The chart is drawn
+    # at 760px and scaled to fit its column, so on a narrow window every
+    # label shrinks with it and "mirage 10 L" becomes a smudge. Three letters
+    # keeps the map identifiable at a third of the width, and the number is
+    # what tells three Mirages apart. The full name is in the table below.
+    room = len(series) <= 6
+    pts = [(f'{i + 1} {m["map"][:6 if room else 3]}',
+            m[metric], m["result"] or "")
            for i, m in enumerate(series) if m.get(metric) is not None]
     vals = [v for _, v, _ in pts]
-    avg = sum(vals) / len(vals) if vals else 0
+
+    # THE SEASON'S OWN FIGURE, not the mean of the points drawn.
+    #
+    # Averaging eleven percentages gives every match one vote, so a six-round
+    # surrender counts as much as a twenty-nine-round Mirage and the answer
+    # drifts a point or two off the number Team stats prints from the same
+    # rounds. Summing the numerators and dividing once is the season's
+    # average, which is what the words "your average" mean everywhere else on
+    # the site.
+    shown = [m for m in series if m.get(metric) is not None]
+
+    def weighted(rows):
+        hit = sum(m["parts"][metric][0] for m in rows)
+        of = sum(m["parts"][metric][1] for m in rows)
+        if not of:
+            return sum(m[metric] for m in rows) / len(rows) if rows else 0.0
+        return (100.0 * hit / of) if unit else (hit / of)
+
+    avg = weighted(shown) if shown else 0
 
     # Is it holding? Compare the most recent three against everything before
     # them. Stated as a difference with both counts, never as a trend line
     # fitted through eleven points.
     verdict = ""
     if len(vals) >= 5:
-        recent, before = vals[-3:], vals[:-3]
-        r_avg = sum(recent) / len(recent)
-        b_avg = sum(before) / len(before)
+        r_avg = weighted(shown[-3:])
+        b_avg = weighted(shown[:-3])
         d = r_avg - b_avg
         word = ("better" if d > 3 else "worse" if d < -3 else "about the same")
         verdict = (
@@ -1640,8 +1735,7 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
             f'difference, not a trend; treat it as a question to check rather '
             f'than an answer.</div>')
 
-    chart = charts.trend(pts, width=760, height=236, unit=unit,
-                         is_pct=bool(unit))
+    chart = charts.trend(pts, unit=unit, is_pct=bool(unit), avg=avg)
 
     tabs = "".join(
         f'<a class="btn ghost{" on" if metric == k else ""}" '
@@ -1657,8 +1751,14 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
 
     rows = []
     for m in reversed(series):
-        if None in (m["adr"], m["traded_pct"], m["opening_pct"]):
-            continue
+        # EVERY match, including the ones where a column has no answer.
+        #
+        # This used to skip any match missing one of the three, which quietly
+        # dropped a six-round surrender from a table headed "Every match"
+        # because nobody on either side took an opening duel in it. A column
+        # with nothing to say prints a dash; it does not delete the row.
+        def cell(v, unit="%"):
+            return f'{v:.0f}{unit}' if v is not None else "&ndash;"
         res = "&ndash;"
         if m["result"]:
             cls = "win" if m["result"] == "W" else "loss"
@@ -1667,11 +1767,13 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
             f'<tr><td class="name">'
             f'<a href="/match/{esc(m["match_key"])}">{esc(m["map"])}</a></td>'
             f'<td>{res}</td>'
-            f'<td class="num mono">{m["us"]}&ndash;{m["them"]}</td>'
+            f'<td class="num mono">'
+            f'{m["us"] if m["us"] is not None else "&ndash;"}&ndash;'
+            f'{m["them"] if m["them"] is not None else "&ndash;"}</td>'
             f'<td class="num mono">{m["win_pct"]:.0f}%</td>'
-            f'<td class="num mono">{m["adr"]:.0f}</td>'
-            f'<td class="num mono">{m["traded_pct"]:.0f}%</td>'
-            f'<td class="num mono">{m["opening_pct"]:.0f}%</td></tr>')
+            f'<td class="num mono">{cell(m["adr"], "")}</td>'
+            f'<td class="num mono">{cell(m["traded_pct"])}</td>'
+            f'<td class="num mono">{cell(m["opening_pct"])}</td></tr>')
     rows = "".join(rows)
 
     body = f"""
@@ -1740,15 +1842,17 @@ def matches_page(request: Request):
                 if m["match_key"] else (chip if m["map"] else esc(m["filename"])))
         tag = END_LABEL.get(m.get("end_reason") or "")
         cut = f' <span class="pill">{tag}</span>' if tag else ""
+        # Beside the map, not in a column of its own: a parsed match has no
+        # status worth a cell, and every match is parsed by the time anyone
+        # looks. One pill in eleven rows is not a column.
         status = ('' if m["status"] == "parsed"
-                  else f'<span class="pill">{esc(m["status"])}</span>')
+                  else f' <span class="pill">{esc(m["status"])}</span>')
         rows.append(
-            f'<tr><td class="name">{name}{cut}'
+            f'<tr><td class="name">{name}{cut}{status}'
             f'<div class="den" style="font-weight:400" title="{esc(m["filename"])}">'
             f'{esc(m["tier"] or "")} &middot; uploaded {esc(m["uploaded"])}</div></td>'
             f'<td class="num">{score}</td>'
-            f'<td class="num mono">{m["rounds"] or "&ndash;"}</td>'
-            f'<td class="num">{status}</td></tr>')
+            f'<td class="num mono">{m["rounds"] or "&ndash;"}</td></tr>')
 
     played = [m for m in items if m["result"]]
     won = sum(1 for m in played if m["result"] == "W")
@@ -1766,14 +1870,12 @@ def matches_page(request: Request):
   <section>
     <div class="sec-head"><span class="label">Newest first</span>
       <h2>Every match you have sent in</h2></div>
-    <p class="lede">Scores are the real result, followed through the side swap
-      rather than summed by side. CT and T are not teams, and a match that
-      ends 13&ndash;9 reads as 16&ndash;6 if you add up the sides instead.
-      A CS2 demo carries no match date, so the date shown is when the file was
-      uploaded; the order is the true one.</p>
+    <p class="lede">Scores follow the real result through the side swap, not
+      summed by side. A CS2 demo carries no match date, so the date is when you
+      uploaded the file; the order is the true one.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Match</th><th class="num">Score</th>
-        <th class="num">Rounds</th><th class="num">Status</th></tr></thead>
+        <th class="num">Rounds</th></tr></thead>
       <tbody>{"".join(rows)}</tbody></table></div>
   </section>"""
     return html_page("Matches", banner("Matches", crumb=esc(team["name"]),
@@ -1814,14 +1916,22 @@ def stats_page(request: Request):
             tag = "keep doing this" if it["good"] else "worth changing"
             cls = "on" if it["good"] else "t"
             side = (it["side"] or "").upper()
-            ev = "".join(f'<li>{esc(e)}</li>' for e in it["evidence"])
             # A finding counted in flashes or in dollars brings its own
-            # closing line. The default one is a share of rounds against the
-            # team's round win rate, which is only true of the rest.
-            foot = it.get("foot") or (
-                f'{it["rate"]:.0f}% against your {plan["baseline"]:.0f}% '
-                f'overall, a gap of {abs(it["gap"]):.0f} points across '
-                f'{it["of"]} rounds')
+            # closing line. The rest are a share of rounds against the team's
+            # round win rate -- and when there is only one count to compare,
+            # that belongs ON the count rather than under it. A card that says
+            # "you win 2 of those 9" and then "22% against your 49% overall, a
+            # gap of 27 points across 9 rounds" has said one thing three ways.
+            lines = list(it["evidence"])
+            foot = it.get("foot")
+            if not foot and len(lines) == 1:
+                lines[0] = (f'{lines[0]} ({it["rate"]:.0f}%), against '
+                            f'{plan["baseline"]:.0f}% overall')
+            elif not foot:
+                foot = (f'{it["rate"]:.0f}% against your '
+                        f'{plan["baseline"]:.0f}% overall, across '
+                        f'{it["of"]} rounds')
+            ev = "".join(f'<li>{esc(e)}</li>' for e in lines)
             return (
                 f'<div class="card advice{" good" if it["good"] else ""}">'
                 f'<div style="display:flex;gap:9px;align-items:center;'
@@ -1830,7 +1940,8 @@ def stats_page(request: Request):
                 + f'</div><h3>{esc(it["do"])}</h3>'
                 f'<p class="lede">{esc(it["because"])}</p>'
                 f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
-                f'<p class="den">{esc(foot)}</p></div>')
+                + (f'<p class="den">{esc(foot)}</p>' if foot else "")
+                + '</div>')
 
         # Grouped by map, because practice is planned one map at a time. The
         # ranking still decides the order of the groups and of the cards inside
@@ -1848,11 +1959,10 @@ def stats_page(request: Request):
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
       <h2>What to work on</h2></div>
-    <p class="lede">Every line below is a conclusion drawn from something counted
-      further down this page, ranked by how many rounds it covers and how far it
-      sits from your own average of {plan['baseline']:.0f}%. Nothing here is
-      predicted. The evidence is printed under each one, so you can disagree
-      with the reasoning rather than having to take it on trust.</p>
+    <p class="lede">Ranked by how many rounds each one covers and how far it
+      sits from your usual: your own {plan['baseline']:.0f}% across the season, or the
+      same map and side without it for a line about one place. The count
+      behind every line is printed under it.</p>
     {"".join(groups)}
   </section>"""
     else:
@@ -2016,14 +2126,6 @@ def stats_page(request: Request):
     # different questions and a coach reads them differently.
     pos = movement.positional_patterns(team["id"])
     POS_SECTIONS = (
-        ("commit", "Where your group ends up",
-         "The furthest three of you get together and hold, inside the first "
-         f"{int(movement.COMMIT_TO)} seconds. Corridors everyone walks through "
-         "are not destinations, so they only appear here when the group never "
-         "got past them, which is itself worth seeing."),
-        ("setup", "Your default setup",
-         f"Where two or more of you are standing {int(movement.SETUP_AT)} seconds "
-         "in: after the round has taken shape, before contact decides it."),
         ("death", "Where your first death happens",
          "The first of you to die, where, and whether anybody got him back. "
          "The same death traded leaves a 4v4 and untraded leaves a 4v5, which "
@@ -2038,17 +2140,129 @@ def stats_page(request: Request):
     # position three of twenty. A table nobody reads to the bottom of should
     # not have a bottom.
     POS_TOP_N = 5
+
+    # A row needs rounds on BOTH sides to be worth comparing. Under this many
+    # in the rest of the map and side there is nothing to compare it to, and
+    # "62% against 0% of two rounds" is not a finding.
+    #
+    # The same floor `rate()` uses, deliberately: a number too thin to print
+    # as a percentage is too thin to rank a table by. At the pattern floor of
+    # six, a seven-round row rendering as "2 / 7 thin" outranked comparable
+    # rows with real denominators and a smaller gap.
+    MIN_COMPARE = report_mod.MIN_CHANCES
+
     pos_blocks = []
-    # Which places each map's tables actually mention, so the maps can be drawn
-    # ONCE at the end with only those labeled. Drawing one per section put the
-    # same Mirage picture on the page three times.
+    # ---- where you are early: one section, one row per place
+    #
+    # The setup reading is the spine because it covers more rounds and is the
+    # easier one to picture: two of you standing somewhere twelve seconds in.
+    # The commit reading rides on the row as "this is as far as the group
+    # got", which is the same place seen from the other end.
+    early: dict = {}
+    for q in pos:
+        if q["kind"] not in ("setup", "commit"):
+            continue
+        early.setdefault((q["map"], q["side"], q["zone"]), {})[q["kind"]] = q
+
+    rows_early = []
+    for (mp, side, zone), pair in early.items():
+        spine = pair.get("setup") or pair["commit"]
+        com = pair.get("commit")
+        # Rounds the difference is worth: how far apart the two groups are,
+        # times the smaller of them. A 50-point gap over 8 rounds and a
+        # 15-point gap over 30 are both real, and this weighs them the way a
+        # coach would rather than letting the widest gap on the fewest rounds
+        # win.
+        cmp_ok = spine["hit"] >= MIN_COMPARE and spine["other"] >= MIN_COMPARE
+        worth = (abs(spine["gap"]) / 100.0 * min(spine["hit"], spine["other"])
+                 if cmp_ok else -1.0)
+        rows_early.append({"q": spine, "commit": com, "cmp": cmp_ok,
+                           "worth": worth, "map": mp, "side": side,
+                           "zone": zone})
+    rows_early.sort(key=lambda r: (-r["worth"], -r["q"]["hit"]))
+
+    if rows_early:
+        top = rows_early[:POS_TOP_N]
+        hidden = len(rows_early) - len(top)
+        trs = []
+        for r in top:
+            q, com = r["q"], r["commit"]
+            bits = [esc(r["map"].replace("de_", ""))]
+            if q["kind"] == "setup":
+                bits.append(esc(q["extra"]))
+                if com:
+                    bits.append(f'also as far as the group got in '
+                                f'{com["hit"]} of {com["of"]}')
+            else:
+                # The row IS the group's reach, so the Rounds cell already
+                # says how often. What it does not say is which rounds are in
+                # that denominator.
+                bits.append("the furthest the group got together")
+            sub_line = " &middot; ".join(bits)
+            other = (rate(q["other_won"], q["other"]) if r["cmp"] else
+                     '<span class="rt nil"><b class="den">&ndash;</b></span>')
+            trs.append(
+                f'<tr><td class="name"><span class="pill {r["side"]}">'
+                f'{r["side"].upper()}</span> {esc(r["zone"])}'
+                f'<span class="den" style="font-weight:400;margin-left:7px">'
+                f'{sub_line}</span></td>'
+                f'<td class="num">{rate(q["hit"], q["of"])}</td>'
+                f'<td class="num">{rate(q["won"], q["hit"])}</td>'
+                f'<td class="num">{other}</td></tr>')
+        note = ""
+        if hidden:
+            note = (f'<p class="note">{hidden} more place'
+                    f'{"s" if hidden != 1 else ""} showed the same pattern. '
+                    f'These are the ones where the rounds it happened in and '
+                    f'the rounds it did not are furthest apart.</p>')
+        # A round where three of you never held anything together is not a
+        # round where you went somewhere else, so it is not in the denominator
+        # of a row about how far the group got. How often that happens is
+        # itself worth printing: it is most of them.
+        pairs = {(q["map"], q["side"]): (q["side_rounds"], q["answered"])
+                 for q in pos}
+        all_r = sum(v[0] for v in pairs.values())
+        ans = sum(v[1] for v in pairs.values())
+        if all_r and ans < all_r:
+            note += (f'<p class="note">Three of you never held any one place '
+                     f'together in {all_r - ans} of {all_r} rounds. Those are '
+                     f'not counted in a row about how far the group got, '
+                     f'because nobody went anywhere as a group to count.</p>')
+        pos_blocks.append(
+            f'<section><div class="sec-head"><span class="label">From position '
+            f'data</span><h2>Where you are in the opening</h2></div>'
+            f'<p class="lede">Where two or more of you stand '
+            f'{int(movement.SETUP_AT)} seconds in, once the round has shape '
+            f'and before contact decides it. The last column is the same map '
+            f'and the same side in the rounds it did not happen, which is the '
+            f'only comparison worth making: read against your season average, '
+            f'most of these numbers are reading the map rather than the '
+            f'habit.</p>'
+            f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
+            f'<th class="num">Rounds</th><th class="num">Of those, won</th>'
+            f'<th class="num" title="The same map and side, in the rounds '
+            f'this did not happen">When you do not</th></tr></thead>'
+            f'<tbody>{"".join(trs)}</tbody></table></div>{note}</section>')
+
+    # Every place the three tables name, gathered BEFORE any of them render,
+    # because the maps are drawn once from the union of all three. In map
+    # order of first appearance, which is ranked order: the table rows arrive
+    # worst-first, so the map that matters most is drawn first.
     shown_zones: dict[str, set] = {}
+    for r in rows_early[:POS_TOP_N]:
+        shown_zones.setdefault(r["map"], set()).add(r["zone"])
+    chosen = []
     for kind, title, lede in POS_SECTIONS:
         sel = [q for q in pos if q["kind"] == kind]
         if not sel:
             continue
         hidden = max(0, len(sel) - POS_TOP_N)
         sel = sel[:POS_TOP_N]
+        for q in sel:
+            shown_zones.setdefault(q["map"], set()).add(q["zone"])
+        chosen.append((kind, title, lede, sel, hidden))
+
+    for kind, title, lede, sel, hidden in chosen:
         # Only a first death can be traded, so the column exists in that one
         # section rather than sitting empty in the other two.
         trades = kind == "death"
@@ -2072,30 +2286,6 @@ def stats_page(request: Request):
                 f'{"s" if hidden != 1 else ""} showed the same pattern less '
                 f'often; the top {POS_TOP_N} are the ones worth practice time.</p>'
                 if hidden else "")
-        for q in sel:
-            shown_zones.setdefault(q["map"], set()).add(q["zone"])
-
-        # The map goes next to the table that names it — in EVERY section that
-        # names it, not just the first.
-        #
-        # Drawing each map once and marking it "done" moved the problem rather
-        # than solving it: all five figures piled into "Where your group ends
-        # up" and the two sections below it, which talk about the same places,
-        # got none. A reader at "Where your first death happens" needs the map
-        # there, and a second small copy of Mirage costs less than scrolling
-        # back for it.
-        here = []
-        for mp in dict.fromkeys(q["map"] for q in sel):
-            for pic in zone_pictures(mp, show={q["zone"] for q in sel
-                                               if q["map"] == mp}, width=300):
-                floor = (f' <span class="pill">{esc(pic["level"])}</span>'
-                         if pic["level"] else "")
-                here.append(
-                    f'<figure class="zonefig">{pic["svg"]}'
-                    f'<figcaption class="den"><strong>'
-                    f'{esc(mp.replace("de_", ""))}</strong>{floor}</figcaption>'
-                    f'</figure>')
-        maps_here = f'<div class="zonerow">{"".join(here)}</div>' if here else ""
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'From position data</span><h2>{title}</h2></div>'
@@ -2106,7 +2296,29 @@ def stats_page(request: Request):
                f'traded back">Traded</th>' if trades else "")
             + f'<th class="num">Of those, won</th>'
             f'</tr></thead><tbody>{"".join(rws)}</tbody></table></div>'
-            f'{more}{maps_here}</section>')
+            f'{more}</section>')
+
+    # ---- the maps, once each, at the head of the three tables
+    figs = []
+    for mp, places in shown_zones.items():
+        for pic in zone_pictures(mp, show=places, width=420):
+            floor = (f' <span class="pill">{esc(pic["level"])}</span>'
+                     if pic["level"] else "")
+            figs.append(
+                f'<figure class="zonefig">{pic["svg"]}'
+                f'<figcaption class="den"><strong>'
+                f'{esc(mp.replace("de_", ""))}</strong>{floor}</figcaption>'
+                f'</figure>')
+    if figs and pos_blocks:
+        n = len(pos_blocks)
+        pos_blocks.insert(0, (
+            f'<section><div class="sec-head"><span class="label">From position '
+            f'data</span><h2>The maps you play</h2></div>'
+            f'<p class="lede">Every place named in the {n} table'
+            f'{"s" if n != 1 else ""} below it, drawn from your own rounds. A map '
+            f'whose sites sit on top of each other, like nuke, gets both '
+            f'floors.</p>'
+            f'<div class="zonerow">{"".join(figs)}</div></section>'))
 
     if pos_blocks:
         positional_block = "".join(pos_blocks)
@@ -2182,24 +2394,23 @@ def stats_page(request: Request):
                 f'<tr><td class="name"><span class="pill {side}">{side.upper()}</span> '
                 f'{esc(kind)}</td><td class="num mono">{v["n"]}</td>'
                 f'<td class="num">{rate(v["won"], v["n"])}</td></tr>')
-        buy_head = '<th>Side and buy</th>' 
+        buy_head = '<th>Side and buy</th>'
 
     if known:
         who = ", ".join(v["name"] for v in st["anchors"]["anchors"].values())
         n = st["anchors"]["matches"]
         roster_note = (
             f'<section><p class="note"><strong>These are your rounds, not both '
-            f'sides\'.</strong> {esc(who)} appears in every one of your {n} matches '
-            f'while opponents appear in one each, so whichever side they were on is '
-            f'yours for that round. Everything above is counted from your side of '
-            f'the game.</p></section>')
+            f'sides\'.</strong> {esc(who)} appears in all {n} of your matches '
+            f'while opponents appear in one each, so whichever side they were '
+            f'on is yours for that round.</p></section>')
     else:
         roster_note = (
             '<section><p class="warn"><strong>These are both sides, not just '
-            'yours.</strong> A demo carries no team names, only which side each '
-            'player was on. Telling your side from your opponents\' needs a player '
-            'who appears across several of your matches. Upload one more and '
-            'this page switches to your rounds alone.</p></section>')
+            'yours.</strong> A demo carries no team names, only sides. Telling '
+            'yours apart needs a player who appears across several matches: '
+            'upload one more and this page switches to your rounds '
+            'alone.</p></section>')
 
     body = f"""
   <section>
@@ -2286,8 +2497,10 @@ def player_page(request: Request, steamid: str):
     t = p["totals"]
     rows = []
     for m in p["matches"]:
-        res = ('<span class="pill on">Won</span>' if m["result"] == "won"
-               else '<span class="pill">Lost</span>')
+        # The same W/L pill the rest of the site uses. "Won"/"Lost" in a
+        # column of twelve numbers is two words doing a letter's work.
+        res = (f'<span class="res {"win" if m["result"] == "won" else "loss"}">'
+               f'{"W" if m["result"] == "won" else "L"}</span>')
         # An ADR well off this player's own average is the point of the page,
         # so it is marked rather than left for the reader to spot.
         delta = m["adr"] - t["adr"]
@@ -2434,30 +2647,14 @@ def account(request: Request):
 
 # ---------------------------------------------------------------- lead form
 
-@app.post("/api/lead")
-async def api_lead(request: Request):
-    """The landing page's form. No account, no password — just a way in.
-
-    Kept separate from /signup because someone who wants to send demos before
-    committing to an account should not be turned away, and a half-created
-    account is worse than a row in a leads table.
-    """
-    data = await request.json()
-    if not isinstance(data, dict):
-        return {"ok": False, "error": "bad payload"}
-    fields = {k: str(data.get(k, ""))[:2000] for k in
-              ("team", "league", "role", "name", "email", "faceit_url", "note")}
-    if auth.email_problem(fields["email"]):
-        return {"ok": False, "error": "A valid email is needed."}
-    if not fields["team"].strip() or not fields["name"].strip():
-        return {"ok": False, "error": "Team and name are needed."}
-    db.execute("""INSERT INTO leads (team, league, role, name, email, faceit_url,
-                                     note, created_at)
-                  VALUES (?,?,?,?,?,?,?,?)""",
-               *(fields[k] for k in ("team", "league", "role", "name", "email",
-                                     "faceit_url", "note")), db.utcnow())
-    db.audit(None, "lead", fields["email"])
-    return {"ok": True}
+# /api/lead is gone.
+#
+# It backed a "tell us about your team" form on the landing page, which was
+# replaced by the signup button. The form went and the route stayed: an
+# unauthenticated, unthrottled POST that inserted a row into `leads` for
+# anybody who read the page source. An endpoint with no caller is not a
+# feature, it is a way in. The `leads` table is left alone; it holds real rows
+# from before the form was removed.
 
 
 # ---------------------------------------------------------------- static
@@ -2610,6 +2807,42 @@ def sample_report(request: Request):
     # app.sample importing main would close the loop.
     return HTMLResponse(sample_page.render(current(request),
                                            pictures=zone_pictures))
+
+
+# ---- the icon
+#
+# Three files for one mark, because browsers ask for it three ways and the
+# oldest way is the one that 404s silently in a tab strip:
+#
+#   favicon.svg          what a current browser uses; one file, any size
+#   favicon.ico          what older ones request by convention, at /favicon.ico
+#                        whether or not the page says so
+#   apple-touch-icon.png what iOS uses when a coach saves the page to a phone
+#
+# Served by name rather than by mounting `site/`, because that directory also
+# holds the generated league pages and the zone-naming tools, and a mount
+# would put both back at addresses this app deliberately does not answer.
+ICONS = {"/favicon.svg": ("favicon.svg", "image/svg+xml"),
+         "/favicon.ico": ("favicon.ico", "image/x-icon"),
+         "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png")}
+
+
+def _icon_route(path: str, name: str, kind: str):
+    @app.get(path, include_in_schema=False)
+    def serve(_name=name, _kind=kind):
+        f = SITE / _name
+        if not f.is_file():
+            return Response(status_code=404)
+        # A year, and the names never change. An icon that has to be
+        # re-fetched on every page view is the smallest possible waste
+        # repeated the most times.
+        return Response(f.read_bytes(), media_type=_kind,
+                        headers={"Cache-Control": "public, max-age=31536000"})
+    return serve
+
+
+for _p, (_n, _k) in ICONS.items():
+    _icon_route(_p, _n, _k)
 
 
 # Map overview images, fetched by counterplay/radar.py. Absent until someone

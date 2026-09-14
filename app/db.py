@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import sqlite3
+import threading
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
@@ -39,7 +40,30 @@ def minutes_ago(minutes: int) -> str:
         microsecond=0).isoformat()
 
 
+# One connection per thread, kept.
+#
+# Every query used to open its own: a file open, three PRAGMAs and a close,
+# about a millisecond each time. A page that runs two hundred queries spent a
+# fifth of a second doing nothing but opening the same file, and the season
+# pages run a great many more than two hundred.
+#
+# Per THREAD because that is what sqlite3 requires -- a connection may only be
+# used from the thread that made it -- and it is also the right scope here:
+# the app serves its sync endpoints from a thread pool, and the worker is a
+# separate process with a thread of its own.
+#
+# `with connect() as conn` was never closing these anyway. A sqlite3
+# connection's context manager commits or rolls back the transaction and
+# leaves the connection open, so the old code leaked one per query until the
+# garbage collector got to it. Every existing call site keeps working and now
+# means what it looked like it meant.
+_pool = threading.local()
+
+
 def connect() -> sqlite3.Connection:
+    conn = getattr(_pool, "conn", None)
+    if conn is not None:
+        return conn
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=10.0)
     conn.row_factory = sqlite3.Row
@@ -48,6 +72,7 @@ def connect() -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.execute("PRAGMA journal_mode = WAL")
     conn.execute("PRAGMA busy_timeout = 5000")
+    _pool.conn = conn
     return conn
 
 

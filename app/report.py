@@ -18,9 +18,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 
-from counterplay.schema import ROUND_SECONDS, classify_round
+from counterplay.schema import classify_round
 
-from . import db
+from . import db, memo
 
 # Below this many chances, a percentage is noise wearing a percent sign.
 MIN_CHANCES = 8
@@ -56,6 +56,7 @@ def role_of(a: dict) -> tuple[str, str]:
 ANCHOR_SHARE = 0.6
 
 
+@memo.by_team
 def team_anchors(team_id: int) -> dict:
     """Which players are this team's, inferred from who keeps turning up.
 
@@ -121,6 +122,42 @@ def _side_by_round(team_id: int, anchors: dict) -> dict:
     return out
 
 
+@memo.by_team
+def our_sides(team_id: int) -> dict:
+    """(match_key, round_num) -> the side this team was on. One call, one map.
+
+    Every team-aware count on the site starts here, so they cannot disagree
+    with each other about which rounds were whose.
+    """
+    return _side_by_round(team_id, team_anchors(team_id).get("anchors", {}))
+
+
+def ours_by_round(team_id: int, match_key: str | None = None) -> set:
+    """The (match_key, round_num, steamid) rows that are this team's.
+
+    A player is ours in a round if they were on our side in it. That is the
+    whole test, and unlike "appears in most of our matches" it is a reading
+    rather than an inference: it gets the fifth who played once right, and it
+    gets the stand-in who turned out for the other team right too.
+    """
+    sides = our_sides(team_id)
+    if not sides:
+        return set()
+    where = "d.team_id = ?"
+    args: list = [team_id]
+    if match_key:
+        where += " AND pr.match_key = ?"
+        args.append(match_key)
+    return {(r["match_key"], r["round_num"], r["steamid"])
+            for r in db.query(f"""SELECT pr.match_key, pr.round_num, pr.steamid,
+                                         pr.side
+                                    FROM player_rounds pr
+                                    JOIN matches m ON m.match_key = pr.match_key
+                                    JOIN demos d ON d.id = m.demo_id
+                                   WHERE {where}""", *args)
+            if sides.get((r["match_key"], r["round_num"])) == r["side"]}
+
+
 def _rounds_and_events(match_key: str):
     rounds = db.query("""SELECT * FROM rounds WHERE match_key = ?
                       ORDER BY round_num""", match_key)
@@ -129,8 +166,13 @@ def _rounds_and_events(match_key: str):
     return rounds, events
 
 
-def build(match_key: str) -> dict | None:
-    """Everything the report page needs, counted."""
+def build(match_key: str, team_id: int | None = None) -> dict | None:
+    """Everything the report page needs, counted.
+
+    `team_id` is what turns a match into YOUR match: with it the opening-duel
+    and buy tables are counted from this team's rounds rather than from a side
+    that changes hands at the half.
+    """
     match = db.one("SELECT * FROM matches WHERE match_key = ?", match_key)
     if match is None:
         return None
@@ -200,10 +242,50 @@ def build(match_key: str) -> dict | None:
             agg[kind]["rounds"].append(x["round_num"])
         buys[side] = dict(agg)
 
+    # ---- the same two tables, counted as a team rather than as a side
+    #
+    # Sides swap at the half, so a CT row spanning a whole match is this
+    # team's first half and their opponent's second. Where the side is known
+    # per round, both tables are rebuilt from the rounds that are actually
+    # this team's; where it is not, they stay per side and the page says so.
+    you_opening = you_buys = None
+    if team_id is not None:
+        sides = our_sides(team_id)
+        mine = [(x, sides.get((match_key, x["round_num"]))) for x in rows]
+        mine = [(x, sd) for x, sd in mine if sd in ("ct", "t")]
+        if mine:
+            def won(x, sd):
+                return x["ct_won"] if sd == "ct" else not x["ct_won"]
+            lost = [x for x, sd in mine if x["opening_loser"] == sd]
+            took = [x for x, sd in mine
+                    if x["opening_loser"] and x["opening_loser"] != sd]
+            saved = [x for x, sd in mine
+                     if x["opening_loser"] == sd and won(x, sd)]
+            conv = [x for x, sd in mine
+                    if x["opening_loser"] and x["opening_loser"] != sd
+                    and won(x, sd)]
+            you_opening = {
+                "rounds": len(mine),
+                "lost": len(lost), "lost_rounds": [x["round_num"] for x in lost],
+                "saved": len(saved),
+                "taken": len(took), "taken_rounds": [x["round_num"] for x in took],
+                "converted": len(conv),
+            }
+            agg: dict = {}
+            for x, sd in mine:
+                kind = x["buy_ct"] if sd == "ct" else x["buy_t"]
+                d = agg.setdefault(kind, {"n": 0, "won": 0, "rounds": []})
+                d["n"] += 1
+                d["won"] += int(won(x, sd))
+                d["rounds"].append(x["round_num"])
+            you_buys = agg
+
     return {
         "match": match,
         "rows": rows,
-        "scoreboard": scoreboard(match_key, rows),
+        "scoreboard": scoreboard(match_key, rows, team_id),
+        "you_opening": you_opening,
+        "you_buys": you_buys,
         "n_rounds": n,
         "score_ct": ct_wins,
         "score_t": n - ct_wins,
@@ -214,7 +296,8 @@ def build(match_key: str) -> dict | None:
     }
 
 
-def scoreboard(match_key: str, rows: list) -> list[dict]:
+def scoreboard(match_key: str, rows: list,
+               team_id: int | None = None) -> list[dict]:
     """Both teams, players sorted by damage per round.
 
     Teams are identified by the side they started on, not by name: a demo
@@ -314,11 +397,22 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
                                  if a["rounds"] else 0.0)
         a["role"], a["role_why"] = role_of(a)
 
+    # Which of the two rosters is the reader's. The side map says who was on
+    # which side per round, so the roster that STARTED on our first-round side
+    # is ours. Cheap to work out and the difference between a scoreboard and
+    # your scoreboard.
+    our_start = None
+    if team_id is not None:
+        sides = our_sides(team_id)
+        our_start = sides.get((match_key, first_round))
+
     teams = []
     for side, label in (("ct", "Started CT"), ("t", "Started T")):
         members = [a for sid, a in agg.items() if started.get(sid) == side]
         if not members:
             continue
+        if our_start:
+            label = ("Your team" if side == our_start else "Opponents")
         # A team's round wins are the rounds their CURRENT side took, and their
         # side flips at half — so count from the round rows rather than assuming.
         teams.append({
@@ -331,6 +425,10 @@ def scoreboard(match_key: str, rows: list) -> list[dict]:
     if late:
         teams.append({"side": None, "label": "Joined after round 1",
                       "players": sorted(late, key=lambda x: -x["adr"])})
+    # Yours first. A coach opening their own match report is looking for their
+    # own five, and putting them second makes that a scroll every time.
+    if our_start:
+        teams.sort(key=lambda t: t["side"] != our_start)
     return teams
 
 
@@ -390,13 +488,20 @@ def rate(won: int, total: int) -> str:
             f'<span class="den">{won} / {total}</span></span>')
 
 
-def team_players(team_id: int) -> list[dict]:
+@memo.by_team
+def team_players(team_id: int, ours_only: bool | None = None) -> list[dict]:
     """Every player across every match this team has uploaded.
 
     Season totals, not one match. This is the thing a single demo structurally
     cannot tell a coach: whether a bad opening-duel record is one rough night
     or a habit. Side splits are kept apart because a player who is 90 ADR as CT
     and 60 as T has a specific problem, and an averaged 75 hides it.
+
+    `ours_only` picks which rounds count: True for the rounds a player spent on
+    this team's side, False for the rounds they spent against it, None for all
+    of them. It matters for exactly one kind of player and it matters a lot for
+    them -- the stand-in who turns out for you one week and for the opposition
+    the next, whose totals would otherwise be both at once.
     """
     rows = db.query("""
         SELECT pr.steamid, pr.name, pr.side, pr.kills, pr.deaths, pr.assists,
@@ -406,7 +511,7 @@ def team_players(team_id: int) -> list[dict]:
                pr.clutch_tried, pr.clutch_won, pr.multi_kills,
                pr.teammates_flashed, pr.flash_assists, pr.flash_kills,
                pr.nades_thrown, pr.nades_start, pr.nades_unused,
-               pr.nades_value, pr.nades_wasted
+               pr.nades_value, pr.nades_wasted, pr.round_num
           FROM player_rounds pr
           JOIN matches m  ON m.match_key = pr.match_key
           JOIN demos   d  ON d.id = m.demo_id
@@ -414,8 +519,18 @@ def team_players(team_id: int) -> list[dict]:
     if not rows:
         return []
 
+    keep = None
+    if ours_only is not None:
+        mine = ours_by_round(team_id)
+        keep = (lambda r: (r["match_key"], r["round_num"], r["steamid"]) in mine)
+        if not ours_only:
+            inner = keep
+            keep = (lambda r: not inner(r))
+
     agg: dict[str, dict] = {}
     for r in rows:
+        if keep and not keep(r):
+            continue
         a = agg.setdefault(r["steamid"], {
             "steamid": r["steamid"], "name": r["name"], "rounds": 0, "kills": 0,
             "deaths": 0, "assists": 0, "headshots": 0, "damage": 0.0,
@@ -573,16 +688,39 @@ def squad(team_id: int) -> dict:
 
     n_matches = max((a["matches"] for a in people), default=0)
     if n_matches < 2:
-        # One match: everyone appears in all of it and the signal does not
-        # exist yet. Better to say so than to split on nothing.
+        # One match: every player appears in all of it, so there is nothing to
+        # infer a side from yet. Better to say so than to split on nothing.
         return {"yours": [], "others": people, "confident": False}
 
-    # Appearing in more than one of a team's matches is the whole test. In
-    # league play the roster appears in nearly all of them; in solo-queue
-    # Premier only the account holder recurs, which is the case this was
-    # written against and it still works.
-    yours = [a for a in people if a["matches"] >= 2]
-    others = [a for a in people if a["matches"] < 2]
+    # WHICH SIDE THEY STOOD ON. Not how often they turn up.
+    #
+    # The old test was "appears in more than one of your matches", which on a
+    # league roster is right and on a solo-queue season quietly drops the four
+    # people who played with you last night. Once the side is known per round
+    # the question needs no heuristic at all: a player is yours if most of
+    # their rounds were on your side, which also gets the stand-in who turned
+    # out for the other team the one night.
+    #
+    # And the row a player gets is built from those rounds alone: a stand-in
+    # filed under your roster carries the rounds they played FOR you, not an
+    # average of both weeks.
+    ours = ours_by_round(team_id)
+    if not ours:
+        return {"yours": [], "others": people, "confident": False}
+    mine = {}
+    for _mk, _rn, sid in ours:
+        mine[sid] = mine.get(sid, 0) + 1
+    for_us = {a["steamid"]: a for a in team_players(team_id, ours_only=True)}
+    against = {a["steamid"]: a for a in team_players(team_id, ours_only=False)}
+    yours = [for_us[a["steamid"]] for a in people
+             if mine.get(a["steamid"], 0) * 2 > a["rounds"]
+             and a["steamid"] in for_us]
+    others = [against[a["steamid"]] for a in people
+              if mine.get(a["steamid"], 0) * 2 <= a["rounds"]
+              and a["steamid"] in against]
+    # Regulars first: the five who keep coming back are the roster a coach is
+    # looking for, and the one-night stand-in is still theirs but is not it.
+    yours.sort(key=lambda a: (-a["matches"], -a["rounds"]))
     return {"yours": yours, "others": others, "confident": bool(yours)}
 
 
@@ -710,6 +848,7 @@ def _team_match_keys(team_id: int) -> list[str]:
             WHERE d.team_id = ? ORDER BY m.played_at""", team_id)]
 
 
+@memo.by_team
 def team_stats(team_id: int) -> dict | None:
     """Season aggregates across every match this team has sent in.
 
@@ -851,6 +990,7 @@ def team_stats(team_id: int) -> dict | None:
     }
 
 
+@memo.by_team
 def recurring_patterns(team_id: int) -> list[dict]:
     """Things that happen over and over across a team's matches.
 
@@ -1031,7 +1171,7 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
         m["result"] = ("won" if m["won_rounds"] > lost
                        else "lost" if lost > m["won_rounds"] else "drew")
         # Written from this player's side, so it reads the way they remember it.
-        m["score"] = f'{m["won_rounds"]}-{lost}'
+        m["score"] = f'{m["won_rounds"]}\u2013{lost}'
 
     name = db.one("""SELECT name FROM player_rounds WHERE steamid = ?
                   ORDER BY rowid DESC LIMIT 1""", steamid)
@@ -1118,17 +1258,27 @@ def match_series(team_id: int, map_name: str | None = None,
             us = m["final_ct"] if started == "ct" else m["final_t"]
             them = m["final_t"] if started == "ct" else m["final_ct"]
 
-        our_sids = list(anchors)
+        # EVERY PLAYER ON OUR SIDE THAT ROUND, not the players who recur
+        # across the season. Aggregating over the anchors made a metric
+        # labelled "your players only" into one man's damage on a solo-queue
+        # season, and a team does not swing ninety points of ADR between
+        # matches; one player does.
         agg = None
-        if our_sids:
-            marks = ",".join("?" * len(our_sids))
-            agg = db.one(f"""SELECT SUM(pr.opening_kill) ok, SUM(pr.opening_death) od,
-                                    SUM(pr.trade_kills) tk, SUM(pr.traded_deaths) td,
-                                    SUM(pr.deaths) d, SUM(pr.damage) dmg,
-                                    COUNT(*) n
-                               FROM player_rounds pr
-                              WHERE pr.match_key = ? AND pr.steamid IN ({marks})""",
-                          mk, *our_sids)
+        rows_pr = db.query("""SELECT round_num, steamid, side, opening_kill,
+                                     opening_death, trade_kills, traded_deaths,
+                                     deaths, damage
+                                FROM player_rounds WHERE match_key = ?""", mk)
+        keep = [r for r in rows_pr if sides.get((mk, r["round_num"])) == r["side"]]
+        if keep:
+            agg = {
+                "ok": sum(r["opening_kill"] or 0 for r in keep),
+                "od": sum(r["opening_death"] or 0 for r in keep),
+                "tk": sum(r["trade_kills"] or 0 for r in keep),
+                "td": sum(r["traded_deaths"] or 0 for r in keep),
+                "d": sum(r["deaths"] or 0 for r in keep),
+                "dmg": sum(r["damage"] or 0.0 for r in keep),
+                "n": len(keep),
+            }
 
         out.append({
             "match_key": mk,
@@ -1136,6 +1286,18 @@ def match_series(team_id: int, map_name: str | None = None,
             "rounds": played,
             "won": won,
             "win_pct": 100.0 * won / played,
+            # The numerator and denominator behind every plotted figure, so a
+            # band across several matches can be a total rather than a mean of
+            # means. Six rounds and twenty-nine rounds are not the same
+            # evidence and an average that treats them alike is not the
+            # season's average.
+            "parts": {
+                "win_pct": (won, played),
+                "adr": ((agg["dmg"], agg["n"]) if agg else (0, 0)),
+                "traded_pct": ((agg["td"], agg["d"]) if agg else (0, 0)),
+                "opening_pct": ((agg["ok"], agg["ok"] + agg["od"])
+                                if agg else (0, 0)),
+            },
             "us": us, "them": them,
             "result": None if us is None else ("W" if us > them else
                                                "L" if us < them else "T"),

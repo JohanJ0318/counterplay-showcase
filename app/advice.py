@@ -79,7 +79,7 @@ def _pct(hit, of):
 
 
 def _keep_copy(zone: str, side: str, share: float, rate: float,
-               baseline: float, hit: int, of: int) -> str:
+               against: float, hit: int, of: int) -> str:
     """Why THIS hold is worth keeping, in terms specific to this hold.
 
     The first version emitted one sentence for every positive finding — "This
@@ -93,29 +93,25 @@ def _keep_copy(zone: str, side: str, share: float, rate: float,
     lands, and which side they were on. Two findings collide only if they match
     on all three, and then they are genuinely the same observation.
     """
-    lead = round(rate - baseline)
+    lead = round(rate - against)
     s = side.upper()
 
     if share >= 0.55:
-        return (f"This is your main {s} setup here and your best one: you take "
-                f"{zone} in most rounds on this map and win {lead} points above "
-                f"your own average from it. The thing to protect is that it stays "
-                f"the default when a round goes wrong early.")
+        return (f"Your main {s} setup here and your best: {lead} points "
+                f"above your other {s} rounds on this map. Keep it the "
+                f"default when a round goes wrong early.")
     if share <= 0.30 and lead >= 35:
-        return (f"The strongest position you have on this map, and you use it in "
-                f"{hit} rounds of {of}. A {lead}-point edge you take that rarely "
-                f"is worth a conversation about why it is the exception.")
+        return (f"Your strongest position on this map, used in only {hit} of "
+                f"{of} rounds. Worth asking why it is the exception.")
     if share <= 0.30:
-        return (f"Only {hit} of your {of} {s} rounds start this way, and they "
-                f"convert {lead} points better than the rest. Small sample, clear "
-                f"direction, worth trying deliberately rather than by accident.")
+        return (f"Only {hit} of {of} {s} rounds start this way and they convert "
+                f"{lead} points better. Small sample, clear direction.")
     if lead >= 30:
-        return (f"The widest gap on this map, and it is in your favour. Whatever "
-                f"the read is when you hold {zone}, the rest of your {s} rounds "
-                f"are not getting it.")
-    return (f"Holding {zone} converts {lead} points better than your average "
-            f"round. Steady rather than spectacular, and worth keeping as a "
-            f"default rather than drifting off it.")
+        return (f"The widest gap on this map, in your favour. Your other {s} "
+                f"rounds are not getting whatever the read is here.")
+    return (f"Holding {zone} converts {lead} points better than your other "
+            f"{s} rounds here. Worth keeping as the default rather than "
+            f"drifting off it.")
 
 
 def monday(team_id: int) -> dict:
@@ -137,9 +133,13 @@ def monday(team_id: int) -> dict:
     raw: list[dict] = []
 
     def add(do, because, evidence, hit, of, *, mp=None, side=None, zone=None,
-            good=False, stake=None, foot=None):
+            good=False, stake=None, foot=None, against=None):
+        # `against` is the rate this finding should be read against when the
+        # season baseline is the wrong thing: a place is compared with the
+        # same map and side without it, not with a season that is mostly
+        # other maps.
         rate = _pct(hit, of)
-        gap = rate - baseline
+        gap = rate - (baseline if against is None else against)
         raw.append({
             # The line under each card. Every finding except the utility ones
             # is a share of ROUNDS against the team's round win rate, so the
@@ -165,58 +165,70 @@ def monday(team_id: int) -> dict:
 
     # ---------------------------------------------------------------- position
     for p in movement.positional_patterns(team_id):
-        if p["of"] < MIN_ROUNDS or p["hit"] < MIN_ROUNDS:
+        # Rounds on BOTH sides of the comparison. Without the second test a
+        # place covering 24 of 26 rounds could earn a card off a two-round
+        # comparison group.
+        if (p["of"] < MIN_ROUNDS or p["hit"] < MIN_ROUNDS
+                or p["other"] < MIN_ROUNDS):
             continue
         rate = _pct(p["won"], p["hit"])
-        gap = rate - baseline
+        gap = p["gap"]          # against the same map and side, not the season
         mp_short = p["map"].replace("de_", "")
         side = p["side"].upper()
         share = p["hit"] / p["of"] if p["of"] else 0
+        # Rounds the difference is worth, measured in the smaller of the two
+        # groups: a gap is only as solid as the thinner side of it.
+        pstake = abs(gap) / 100.0 * min(p["hit"], p["other"])
+        pfoot = (f"{rate:.0f}% in those {p['hit']} rounds against "
+                 f"{p['other_pct']:.0f}% in your other {p['other']} "
+                 f"{side} rounds on {mp_short}")
 
         if p["kind"] == "death" and gap <= -MIN_GAP:
             add(f"Change how you take {p['zone']}",
-                f"When the first of you dies in {p['zone']} as {side}, the round "
-                f"is usually already gone. At that rate it is not bad luck. It "
-                f"is the same duel taken the same way.",
+                f"When your first death is in {p['zone']}, the round is "
+                f"usually gone. This often, it is the same duel taken the same "
+                f"way, not bad luck.",
                 f"First death in {p['zone']} in {p['hit']} of {p['of']} {side} "
                 f"rounds; you win {p['won']} of those {p['hit']}",
-                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"])
+                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "commit" and gap <= -MIN_GAP:
             add(f"Your {side} opening stops at {p['zone']}",
-                f"When {p['zone']} is the furthest three of you get together, "
+                f"When {p['zone']} is as far as three of you get together, "
                 f"you lose most of those rounds. Either the space past it needs "
-                f"utility it is not getting, or the group should not be there.",
+                f"utility, or the group should not be there.",
                 f"Group gets no further than {p['zone']} in {p['hit']} of "
-                f"{p['of']} {side} rounds; you win {p['won']}",
-                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"])
+                f"the {p['of']} {side} rounds where three of you grouped up "
+                f"at all; you win {p['won']}",
+                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "setup" and gap >= GOOD_GAP:
             add(f"Keep the {p['zone']} setup",
-                _keep_copy(p["zone"], p["side"], share, rate, baseline,
-                           p["hit"], p["of"]),
+                _keep_copy(p["zone"], p["side"], share, rate,
+                           p["other_pct"], p["hit"], p["of"]),
                 f"Held in {p['hit']} of {p['of']} {side} rounds; you win "
                 f"{p['won']} of those {p['hit']}",
                 p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
-                good=True)
+                good=True, stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "setup" and gap <= -MIN_GAP:
             add(f"Rethink the {p['zone']} default",
-                f"You set up here more than anywhere else on this map and it is "
-                f"your worst-converting position. A default you keep losing from "
-                f"is a habit, not a plan.",
+                "Your most common setup on this map and your worst. A "
+                "default you keep losing from is a habit, not a plan.",
                 f"Two or more of you here at twelve seconds in {p['hit']} of "
                 f"{p['of']} {side} rounds; you win {p['won']}",
-                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"])
+                p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                stake=pstake, foot=pfoot, against=p["other_pct"])
 
     # ---------------------------------------------------------------- trades
     if you["opening_lost"] >= MIN_ROUNDS:
         if _pct(you["opening_saved"], you["opening_lost"]) - baseline <= -MIN_GAP:
             add("Practice trading the opening duel",
-                "Losing the first duel is normal. Losing the round almost every "
-                "time you lose it is not. It means the second player is too far "
-                "away to punish the trade, which is a spacing problem you can run "
-                "in practice rather than an aim problem you cannot.",
+                "Losing the first duel is normal; losing the round nearly "
+                "every time is not. Your second man is too far away to trade "
+                "the kill. That is spacing, and you can drill it.",
                 f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
                 f"after losing the opening duel",
                 you["opening_saved"], you["opening_lost"])
@@ -224,10 +236,9 @@ def monday(team_id: int) -> dict:
     if you["opening_took"] >= MIN_ROUNDS:
         if _pct(you["opening_converted"], you["opening_took"]) - baseline <= -MIN_GAP:
             add("Close out the rounds you start ahead",
-                "You take the first duel and then lose the round more often than "
-                "your own average. The advantage is being made and given back "
-                "inside the same round, which is about the twenty seconds after "
-                "the kill rather than the kill itself.",
+                "You win the first duel and lose the round more often than "
+                "your own average. The problem is the twenty seconds after the "
+                "kill, not the kill.",
                 f"You win {you['opening_converted']} of {you['opening_took']} "
                 f"rounds after winning the opening duel",
                 you["opening_converted"], you["opening_took"])
@@ -239,18 +250,15 @@ def monday(team_id: int) -> dict:
         rate = _pct(v["won"], v["n"])
         if kind == "full" and rate - baseline <= -MIN_GAP:
             add("Full buys are not converting",
-                "The full buy is the round you are most expected to win, and you "
-                "win them below your own overall rate. Whatever is going wrong is "
-                "going wrong in the rounds where you had every resource, which is "
-                "the most expensive place for it to happen.",
+                "The round you are most expected to win, and you win it "
+                "below your own average. The most expensive place for a "
+                "problem to be.",
                 f"You win {v['won']} of {v['n']} full-buy rounds, against "
                 f"{baseline:.0f}% overall", v["won"], v["n"])
         elif kind == "force" and rate < 20:
             add("Stop forcing, or force differently",
-                "A force buy trades economy for tempo. At this rate you are "
-                "getting neither: the round is lost and the next one is poorer "
-                "for it. Either save properly or commit five players to the force "
-                "rather than two.",
+                "A force trades economy for tempo. At this rate you get "
+                "neither. Either save properly or force with all five.",
                 f"You win {v['won']} of {v['n']} force-buy rounds",
                 v["won"], v["n"])
 
@@ -262,8 +270,7 @@ def monday(team_id: int) -> dict:
                 continue
             if _pct(s["won"], s["rounds"]) - baseline <= -MIN_GAP:
                 add(f"Your {side.upper()} side needs a rebuild",
-                    "This is your weakest side here by a distance: one map's one "
-                    "side, well below what you manage everywhere else. That is a "
+                    "Your weakest side anywhere, by a distance. That is a "
                     "set of defaults to change, not a run of bad games.",
                     f"You win {s['won']} of {s['rounds']} {side.upper()} rounds "
                     f"on {name.replace('de_', '')}, against {baseline:.0f}% "
@@ -312,27 +319,23 @@ def monday(team_id: int) -> dict:
             # and clips your entry on the way through worked. The one to drill
             # is the flash that blinded a teammate and nobody else.
             add("Fix who your flashes land on",
-                f"{own:.0f}% of the flashes you throw blind someone on your own "
-                f"side, but only {_pct(uf['team_no_enemy'], uf['thrown']):.0f}% "
-                f"blind a teammate and no opponent at all. Those "
-                f"{uf['team_no_enemy']} are the ones to drill: the site is "
-                f"still held and the man going in cannot see it. A pop-flash "
-                f"and a timing problem, fixed in practice rather than in a "
-                f"match.",
-                f"{uf['hit_own']} of {uf['thrown']} flashes blinded a teammate "
-                f"or the thrower: {uf['own_and_enemy']} of those also blinded "
-                f"an opponent, {uf['team_no_enemy']} blinded a teammate only, "
-                f"and {uf['self_no_enemy']} blinded only the thrower",
+                f"{own:.0f}% of your flashes blind your own side. The "
+                f"{uf['team_no_enemy']} that blind a teammate and no opponent "
+                f"are the ones to drill: the site is still held and your entry "
+                f"cannot see it.",
+                f"{uf['hit_own']} of {uf['thrown']} flashes blinded your "
+                f"own side: {uf['own_and_enemy']} also blinded an opponent, "
+                f"{uf['team_no_enemy']} a teammate only, "
+                f"{uf['self_no_enemy']} only the thrower",
                 uf["hit_own"], uf["thrown"],
                 stake=_round_stake("own_flash"),
                 foot=_round_foot("own_flash"))
         landed = _pct(uf["hit_enemy"], uf["thrown"])
         if landed <= LANDED_FLASH_FLOOR:
             add("Your flashes are not landing on anybody",
-                f"Only {landed:.0f}% of your flashes blind an opponent at all. "
-                f"That is not aim and it is not luck, it is where they are being "
-                f"thrown from and when. Pick two throws per map and drill them "
-                f"until they are the default.",
+                f"Only {landed:.0f}% of your flashes blind an opponent. "
+                f"That is where and when they are thrown, not aim. Pick two "
+                f"throws per map and drill them.",
                 f"{uf['hit_enemy']} of {uf['thrown']} flashes blinded an "
                 f"opponent; {uf['wasted']} blinded nobody at all",
                 uf["hit_enemy"], uf["thrown"],
@@ -344,13 +347,12 @@ def monday(team_id: int) -> dict:
         left = _pct(uu["wasted"], uu["spent"]) if uu["spent"] else 0.0
         if left >= UNUSED_LIMIT:
             add("You are dying with the utility still on you",
-                f"${uu['per_round']:.0f} of grenades a round die in somebody's "
-                f"hand, which is {left:.0f}% of what you spend on utility. Over "
-                f"a half that is a rifle nobody bought. The usual cause is "
-                f"saving a grenade for a perfect moment the round never reaches.",
-                f"${uu['wasted']:,} of ${uu['spent']:,} spent on utility was "
-                f"still in a hand when its owner died, across "
-                f"{uu['rounds_holding']} rounds",
+                f"${uu['per_round']:.0f} of grenades a round die in "
+                f"somebody's hand, {left:.0f}% of what you spend on utility. "
+                f"Usually a grenade saved for a moment the round never "
+                f"reaches.",
+                f"${uu['wasted']:,} of ${uu['spent']:,} of utility died in "
+                f"its owner's hand, across {uu['rounds_holding']} rounds",
                 uu["wasted"], uu["spent"],
                 stake=_round_stake("died_holding"),
                 foot=_round_foot("died_holding"))
@@ -406,10 +408,6 @@ def _merge_same_place(raw: list[dict]) -> list[dict]:
             merged = dict(lead)
             merged["evidence"] = [e for g in bucket for e in g["evidence"]]
             if len(bucket) > 1:
-                merged["because"] = (
-                    lead["because"] + " Two separate readings of this map point "
-                    "at the same place, which is usually one problem rather than "
-                    "two.")
                 merged["stake"] = sum(g["stake"] for g in bucket)
             out.append(merged)
     return out
@@ -539,11 +537,9 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
                    or swings.get(x["n"], {}).get("best", 0) >= CLEAR_ADVANTAGE)]
     if len(thrown) >= MIN_THROWN:
         add(f"{len(thrown)} rounds lost from a man up",
-            f"In each of these you were a player up for at least "
-            f"{int(HELD_UP_SECONDS)} seconds, or up by two, and lost it anyway. "
-            "That is the most expensive shape a round can take and the one most "
-            "likely to be the same mistake repeated: playing the advantage like "
-            "an even round, or all five arriving at once.",
+            f"You were a player up for {int(HELD_UP_SECONDS)} seconds or "
+            f"more, or up by two, and lost anyway. The most expensive shape a "
+            f"round can take.",
             f"{len(thrown)} of the {lost_total} rounds you lost", thrown)
 
     # ---- the run that decided it
@@ -556,9 +552,9 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
         before = sum(1 for x in ours if x["n"] < best_run[0] and x["won"])
         DASH = "\u2013"
         add(f"{len(best_run)} rounds lost in a row",
-            "A run like this is rarely that many separate problems. Watched "
-            "back to back, the same read, the same default or the same economy "
-            "hole usually turns up in all of them.",
+            "Rarely that many separate problems. Watched back to back, the "
+            "same read or the same economy hole usually turns up in all of "
+            "them.",
             f"rounds {best_run[0]} to {best_run[-1]}, and the score went from "
             f"{before}{DASH}{best_run[0] - 1 - before} to "
             f"{before}{DASH}{best_run[-1] - before}", best_run)
@@ -572,9 +568,9 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
     gave_back = [n for n in gave_back if n not in set(thrown)]
     if len(gave_back) >= MIN_THROWN and took:
         add(f"First blood taken and the round lost {len(gave_back)} times",
-            "The man advantage was made and given back inside the same round. "
-            "These are the clips where whatever you do after an opening kill "
-            "is visible, because there was time for it to happen.",
+            "The advantage was made and given back in the same round. "
+            "These are the clips that show what you do after an opening "
+            "kill.",
             f"{took - len(gave_back)} of {took} converted", gave_back)
 
     # ---- the same place, over and over
@@ -590,9 +586,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
             if len(lost) < MOSTLY_LOST * len(rounds):
                 continue
             add(f"First death in {place} {len(rounds)} times as {side.upper()}",
-                "The same spot, taken the same way. One of these is a duel; "
-                "this many in one game is a default the other side had read by "
-                "the third time.",
+                "The same spot, taken the same way. One is a duel; this "
+                "many in a game is a default they had read.",
                 f"{len(lost)} of those {len(rounds)} rounds lost", rounds)
             break
 
@@ -601,9 +596,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
     cheap = sum(1 for x in ours if x["buy"] in ("eco", "force"))
     if len(stolen) >= MIN_THROWN:
         add(f"{len(stolen)} rounds won on an eco or a force",
-            "Worth the projector for the opposite reason. You were not "
-            "expected to win these, so whatever you did in them is worth "
-            "naming out loud and doing on purpose next time.",
+            "You were not expected to win these. Whatever you did is "
+            "worth naming out loud and doing on purpose.",
             f"{len(stolen)} of {cheap} eco and force rounds", stolen, good=True)
 
     # Most rounds at stake first, and the good news last whatever its size.

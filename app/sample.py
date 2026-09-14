@@ -62,33 +62,32 @@ COVERAGE = [
 ADVICE = [
     ("", [
         (False, None, "Practice trading the opening duel",
-         "Losing the first duel is normal. Losing the round almost every time "
-         "you lose it is not. It means the second player is too far away to "
-         "punish the trade, which is a spacing problem you can run in practice "
-         "rather than an aim problem you cannot.",
-         ["You win 19 of 71 rounds after losing the opening duel"],
-         "27% against your 48% overall, a gap of 21 points across 71 rounds"),
+         "Losing the first duel is normal; losing the round nearly every "
+         "time is not. Your second man is too far away to trade the kill. "
+         "That is spacing, and you can drill it.",
+         ["You win 19 of 71 rounds after losing the opening duel (27%), "
+          "against 48% overall"], None),
         (False, None, "Fix who your flashes land on",
-         "63% of the flashes you throw blind someone on your own side. A flash "
-         "that blinds your entry is worse than no flash: the site is still "
-         "held and the man going in cannot see it. This is a pop-flash and a "
-         "timing problem, and it is fixed in practice rather than in a match.",
-         ["91 of 144 flashes blinded a teammate or the thrower, for 249 "
-          "seconds against 383 seconds of the opposition"],
+         "63% of your flashes blind your own side. The 24 that blind a "
+         "teammate and no opponent are the ones to drill: the site is still "
+         "held and your entry cannot see it.",
+         ["91 of 144 flashes blinded your own side: 48 also blinded an "
+          "opponent, 24 a teammate only, 19 only the thrower"],
          "You win 27 of the 58 rounds it happens in (47%), against 48% overall"),
     ]),
     ("mirage", [
         (True, "ct", "Keep the A default setup",
-         "The strongest position you have on this map, and you use it in 8 "
-         "rounds of 32. A 30-point edge you take that rarely is worth a "
-         "conversation about why it is the exception.",
-         ["Held in 8 of 32 CT rounds; you win 7 of those 8"], None),
+         "Only 8 of 32 CT rounds start this way and they convert 34 points "
+         "better. Small sample, clear direction.",
+         ["Held in 8 of 32 CT rounds; you win 7 of those 8"],
+         "88% in those 8 rounds against 54% in your other 24 CT rounds "
+         "on mirage"),
         (False, "t", "Change how you take top mid",
-         "When the first of you dies in top mid as T, the round is usually "
-         "already gone. At that rate it is not bad luck. It is the same duel "
-         "taken the same way.",
+         "When your first death is in top mid, the round is usually gone. "
+         "This often, it is the same duel taken the same way, not bad luck.",
          ["First death in top mid in 8 of 31 T rounds; you win 2 of those 8"],
-         None),
+         "25% in those 8 rounds against 43% in your other 23 T rounds "
+         "on mirage"),
     ]),
 ]
 
@@ -254,7 +253,8 @@ def render(user=None, pictures=None) -> str:
                 f'{tag}</span>{pill}</div><h3>{esc(do)}</h3>'
                 f'<p class="lede">{esc(because)}</p>'
                 f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
-                f'<p class="den">{esc(foot) if foot else ""}</p></div>')
+                + (f'<p class="den">{esc(foot)}</p>' if foot else "")
+                + '</div>')
         head = (f'<div class="sec-head"><span class="label">'
                 f'{"On " + esc(mp) if mp else "Across every map"}</span>'
                 f'<h3>{len(items)} things to work on</h3></div>')
@@ -415,11 +415,10 @@ def render(user=None, pictures=None) -> str:
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
       <h2>What to work on</h2></div>
-    <p class="lede">Every line below is a conclusion drawn from something counted
-      further down this page, ranked by how many rounds it covers and how far it
-      sits from your own average of {BASELINE}%. Nothing here is predicted. The
-      evidence is printed under each one, so you can disagree with the reasoning
-      rather than having to take it on trust.</p>
+    <p class="lede">Ranked by how many rounds each one covers and how far it
+      sits from your usual: your own {BASELINE}% across the season, or the
+      same map and side without it for a line about one place. The count
+      behind every line is printed under it.</p>
     {"".join(groups)}
   </section>
 

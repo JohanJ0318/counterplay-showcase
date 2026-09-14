@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from . import db
+from . import db, memo
 from .report import (MIN_PATTERN_CHANCES, _side_by_round, _team_match_keys,
                      team_anchors)
 from counterplay import zonemodel as ZM
@@ -171,6 +171,7 @@ def _traded_lookup(keys) -> dict:
                                      AND traded_deaths > 0""", *keys)}
 
 
+@memo.by_team
 def scan(team_id: int) -> dict:
     """Walk every round once, collecting the counts every pattern needs.
 
@@ -186,6 +187,14 @@ def scan(team_id: int) -> dict:
     setup: dict = {}
     death: dict = {}
     seen: dict = {}
+    # Rounds WON per map and side, so a row can be read against the rest of
+    # the same map and side rather than against a season average that is
+    # mostly the map pool.
+    seen_won: dict = {}
+    # Rounds where three of them held anything at all. The commit denominator:
+    # a round where the group never grouped is not a round where they went
+    # somewhere else.
+    answered: dict = {}
     cache: dict = {}
 
     for r in rows:
@@ -219,6 +228,8 @@ def scan(team_id: int) -> dict:
         won = bool(r["ct_won"]) == (side == "ct")
         seen.setdefault(mp, {}).setdefault(side, 0)
         seen[mp][side] += 1
+        seen_won.setdefault(mp, {}).setdefault(side, 0)
+        seen_won[mp][side] += won
 
         # Assign against every centre, then collapse same-named zones into one.
         gid = group_of[_assign(centres, sm["x"], sm["y"], sm["z"])]
@@ -270,6 +281,8 @@ def scan(team_id: int) -> dict:
                 rec["n"] += 1
                 rec["won"] += won
                 rec["secs"].append(float(secs[win][t_i]))
+                answered.setdefault(mp, {}).setdefault(side, 0)
+                answered[mp][side] += 1
 
         # ---- the default setup
         at = int(np.argmin(np.abs(secs - SETUP_AT)))
@@ -300,9 +313,11 @@ def scan(team_id: int) -> dict:
                     (r["match_key"], r["round_num"], sid), False))
 
     return {"commit": commit, "setup": setup, "death": death, "seen": seen,
+            "seen_won": seen_won, "answered": answered,
             "names": {m: (cache[m][2] if cache.get(m) else {}) for m in cache}}
 
 
+@memo.by_team
 def positional_patterns(team_id: int) -> list[dict]:
     """Habits in where this team goes, one line each.
 
@@ -317,11 +332,29 @@ def positional_patterns(team_id: int) -> list[dict]:
     def add(kind, mp, side, zone, hit, of, won, detail, extra="", traded=None):
         if of < MIN_PATTERN_CHANCES or hit / of < MIN_ZONE_SHARE:
             return
+        # The rest of this map and this side. Every round on it either had the
+        # thing or did not, so the two groups are a partition and subtracting
+        # is exact rather than approximate.
+        side_n = raw["seen"][mp][side]
+        side_won = raw["seen_won"][mp][side]
+        other = side_n - hit
+        other_won = side_won - won
         out.append({
             "kind": kind, "map": mp, "side": side,
             "zone": names.get(mp, {}).get(zone, f"zone {zone}"),
             "hit": hit, "of": of, "pct": 100.0 * hit / of,
             "won": won, "win_pct": (100.0 * won / hit) if hit else 0.0,
+            # What the same map and side did in the rounds without it.
+            "other": other, "other_won": other_won,
+            "other_pct": (100.0 * other_won / other) if other else 0.0,
+            # The two denominators this map and side can have: every round,
+            # and the rounds where three of them held anything at all. A
+            # commit row is counted out of the second, and the difference
+            # between them is a fact about the team rather than a technicality.
+            "side_rounds": side_n,
+            "answered": raw["answered"].get(mp, {}).get(side, 0),
+            "gap": ((100.0 * won / hit) if hit else 0.0)
+                   - ((100.0 * other_won / other) if other else 0.0),
             # Only a first death can be traded, so this is None for the other
             # two kinds rather than zero. Zero would render as "traded 0 of 14"
             # under a setup, which is not a thing that can happen.
@@ -332,7 +365,8 @@ def positional_patterns(team_id: int) -> list[dict]:
 
     for mp, per_side in raw["commit"].items():
         for side, zones in per_side.items():
-            of = raw["seen"][mp][side]
+            # Out of the rounds that HAVE an answer, not out of every round.
+            of = raw["answered"].get(mp, {}).get(side, 0)
             for z, d in zones.items():
                 med = float(np.median(d["secs"]))
                 add("commit", mp, side, z, d["n"], of, d["won"],

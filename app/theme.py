@@ -315,6 +315,29 @@ td.name{font-weight:600}
 td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   white-space:nowrap;text-align:right}
 
+/* A dozen numbers do not need sixteen pixels either side of each of them.
+   The roster and the scoreboard carry twelve columns and were scrolling
+   sideways on an 800px window, which puts the last two columns off screen by
+   default and makes a reader think they are not there. Narrower gutters on
+   those two tables buy back about a hundred and seventy pixels; the first and
+   last cells keep the full inset so the table still has edges. */
+table.dense{font-size:.82rem}
+table.dense th,table.dense td{padding-left:6px;padding-right:6px}
+table.dense th{font-size:.64rem;letter-spacing:.02em}
+/* One long nickname should not push the last two columns off the screen for
+   every row. A max-width on the cell is advisory in an auto-layout table and
+   a 1,200-unit Cyrillic handle sailed straight past it, so the ceiling goes
+   on an inline-block INSIDE the cell, where it is obeyed. Hovering shows the
+   name in full and the player's own page has it whole. */
+table.dense td.name>a,table.dense td.name>span{display:inline-block;
+  max-width:96px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  vertical-align:bottom}
+/* The role pill is a five-letter word in a box; in a twelve-column table the
+   box is worth more than the air inside it. */
+table.dense .role{padding-left:6px;padding-right:6px;letter-spacing:0}
+table.dense th:first-child,table.dense td:first-child{padding-left:16px}
+table.dense th:last-child,table.dense td:last-child{padding-right:16px}
+
 /* ---- explanations on demand ----
    Every recurring-pattern row carried a two-sentence paragraph underneath it.
    Nine rows of that is a page of prose wrapped around nine numbers, and the
@@ -678,7 +701,10 @@ def page(title: str, head: str, body: str, user=None) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{esc(title)}</title>{FONTS}
+<title>{esc(title)}</title>
+<link rel="icon" href="/favicon.ico" sizes="32x32">
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">{FONTS}
 <style>{CSS}</style>{THEME_SCRIPT}</head><body>
 <nav class="top"><div class="nav-in">
   <a class="mark" href="/">Counter<em>play</em></a>
