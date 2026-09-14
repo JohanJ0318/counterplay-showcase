@@ -136,14 +136,9 @@ def signup_form(values: dict | None = None, error: str = "") -> str:
       {warn}
       <form class="stack" method="post" action="/signup">
         {form_field("team", "Team or program", value=v.get("team", ""))}
-        {select_field("league", "League", [(x, x) for x in LEAGUES], v.get("league", "NECC"))}
-        {select_field("role", "Your role", ROLES, v.get("role", "coach"))}
-        {form_field("name", "Your name", value=v.get("name", ""))}
         {form_field("email", "Email", "email", v.get("email", ""), autocomplete="email")}
         {form_field("password", "Password", "password", required=True,
                     autocomplete="new-password", minlength="10")}
-        {form_field("faceit_url", "FACEIT team page", value=v.get("faceit_url", ""),
-                    required=False)}
         <button type="submit">Create the account</button>
         <p class="den">Ten characters minimum. Already have one?
           <a href="/login">Log in</a>.</p>
@@ -180,8 +175,10 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
         return fail(problem)
     if not team.strip():
         return fail("A team or program name is needed.")
-    if not name.strip():
-        return fail("Your name is needed.")
+    # The form no longer asks for a name, so the team stands in for one. It is
+    # printed in the corner of the nav and nowhere else, and a team name there
+    # is more use to the person reading it than their own email address.
+    name = name.strip() or team.strip()
     if role not in dict(ROLES):
         role = "other"
 
@@ -602,13 +599,6 @@ def dashboard(request: Request):
   {form_block}
 
   <section>
-    <div class="sec-head"><span class="label">What your plan reaches</span>
-      <h2>Features</h2></div>
-    <p class="lede">What the product does today, and what is still being built.
-      Everything is free this season.</p>
-    <div class="grid2">{cards}</div>
-  </section>
-  <section>
     <div class="sec-head"><span class="label">Demos</span><h2>Upload</h2></div>
     <div class="card">
       <form class="stack" method="post" action="/upload"
@@ -626,6 +616,14 @@ def dashboard(request: Request):
           you save now.</p>
       </form>
     </div>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="label">What your plan reaches</span>
+      <h2>Features</h2></div>
+    <p class="lede">What the product does today, and what is still being built.
+      Everything is free this season.</p>
+    <div class="grid2">{cards}</div>
   </section>"""
 
     return html_page("Dashboard | Counterplay",
