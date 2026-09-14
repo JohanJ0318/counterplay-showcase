@@ -217,18 +217,25 @@ def run(base: str, demo: Path | None) -> int:
             r.note("no --demo given, so the real upload path was not exercised")
             r.note("this is the single most likely thing to break in production")
 
-    # --- lead form ----------------------------------------------------------
-    print("\nLANDING PAGE FORM")
+    # --- the lead endpoint, which should not answer -------------------------
+    #
+    # /api/lead backed a form on the landing page that was replaced by the
+    # signup button. The form went and the route stayed: an unauthenticated,
+    # unthrottled POST that inserted a row for anybody who read the page
+    # source. It is gone, and this checks it stays gone, because a deleted
+    # route is exactly the kind of thing that comes back in a merge.
+    print("\nTHE LEAD ENDPOINT IS GONE")
     req = urllib.request.Request(
-        base + "/api/lead",
-        data=json.dumps(dict(team="Smoke", name="Smoke", email=f"lead-{stamp}@example.com",
-                             league="NECC", role="coach", note="smoke test")).encode(),
+        base + "/api/lead", data=b"{}",
         headers={"Content-Type": "application/json"})
     try:
         with urllib.request.urlopen(req, timeout=60) as resp:
-            r.check(json.loads(resp.read()).get("ok") is True, "the lead form accepts a lead")
+            code = resp.getcode()
+    except urllib.error.HTTPError as e:
+        code = e.code
     except Exception as e:
-        r.check(False, "the lead form accepts a lead", str(e))
+        code = str(e)
+    r.check(code in (404, 405), "/api/lead does not accept a POST", f"got {code}")
 
     # --- summary ------------------------------------------------------------
     print(f"\n{'=' * 58}")
