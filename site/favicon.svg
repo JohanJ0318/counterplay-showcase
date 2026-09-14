@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img"
+     aria-label="Counterplay">
+  <title>Counterplay</title>
+  <!-- ON THE PIXEL GRID, DELIBERATELY.
+       The viewBox is 64 units and the smallest size a browser draws this at
+       is 16 pixels, so one pixel is four units and every edge here is a
+       multiple of four. An arm five units wide would straddle two pixels and
+       come out grey on both; eight units wide, starting at a multiple of
+       four, is two solid pixels. The same alignment holds at 32 and 48.
+
+       Arms 8 units thick, from 8 units out of centre to 24. Centre 8 x 8.
+       Nothing is off the grid except the tile's rounded corners, which are
+       curves and are supposed to soften. -->
+  <rect width="64" height="64" rx="14" fill="#17141F"/>
+  <g fill="#8B5CF6">
+    <rect x="28" y="8" width="8" height="16"/>
+    <rect x="28" y="40" width="8" height="16"/>
+    <rect x="8" y="28" width="16" height="8"/>
+    <rect x="40" y="28" width="16" height="8"/>
+  </g>
+  <rect x="28" y="28" width="8" height="8" fill="#E0A458"/>
+</svg>
