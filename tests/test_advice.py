@@ -72,12 +72,30 @@ def _stats(baseline_won=49, baseline_rounds=100, **over):
 
 @pytest.fixture
 def engine(monkeypatch):
-    """Drives `monday()` with data we control instead of the database."""
+    """Drives `monday()` with data we control instead of the database.
+
+    ALL FIVE of the readings it makes, not the two that were obvious. It also
+    asks the utility module about flashes, unused grenades and the rounds a
+    habit turned up in, and those three went to the database: on this laptop
+    that quietly worked, because there is a database sitting there with a
+    season in it, and the tests were reading a real team while claiming to
+    read a fake one. On a runner with no database at all it fails outright,
+    which is how it was noticed.
+
+    Utility returns nothing here. These tests are about the ranking and the
+    thresholds, and a utility finding is counted in flashes and dollars rather
+    than rounds, so leaving it empty keeps the assertions about the rules the
+    tests were written for.
+    """
     def run(patterns, stats=None):
         monkeypatch.setattr(advice, "team_stats",
                             lambda _tid: stats or _stats())
         monkeypatch.setattr(advice.movement, "positional_patterns",
                             lambda _tid: patterns)
+        from app import utility
+        monkeypatch.setattr(utility, "round_splits", lambda _tid: {})
+        monkeypatch.setattr(utility, "flashes", lambda _tid: None)
+        monkeypatch.setattr(utility, "unused", lambda _tid: None)
         return advice.monday(1)
     return run
 
