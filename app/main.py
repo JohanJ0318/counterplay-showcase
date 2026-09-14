@@ -615,6 +615,7 @@ def dashboard(request: Request):
           match demos after a few weeks, so the ones worth keeping are the ones
           you save now.</p>
       </form>
+      {DEMO_HELP}
     </div>
   </section>
 
@@ -628,6 +629,47 @@ def dashboard(request: Request):
 
     return html_page("Dashboard | Counterplay",
                      banner("Dashboard", crumb=team_line), body, user)
+
+
+# Where a demo comes from.
+#
+# The upload box described what a demo file looks like and never said how to
+# get one, which is the first thing anybody asks and the one answer that was
+# only in a founder's head. Folded closed, because a coach who already has a
+# folder of demos does not need it and should not have to scroll past it.
+#
+# Both routes are written from files this system has actually parsed rather
+# than from a help page: a Premier match arrives as
+# `003837857386282877221_1976594227.dem` and a FACEIT one as
+# `1-4cfc1e19-....dem.zst`. Neither needs unpacking or renaming, which is
+# worth saying, because the instinct with a compressed file is to unzip it.
+DEMO_HELP = """
+      <details class="howto">
+        <summary>Where do I find my demo files?</summary>
+        <div class="tbl-plain">
+          <p class="den"><strong>Premier and Competitive, from the game.</strong>
+            Open CS2 and go to <strong>Watch &rarr; Your Matches</strong>. Every
+            match from roughly the last month is listed. Click one, then
+            <strong>Download GOTV Demo</strong>. When it finishes, the file is in
+            your CS2 folder under
+            <code>game/csgo/replays</code> and is named like
+            <code>003837857386282877221_1976594227.dem</code>. Upload it as it
+            is.</p>
+          <p class="den"><strong>FACEIT, from the match room.</strong> Open the
+            match page on faceit.com and use the download button in the middle
+            of it. You get a file named like
+            <code>1-4cfc1e19-....dem.zst</code>. <strong>Do not unzip it.</strong>
+            Upload the <code>.dem.zst</code> exactly as it downloads; this reads
+            it faster than you can unpack it.</p>
+          <p class="den"><strong>Both platforms delete demos after a few
+            weeks</strong>, FACEIT after about thirty days. Anything older than
+            that is gone and cannot be recovered, which is the argument for
+            pulling a whole season down in one sitting rather than a match at a
+            time.</p>
+          <p class="den">Select as many as you like at once. A season is
+            normally ten to thirty files and they can all go up together.</p>
+        </div>
+      </details>"""
 
 
 # ---------------------------------------------------------------- upload

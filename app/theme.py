@@ -536,6 +536,15 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
 .zonefig figcaption{margin-top:6px}
 details summary{cursor:pointer;font-weight:600;color:var(--purple);
   padding:8px 0;font-size:.9rem}
+/* The how-do-I-get-a-demo help sits inside the upload card, so it needs a
+   line above it to separate it from the form rather than reading as one more
+   note under the button. `code` here is a filename, and a filename that wraps
+   mid-path is unreadable. */
+details.howto{border-top:1px solid var(--border);margin-top:4px}
+details.howto p{margin:0 0 10px}
+details.howto code{font-family:var(--f-mono);font-size:.82em;
+  background:var(--surface-2);border:1px solid var(--border);
+  border-radius:4px;padding:1px 5px;white-space:nowrap}
 .res{display:inline-block;min-width:1.15rem;text-align:center;font-weight:700;
   font-size:.72rem;letter-spacing:.04em;padding:2px 6px;border-radius:5px;
   border:1px solid var(--line);color:var(--muted);margin-right:5px}
