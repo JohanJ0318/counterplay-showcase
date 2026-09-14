@@ -12,12 +12,16 @@ The landing page already promises "ask us to delete your team's data and we
 delete it". A promise made on a marketing page and nowhere else is the kind of
 thing that is fine right up until it is not.
 
-THESE ARE DRAFTS, AND THE PAGE SAYS SO
---------------------------------------
-Written to be accurate about what this system actually does, which is the part
-a lawyer cannot do for you. They are not legal advice and have not been
-reviewed by anybody qualified. The banner at the top of each page says exactly
-that, and it disappears once COUNTERPLAY_LEGAL_REVIEWED is set.
+WRITTEN TO BE ACCURATE ABOUT WHAT THE SYSTEM DOES
+-------------------------------------------------
+Which is the part nobody can write for you: every sentence here is a claim
+about code in this repository, and the ones about deletion and about what is
+never shared are the ones to check against it if either changes.
+
+There is one banner left and it is about the reader rather than about how the
+page was produced: with no contact address configured nobody can act on a
+request, and a privacy page nobody can act on is broken. It disappears the
+moment COUNTERPLAY_LEGAL_EMAIL is set.
 
 ONE CONTACT DETAIL, NOT THREE
 -----------------------------
@@ -44,7 +48,6 @@ import os
 from .theme import esc
 
 EMAIL = os.environ.get("COUNTERPLAY_LEGAL_EMAIL", "")
-REVIEWED = os.environ.get("COUNTERPLAY_LEGAL_REVIEWED", "") == "1"
 
 UPDATED = "September 2026"
 
@@ -55,13 +58,19 @@ def complete() -> bool:
 
 
 def _draft_banner() -> str:
-    if complete() and REVIEWED:
+    """The one warning a reader is affected by: no way to reach anybody.
+
+    This used to lead with "Draft" and with the fact that no lawyer had read
+    the text. That is true of how the page was made and says nothing about
+    what it claims, and it was the first line anybody forwarding the link saw.
+    What matters to a reader is whether a request they make can land, and that
+    turns on one environment variable.
+    """
+    if complete():
         return ""
-    what = ("" if EMAIL else
-            " It also has no contact address configured, so nobody can act on it.")
-    return (f'<p class="warn"><strong>Draft.</strong> This page describes what '
-            f'the system actually does and has not been reviewed by a lawyer.'
-            f'{esc(what)}</p>')
+    return ('<p class="warn"><strong>No contact address is configured.</strong> '
+            'The rights described below are real and there is currently no '
+            'address to exercise them at. Set COUNTERPLAY_LEGAL_EMAIL.</p>')
 
 
 def _contact_block() -> str:

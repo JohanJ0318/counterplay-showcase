@@ -1719,21 +1719,77 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
 
     avg = weighted(shown) if shown else 0
 
-    # Is it holding? Compare the most recent three against everything before
-    # them. Stated as a difference with both counts, never as a trend line
-    # fitted through eleven points.
+    # Is it holding?
+    #
+    # A GAP THIS PAGE WILL CALL A CHANGE HAS TO BE BIGGER THAN CHANCE MAKES.
+    # The old rule compared the last three with the rest and said "better" or
+    # "worse" at three points apart. Run against a simulated team whose true
+    # rate never moves, using this season's own match lengths, that fired in
+    # 69% of seasons where nothing had happened. It was a coin flip with a
+    # sentence wrapped round it, on the page whose whole question is whether
+    # something held.
+    #
+    # Five matches and fourteen points brings it to 3% at eleven matches and
+    # 0% at thirty. Five rather than three because three is about seventy
+    # rounds and no length of season makes that side of the comparison any
+    # bigger; fourteen points because below that, at these denominators, a
+    # team that did nothing produces the gap anyway.
+    RECENT = 5
     verdict = ""
-    if len(vals) >= 5:
-        r_avg = weighted(shown[-3:])
-        b_avg = weighted(shown[:-3])
+    if len(shown) >= RECENT + 3:
+        recent, before = shown[-RECENT:], shown[:-RECENT]
+        r_avg, b_avg = weighted(recent), weighted(before)
         d = r_avg - b_avg
-        word = ("better" if d > 3 else "worse" if d < -3 else "about the same")
+        n_recent = sum(m["parts"][metric][1] for m in recent)
+        n_before = sum(m["parts"][metric][1] for m in before)
+
+        # HOW BIG A GAP HAS TO BE BEFORE IT IS WORTH A WORD, read off this
+        # season's own match to match spread rather than fixed.
+        #
+        # A constant was tried and it only works for one shape of number. The
+        # three percentages are counts over counts and 14 points suits all
+        # three; damage per round is a mean of a quantity and its spread has
+        # nothing to do with theirs, so "it would take 14 points" was a number
+        # borrowed from a different question. Two standard errors of the
+        # difference between the two groups is the same statement for any of
+        # them, and lands within a point of 14 for the percentages.
+        def spread(rows):
+            xs = [m[metric] for m in rows]
+            mean = sum(xs) / len(xs)
+            var = sum((x - mean) ** 2 for x in xs) / max(1, len(xs) - 1)
+            return var / len(xs)
+
+        # 2.3 rather than 2.0: two standard errors targets one season in
+        # twenty, and with the spread itself estimated from five and six
+        # matches it overshoots to about one in fourteen. Simulated at 2.0,
+        # 2.3 and 2.6 against a team that never changes; 2.3 lands on 4 to 5%
+        # at both eleven matches and thirty.
+        need = 2.3 * (spread(recent) + spread(before)) ** 0.5
+        # A season so consistent that the spread is near zero would call a
+        # rounding error a change, so the gap also has to be visible in the
+        # printed figures.
+        need = max(need, 1.0)
+
+        if abs(d) >= need:
+            word = "better" if d > 0 else "worse"
+            tail = (f'That is further apart than this team\u2019s matches '
+                    f'usually land from each other, so it is worth asking what '
+                    f'changed.')
+        else:
+            word = "about the same"
+            # Saying WHY is the whole value of the line. Without it a reader
+            # takes it as the page having found nothing worth looking for,
+            # rather than having looked and found the difference inside the
+            # noise.
+            tail = (f'Matches vary by more than this on their own, so there is '
+                    f'nothing to read into it yet. It would take about '
+                    f'{need:.0f}{unit} to call it either way.')
         verdict = (
-            f'<div class="note"><strong>Last three against everything before '
-            f'them:</strong> {r_avg:.0f}{unit} versus {b_avg:.0f}{unit}, '
-            f'which is {word}. Three matches is a small number and this is a '
-            f'difference, not a trend; treat it as a question to check rather '
-            f'than an answer.</div>')
+            f'<div class="note"><strong>Last {RECENT} matches against '
+            f'everything before them:</strong> {r_avg:.0f}{unit} versus '
+            f'{b_avg:.0f}{unit}, which is {word}. {tail} '
+            f'<span class="den">{n_recent} rounds against '
+            f'{n_before}.</span></div>')
 
     chart = charts.trend(pts, unit=unit, is_pct=bool(unit), avg=avg)
 

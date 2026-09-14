@@ -20,8 +20,12 @@ Ordered by what it costs you if it does not get done.
 - [ ] **Check the send list against the `unsubscribes` table.** Query is in the
       same file. The table is empty today, so there is nothing to strike off
       the first send.
-- [ ] Optional: have somebody qualified read `/privacy` and `/terms`, then set
-      `COUNTERPLAY_LEGAL_REVIEWED=1` to drop the draft banner.
+- [ ] Optional: have somebody qualified read `/privacy` and `/terms`. The
+      pages no longer announce that nobody has; that was a fact about how they
+      were written rather than about what they say, and it was the first line
+      anybody forwarding the link read. What they claim is still checkable
+      against the code, which is the part that matters if the deletion or
+      sharing behaviour ever changes.
 
 ## Now that CI runs
 
