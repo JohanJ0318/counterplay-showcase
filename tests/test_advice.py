@@ -23,10 +23,36 @@ import pytest
 from app import advice
 
 
-def _pattern(kind, zone, mp, side, hit, of, won):
+# The rate the rest of a map and side wins at when a test says nothing about
+# it, which is the same as the fake team's overall rate. A finding is judged
+# against the rounds where it did not happen, so leaving this at the baseline
+# is what makes "close to normal" mean the same thing it used to.
+BASELINE = 0.49
+
+
+def _pattern(kind, zone, mp, side, hit, of, won, other=None, other_won=None):
+    """One row shaped the way `movement.positional_patterns` returns them.
+
+    `other` is the rest of that map and that side: the rounds where this did
+    not happen. It is what a positional finding is measured against now,
+    rather than the season average, because on a real season only one map and
+    side in nine differs from the rest by more than chance and a Nuke CT row
+    read against a season figure is largely saying "Nuke CT".
+
+    Both default to the complement at the team's own rate, so a test that
+    cares about a threshold and not about the comparison gets a comparison
+    that says "normal".
+    """
+    other = (of - hit) if other is None else other
+    other_won = round(other * BASELINE) if other_won is None else other_won
+    win_pct = 100.0 * won / hit if hit else 0.0
+    other_pct = 100.0 * other_won / other if other else 0.0
     return {"kind": kind, "zone": zone, "map": mp, "side": side,
             "hit": hit, "of": of, "won": won,
-            "pct": 100.0 * hit / of, "win_pct": 100.0 * won / hit if hit else 0,
+            "other": other, "other_won": other_won, "other_pct": other_pct,
+            "gap": win_pct - other_pct,
+            "side_rounds": of, "answered": of,
+            "pct": 100.0 * hit / of, "win_pct": win_pct,
             "detail": "", "extra": ""}
 
 
@@ -83,17 +109,45 @@ def test_nothing_is_recommended_close_to_the_teams_own_average(engine):
     assert out["items"] == []
 
 
-def test_the_baseline_is_the_teams_own_rate_not_a_fixed_number(engine):
-    """The same situation is a problem for a good team and normal for a bad one.
+def test_a_place_is_judged_against_the_same_map_and_side(engine):
+    """Not against the season, which is mostly the map pool.
 
-    30% conversion is 19 points below a 49% team and 5 points below a 35% team.
-    Only the first is worth a Monday.
+    The same 30% conversion is a problem or it is normal depending entirely on
+    what the REST of that map and that side does. Against a complement winning
+    half its rounds it is twenty points down and worth a Monday; against a
+    complement winning 35% it is five points down and worth nothing.
+
+    This used to compare with the team's season average, which on a real
+    season is largely a statement about the map pool: of nine map-and-sides
+    only one differed from the rest by more than chance, so a Nuke CT row read
+    against a season figure was in large part saying "Nuke CT".
     """
-    p = [_pattern("death", "top mid", "de_mirage", "t", hit=20, of=40, won=6)]
-    good = engine(p, _stats(baseline_won=49))
-    weak = engine(p, _stats(baseline_won=35))
-    assert good["items"], "19 points below a 49% team should surface"
-    assert not weak["items"], "5 points below a 35% team should not"
+    bad = _pattern("death", "top mid", "de_mirage", "t", hit=20, of=40, won=6,
+                   other=20, other_won=10)        # 30% against 50%
+    normal = _pattern("death", "top mid", "de_mirage", "t", hit=20, of=40,
+                      won=6, other=20, other_won=7)   # 30% against 35%
+    assert engine([bad])["items"], "twenty points below the rest should surface"
+    assert not engine([normal])["items"], "five points below should not"
+
+
+def test_the_season_baseline_still_governs_season_wide_findings(engine):
+    """A place has a complement. A season habit does not.
+
+    Trades, buys and utility are claims about the team across every map, so
+    the only thing to hold them against is the team's own rate. The same
+    opening-duel record is a finding for a team that wins half its rounds and
+    not for one that wins a third.
+    """
+    stats = _stats(baseline_won=49)
+    stats["you"].update(opening_lost=40, opening_saved=10)     # 25%
+    good = engine([], stats)
+
+    weak = _stats(baseline_won=30)
+    weak["you"].update(opening_lost=40, opening_saved=10)      # 25%
+    poor = engine([], weak)
+
+    assert any("trading" in i["do"] for i in good["items"]),         "24 points below a 49% team is a finding"
+    assert not any("trading" in i["do"] for i in poor["items"]),         "5 points below a 30% team is not"
 
 
 # ----------------------------------------------------------------- direction

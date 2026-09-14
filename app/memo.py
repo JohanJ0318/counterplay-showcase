@@ -26,6 +26,7 @@ it is only ever missed.
 """
 from __future__ import annotations
 
+import sqlite3
 import threading
 from functools import wraps
 
@@ -36,18 +37,29 @@ from . import db
 MAX_ENTRIES = 48
 
 
-def version(team_id: int) -> tuple:
-    """What would make this team's counts different.
+def version(team_id: int):
+    """What would make this team's counts different, or None if it cannot say.
 
     A demo arriving, a demo finishing its parse, or a zone being named. The
     first two are visible in the demos table without touching a round row; the
     third is global, because a zone model is per map rather than per team and
     naming one changes every team's positional tables.
+
+    RETURNS None RATHER THAN RAISING when the schema is not there. A cache is
+    an optimisation and must never be the reason a call fails: a database that
+    has not been through `db.init()` yet, a test running against an empty
+    file, a tool pointed at a partial copy. All of those used to work and then
+    did not, because this function asks about a table they do not have. None
+    means "cannot tell", and the caller computes without caching.
     """
-    d = db.one("""SELECT COUNT(*) n, COALESCE(MAX(id), 0) mx,
-                         COALESCE(SUM(status = 'parsed'), 0) ok
-                    FROM demos WHERE team_id = ?""", team_id)
-    z = db.one("SELECT COUNT(*) n, COALESCE(MAX(rowid), 0) mx FROM zone_names")
+    try:
+        d = db.one("""SELECT COUNT(*) n, COALESCE(MAX(id), 0) mx,
+                             COALESCE(SUM(status = 'parsed'), 0) ok
+                        FROM demos WHERE team_id = ?""", team_id)
+        z = db.one("SELECT COUNT(*) n, COALESCE(MAX(rowid), 0) mx "
+                   "FROM zone_names")
+    except sqlite3.Error:
+        return None
     return (d["n"], d["mx"], d["ok"], z["n"], z["mx"])
 
 
@@ -73,7 +85,10 @@ def by_team(fn):
             hash(extra)
         except TypeError:
             return fn(team_id, *args, **kwargs)
-        key = (team_id, extra, version(team_id))
+        stamp = version(team_id)
+        if stamp is None:               # no schema to key on; do not cache
+            return fn(team_id, *args, **kwargs)
+        key = (team_id, extra, stamp)
         if key in store:
             return store[key]
 
