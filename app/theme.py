@@ -882,10 +882,11 @@ def page(title: str, head: str, body: str, user=None,
     # their link is exactly the leak the noindex is there to prevent, so the
     # rule is the same rule: if it is not for crawlers, it is not for
     # unfurlers either.
+    social_title = title if "Counterplay" in title else f"{title} | Counterplay"
     social = "" if noindex else f"""
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Counterplay">
-<meta property="og:title" content="{esc(title)}">
+<meta property="og:title" content="{esc(social_title)}">
 <meta property="og:description" content="{esc(SOCIAL_BLURB)}">
 <meta property="og:image" content="https://counterplaycs.com/media/og.png">
 <meta property="og:image:width" content="1200">

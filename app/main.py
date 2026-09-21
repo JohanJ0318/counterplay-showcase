@@ -1694,6 +1694,13 @@ _ZONE_PIC_LOCKS: dict[tuple, threading.Lock] = {}
 _ZONE_PIC_GUARD = threading.Lock()
 
 
+def _zone_title(map_name: str, level) -> str:
+    """What the drawing is, said once, for the people who cannot see it."""
+    where = f", {level} floor" if level else ""
+    return (f"Map of {map_name.replace('de_', '')}{where}, with your team's "
+            f"positions drawn as a density field and the named places numbered")
+
+
 def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
     """One drawing per floor: [{"level": str|None, "svg": str}, ...].
 
@@ -1800,6 +1807,7 @@ def _draw_zones(map_name: str, show, width: int, key) -> list[dict]:
                                              first_number=idx[0] + 1,
                                              labels=labels, geometry=geom,
                                              radar=rad, anchors=anchors,
+                                             title=_zone_title(map_name, level),
                                              mask=msk)})
     except Exception:
         out = []            # a missing picture must never break the page

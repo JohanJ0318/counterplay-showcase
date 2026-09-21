@@ -182,7 +182,7 @@ GROW_PASSES = 6
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None, mask=None) -> str:
+        anchors=None, mask=None, title: str = "") -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -428,8 +428,15 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                 f'font-size="11" font-weight="700" fill="#fff">{i}</text>')
     labels = marks_out
 
+    # An accessible name, the same way charts._open gives one. Without it a
+    # screen reader announces "graphic" and stops; the figcaption beside the
+    # picture names the map but a caption is a sibling, not a label. Untitled
+    # when no title is passed, because a drawing with a made-up name is worse
+    # than one that is plainly decorative.
+    named = (f'role="img" aria-label="{_esc(title)}" ' if title else "")
+    name_el = f"<title>{_esc(title)}</title>" if title else ""
     return (f'<svg viewBox="0 0 {width} {height}" width="100%" '
             f'style="max-width:{req}px;color:#5B21B6" '
-            f'xmlns="http://www.w3.org/2000/svg">'
+            f'{named}xmlns="http://www.w3.org/2000/svg">{name_el}'
             f'{"".join(base)}{"".join(dots)}{"".join(marks)}'
             f'{"".join(labels)}</svg>')
