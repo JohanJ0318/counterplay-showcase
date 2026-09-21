@@ -27,3 +27,8 @@ league/gen/cache/
 __pycache__/
 *.pyc
 *.log
+
+# The code graph. Rebuilt from source by `graphify update .`, so it is output
+# rather than source: graph.json alone is megabytes and changes on every edit.
+# .mcp.json IS tracked, because the server config is worth sharing.
+graphify-out/

@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "graphify": {
+      "command": "C:\\Users\\Johan\\.graphify\\venv\\Scripts\\graphify-mcp.exe",
+      "args": [],
+      "env": {
+        "GRAPHIFY_GRAPH": "C:\\Users\\Johan\\counterplay\\graphify-out\\graph.json"
+      }
+    }
+  }
+}
