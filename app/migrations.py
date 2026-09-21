@@ -435,6 +435,28 @@ MIGRATIONS: list[tuple[int, str, str]] = [
             created_at TEXT    NOT NULL
         );
     """),
+    (17, "a link a coach can send to their roster", """
+        -- The landing page has promised this since launch: "Send the link to
+        -- your roster; no accounts for them to make." Every report route
+        -- requires a login, so until now the only reader of a report was the
+        -- person who uploaded the demos.
+        --
+        -- One random string per team. Holding it is the permission, the way a
+        -- Google Doc share link works. NULL means the team has never made one
+        -- or has revoked the one it had.
+        --
+        -- STORED IN PLAIN TEXT, unlike password_resets.token_hash, and the
+        -- difference is deliberate. A reset token grants account takeover and
+        -- is never read back, so hashing costs nothing. This one has to be
+        -- shown again every time a coach wants to re-paste it, which a hash
+        -- cannot do. Nor does storing it widen the blast radius: anybody with
+        -- this database already has every report the link would show them.
+        ALTER TABLE teams ADD COLUMN share_token TEXT;
+
+        -- Partial, so the many teams with no link do not collide on NULL.
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_share
+            ON teams(share_token) WHERE share_token IS NOT NULL;
+    """),
 ]
 
 

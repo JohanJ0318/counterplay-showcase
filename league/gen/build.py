@@ -331,7 +331,13 @@ CSS = """
   --ink:#191325; --muted:#655D77; --faint:#948CA6;
   --border:#E7E3F0; --border-strong:#D6D0E4;
   --purple:#5B21B6; --purple-soft:#F3EFFE;
+  --purple-deep:#3F1178; --purple-line:#DCD1F7;
   --t:#A65B0B; --t-soft:#FDF3E4; --on-purple:#FFFFFF;
+  /* Shape, kept in step with app/theme.py. The app rounds every surface to
+     8px and floats it on one hairline shadow; without these two the league
+     pages are square boxes on an identical palette, which is enough to read
+     as somebody else's site. */
+  --r:8px; --shadow:0 1px 2px rgba(25,19,37,.05);
   --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
@@ -350,6 +356,8 @@ CSS = """
   --border:#2E2739; --border-strong:#3E3549;
   --purple:#A78BFA; --purple-soft:#241C38;
   --t:#E0A458; --t-soft:#2E2415; --on-purple:#141119;
+  --purple-deep:#C4B5FD; --purple-line:#3B3152;
+  --shadow:0 1px 2px rgba(0,0,0,.34);
 }
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -358,6 +366,8 @@ CSS = """
     --border:#2E2739; --border-strong:#3E3549;
     --purple:#A78BFA; --purple-soft:#241C38;
     --t:#E0A458; --t-soft:#2E2415; --on-purple:#141119;
+  --purple-deep:#C4B5FD; --purple-line:#3B3152;
+  --shadow:0 1px 2px rgba(0,0,0,.34);
   }
 }
 html{color-scheme:light dark}
@@ -407,6 +417,14 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border)}
 .nav-links a{color:var(--muted);padding:6px 10px;border-radius:6px;
   white-space:nowrap;text-decoration:none}
 .nav-links a:hover{color:var(--ink);background:var(--bg)}
+/* `.nav-links a` outranks a bare `.btn`, so without this the one control that
+   turns a reader into an account renders in muted grey, indistinguishable
+   from "Log in" beside it. page() has always emitted class="btn" here; this
+   stylesheet simply never defined it. Same rule as app/theme.py. */
+.nav-links a.btn{color:var(--on-purple);background:var(--purple);
+  padding:8px 15px;font-weight:600}
+.nav-links a.btn:hover{color:var(--on-purple);background:var(--purple-deep);
+  text-decoration:none}
 @media(max-width:640px){.nav-in{flex-wrap:wrap;gap:6px}
   .nav-links{width:100%;font-size:.78rem;gap:2px}}
 .mark{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em;font-size:1.06rem;
@@ -418,11 +436,30 @@ header.page{background:
 .head-in{max-width:1060px;margin:0 auto;padding:34px 20px 28px;display:flex;
   flex-direction:column;gap:11px}
 .crumb{font-size:.86rem;color:var(--muted)}
+.leaguetools{display:flex;gap:12px;align-items:center;flex-wrap:wrap;
+  margin-top:16px}
+#teamfind{font:inherit;font-size:.92rem;padding:9px 13px;min-width:230px;
+  flex:1 1 230px;color:var(--ink);background:var(--surface);
+  border:1px solid var(--border-strong);border-radius:var(--r)}
+#teamfind:focus{outline:2px solid var(--purple);outline-offset:1px;
+  border-color:var(--purple)}
+.divtabs{display:flex;gap:4px;flex-wrap:wrap}
+.divtabs button{font:inherit;font-size:.84rem;font-weight:500;cursor:pointer;
+  padding:7px 12px;border-radius:var(--r);white-space:nowrap;
+  color:var(--muted);background:transparent;border:1px solid var(--border)}
+.divtabs button:hover{color:var(--ink);background:var(--bg)}
+.divtabs button.on{color:var(--on-purple);background:var(--purple);
+  border-color:var(--purple)}
 section{padding-top:38px;display:flex;flex-direction:column;gap:14px}
+/* `display:flex` above outranks the browser's own [hidden]{display:none}, so
+   a filtered-out division rendered its heading and an empty table. Anything
+   the script hides has to actually go. */
+[hidden]{display:none!important}
 .sec-head{border-top:1px solid var(--border-strong);padding-top:11px;display:flex;
   flex-direction:column;gap:5px}
 .lede{color:var(--muted);font-size:.92rem;max-width:70ch}
-.tbl-wrap{overflow-x:auto;border:1px solid var(--border);background:var(--surface)}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--border);background:var(--surface);
+  border-radius:var(--r);box-shadow:var(--shadow)}
 table{border-collapse:collapse;width:100%;font-size:.88rem}
 th{font-family:var(--f-mono);font-size:.63rem;font-weight:500;letter-spacing:.1em;
   text-transform:uppercase;color:var(--faint);text-align:left;padding:10px 13px;
@@ -434,26 +471,32 @@ td.num,th.num{font-family:var(--f-mono);font-variant-numeric:tabular-nums;
   white-space:nowrap;text-align:right}
 th.num{text-align:right}
 .den{font-family:var(--f-mono);font-size:.72rem;color:var(--faint)}
-.thin{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.09em;text-transform:uppercase;
-  color:var(--t);border:1px solid var(--t);padding:1px 5px}
-.role{font-family:var(--f-mono);font-size:.6rem;letter-spacing:.08em;text-transform:uppercase;
-  padding:2px 7px;background:var(--sunk);color:var(--muted);white-space:nowrap}
+.thin{font-family:var(--f-mono);font-size:.58rem;letter-spacing:.09em;
+  text-transform:uppercase;color:var(--t);border:1px solid var(--t);
+  padding:1px 5px;border-radius:4px}
+.role{font-family:var(--f-mono);font-size:.6rem;letter-spacing:.08em;
+  text-transform:uppercase;padding:2px 7px;background:var(--sunk);
+  color:var(--muted);white-space:nowrap;border-radius:4px}
 .role.awp{background:var(--t-soft);color:var(--t)}
 .role.entry{background:var(--purple-soft);color:var(--purple)}
-.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:1px;
-  background:var(--border);border:1px solid var(--border)}
-.stat{background:var(--surface);padding:15px 17px;display:flex;flex-direction:column;gap:2px}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));
+  gap:12px}
+.stat{background:var(--surface);padding:15px 17px;display:flex;
+  flex-direction:column;gap:2px;border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--shadow)}
 .stat-n{font-family:var(--f-display);font-weight:800;font-size:1.5rem;letter-spacing:-.02em;
   font-variant-numeric:tabular-nums}
 .maps{display:flex;flex-direction:column;gap:22px}
-.mapblock{border:1px solid var(--border);background:var(--surface)}
+.mapblock{border:1px solid var(--border);background:var(--surface);
+  border-radius:var(--r);box-shadow:var(--shadow);overflow:hidden}
 .maphead{display:flex;align-items:baseline;gap:12px;padding:14px 16px;
   border-bottom:1px solid var(--border-strong);flex-wrap:wrap}
 .maphead .score{font-family:var(--f-display);font-weight:800;font-size:1.1rem;
   font-variant-numeric:tabular-nums}
 .win{color:var(--purple);font-weight:600}
-.note{border-left:3px solid var(--purple);background:var(--purple-soft);padding:14px 18px;
-  font-size:.9rem;max-width:72ch}
+.note{border-left:3px solid var(--purple);background:var(--purple-soft);
+  padding:14px 18px;font-size:.9rem;max-width:72ch;
+  border-radius:0 var(--r) var(--r) 0}
 footer{margin-top:52px;padding-top:18px;border-top:1px solid var(--border);font-size:.8rem;
   color:var(--faint);display:flex;flex-direction:column;gap:5px}
 :focus-visible{outline:2px solid var(--purple);outline-offset:2px}
@@ -495,6 +538,65 @@ h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}
   <span>Built from FACEIT match statistics. Every rate shows the number it came from.</span>
   <span>Rates are hidden for players under @@MINR@@ rounds and shown as raw counts instead.</span>
 </footer>
+<script>
+// Written in by script rather than shipped in the markup: with JavaScript
+// off there is no search box promising something that cannot happen, and
+// every division renders in full exactly as it did before any of this.
+(function () {
+  var tools = document.getElementById('leaguetools');
+  var secs = [].slice.call(document.querySelectorAll('.divsec'));
+  if (!tools || secs.length < 2) return;
+  var find = document.getElementById('teamfind');
+  var tabs = document.getElementById('divtabs');
+  var none = document.getElementById('nofind');
+  var current = 'all';
+
+  function tab(name, label) {
+    var b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    if (name === current) b.className = 'on';
+    b.onclick = function () {
+      current = name;
+      [].forEach.call(tabs.children, function (c) {
+        c.className = (c === b) ? 'on' : '';
+      });
+      apply();
+    };
+    tabs.appendChild(b);
+  }
+
+  function apply() {
+    var q = find.value.trim().toLowerCase();
+    var total = 0;
+    secs.forEach(function (sec) {
+      var hits = 0;
+      [].forEach.call(sec.querySelectorAll('tbody tr'), function (tr) {
+        var cell = tr.querySelector('td.name');
+        var hit = !q || (cell && cell.textContent.toLowerCase().indexOf(q) >= 0);
+        tr.hidden = !hit;
+        if (hit) hits++;
+      });
+      // A search looks everywhere. Somebody who types a team name wants that
+      // team, and does not know which division to have picked first.
+      var inTab = q ? true : (current === 'all' ||
+                              sec.getAttribute('data-division') === current);
+      sec.hidden = !(inTab && hits);
+      if (inTab) total += hits;
+    });
+    none.hidden = total > 0;
+  }
+
+  tab('all', 'All divisions');
+  secs.forEach(function (sec) {
+    var d = sec.getAttribute('data-division');
+    tab(d, d);
+  });
+  find.addEventListener('input', apply);
+  tools.hidden = false;
+  apply();
+})();
+</script>
 </div></body></html>"""
 
 
@@ -530,6 +632,23 @@ def fig(value: str, den: str, thin=False) -> str:
     return f'{value} <span class="den">{den}</span>'
 
 
+def figq(value: str, den: str, thin=False) -> str:
+    """The same figure with its denominator on hover instead of beside it.
+
+    Used where a table prints six rates off one denominator. Printing it in
+    every cell made the round count the loudest thing in the row and the rate
+    the quietest, and every one of those numbers was recoverable from the rate
+    and the round count anyway.
+
+    Thin is unchanged, and deliberately so: below MIN_ROUNDS rounds the counts
+    ARE the story rather than a restatement of it, so they stay on the page
+    where nobody has to hover to learn that a rate rests on five chances.
+    """
+    if thin:
+        return f'<span class="den">{den}</span> <span class="thin">thin</span>'
+    return f'<span title="{esc(den)}">{value}</span>'
+
+
 def player_row(p: dict, link=True) -> str:
     a = p["agg"]
     role = p.get("role", "–")
@@ -542,19 +661,21 @@ def player_row(p: dict, link=True) -> str:
     return (
         f'<tr><td class="name">{nick}</td>'
         f'<td><span class="{cls}" title="{esc(p.get("role_why",""))}">{esc(role)}</span></td>'
-        f'<td class="num">{fig(f"{a.adr:.0f}", f"{int(a.damage)}dmg / {int(a.rounds)}r", a.thin)}</td>'
-        f'<td class="num">{fig(f"{a.kd:.2f}", f"{int(a.kills)}-{int(a.deaths)}", a.thin)}</td>'
-        f'<td class="num">{fig(f"{a.kr:.2f}", f"{int(a.kills)} / {int(a.rounds)}r", a.thin)}</td>'
-        f'<td class="num">{fig(f"{a.hs_pct:.0f}%", f"{int(a.headshots)} / {int(a.kills)}", a.thin)}</td>'
-        f'<td class="num">{fig(f"{a.entry_rate:.2f}", f"{int(a.entry_count)} / {int(a.rounds)}r", a.thin)}</td>'
-        f'<td class="num">{fig(f"{a.entry_success*100:.0f}%", f"{int(a.entry_wins)} / {int(a.entry_count)}", a.entry_count < 8)}</td>'
-        f'<td class="num">{fig(f"{a.util_dmg_round:.1f}", f"{int(a.util_damage)} / {int(a.rounds)}r", a.thin)}</td>'
+        f'<td class="num mono">{int(a.rounds)}</td>'
+        f'<td class="num">{figq(f"{a.adr:.0f}", f"{int(a.damage)} damage over {int(a.rounds)} rounds", a.thin)}</td>'
+        f'<td class="num">{figq(f"{a.kd:.2f}", f"{int(a.kills)} kills, {int(a.deaths)} deaths", a.thin)}</td>'
+        f'<td class="num">{figq(f"{a.kr:.2f}", f"{int(a.kills)} kills over {int(a.rounds)} rounds", a.thin)}</td>'
+        f'<td class="num">{figq(f"{a.hs_pct:.0f}%", f"{int(a.headshots)} headshots of {int(a.kills)} kills", a.thin)}</td>'
+        f'<td class="num">{figq(f"{a.entry_rate:.2f}", f"took the opening duel in {int(a.entry_count)} of {int(a.rounds)} rounds", a.thin)}</td>'
+        f'<td class="num">{figq(f"{a.entry_success*100:.0f}%", f"won {int(a.entry_wins)} of {int(a.entry_count)} opening duels", a.entry_count < 8)}</td>'
+        f'<td class="num">{figq(f"{a.util_dmg_round:.1f}", f"{int(a.util_damage)} utility damage over {int(a.rounds)} rounds", a.thin)}</td>'
         f'<td class="num mono">{int(a.sniper)}</td>'
         f'<td class="num mono">{int(a.maps)}</td></tr>'
     )
 
 
-PLAYER_HEAD = ('<thead><tr><th>Player</th><th>Role</th><th class="num">ADR</th>'
+PLAYER_HEAD = ('<thead><tr><th>Player</th><th>Role</th>'
+               '<th class="num">Rounds</th><th class="num">ADR</th>'
                '<th class="num">K/D</th><th class="num">K/R</th><th class="num">HS</th>'
                '<th class="num">Entry rate</th><th class="num">Entry won</th>'
                '<th class="num">Util dmg/r</th><th class="num">AWP kills</th>'
@@ -601,14 +722,15 @@ def render(model: dict, out: Path):
                 'where teams from different divisions do meet. Kept separate because a '
                 'record built here is not a record built inside a division.</p>')
         division_blocks.append(
-            '<section><div class="sec-head"><span class="label">%d teams</span>'
+            '<section class="divsec" data-division="%s">'
+            '<div class="sec-head"><span class="label">%d teams</span>'
             '<h2>%s</h2></div>%s'
             '<div class="tbl-wrap"><table>'
             '<thead><tr><th>Team</th><th class="num">Matches</th>'
-            '<th class="num">Maps won</th><th class="num">RW</th>'
-            '<th class="num">RL</th><th class="num">Diff</th></tr></thead>'
+            '<th class="num">Maps won</th><th class="num">Rounds won</th>'
+            '<th class="num">Rounds lost</th><th class="num">Diff</th></tr></thead>'
             '<tbody>%s</tbody></table></div></section>'
-            % (len(entries), esc(dname), note, "".join(rows)))
+            % (esc(dname), len(entries), esc(dname), note, "".join(rows)))
 
     recent = []
     for m in matches[:25]:
@@ -633,6 +755,12 @@ def render(model: dict, out: Path):
       Division 1 side. Within a division, ranked by rounds won minus rounds lost, which
       says more than a match record does: a 13&ndash;11 loss and a 13&ndash;2 loss are the
       same line in a win column.</p>
+    <div id="leaguetools" class="leaguetools" hidden>
+      <input id="teamfind" type="search" placeholder="Find your team"
+             aria-label="Find your team" autocomplete="off" spellcheck="false">
+      <div id="divtabs" class="divtabs"></div>
+    </div>
+    <p id="nofind" class="note" hidden>No team of that name in this season.</p>
   </section>
   {''.join(division_blocks)}
   <section>
@@ -804,7 +932,7 @@ def render(model: dict, out: Path):
     <div class="sec-head"><span class="label">Roles are observed, not declared</span>
       <h2>Roster</h2></div>
     <p class="lede">Roles come from what players actually did: AWP kills, who takes the
-      opening duel, who throws the utility. Hover a role to see the numbers behind it.
+      opening duel, who throws the utility. Hover a role, or any rate, to see the numbers behind it.
       In-game leader can't be seen in match data, so it isn't guessed at.
       A player is listed with the team they played the most maps for; anyone who
       also turned out elsewhere this season is marked.</p>

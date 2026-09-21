@@ -475,11 +475,49 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
    `contain`, not a crop: at 22px the whole silhouette is recognisable to
    anybody who plays the map, while a zoom into the middle is a grey smear
    that happens to be from Mirage. */
+/* Off the screen, not display:none. A crawler that checks computed style
+   skips anything hidden; this is a real, laid-out input that simply sits
+   where nobody can see it. Nothing focuses it, because tabindex is -1. */
+.hp-field{position:absolute;left:-9999px;top:auto;width:1px;height:1px;
+  overflow:hidden}
+
+/* Where you are inside a shared link. Same idea as the league site's
+   subnav: a reader with no account still needs to know the roster exists. */
+.sharenav{display:flex;gap:6px;flex-wrap:wrap;margin:26px 0 20px}
+.sharenav a{font-size:.88rem;font-weight:500;color:var(--muted);
+  padding:7px 13px;border-radius:var(--r);white-space:nowrap;
+  text-decoration:none;border:1px solid var(--border)}
+.sharenav a:hover{color:var(--ink);background:var(--surface)}
+.sharenav a.on{color:var(--on-purple);background:var(--purple);
+  border-color:var(--purple)}
+
 .mapchip{display:inline-flex;align-items:center;gap:7px;white-space:nowrap}
 .mapchip i{width:22px;height:22px;flex:none;border-radius:50%;
   background-size:contain;background-repeat:no-repeat;background-position:center;
   border:1px solid var(--border-strong);filter:var(--radar-dim);
   background-color:var(--surface-2)}
+/* The silhouette. Same round frame, but the artwork is ours and the
+   theme paints it: the file is a shape, the colour comes from here. */
+.mapchip i.sil{filter:none;background-image:none;
+  background-color:var(--purple-soft);border-color:var(--purple-line);
+  display:flex;align-items:center;justify-content:center}
+/* 22 of a 26px circle. The silhouette carries interior detail now, and the
+   limit is cells per pixel: mapicons.py draws about 49 across, so 22px is
+   roughly two cells a pixel, which holds an edge. Smaller than this and the
+   detail is present but averaged into grey. */
+/* A ROUNDED SQUARE, NOT A CIRCLE. A circular frame only suits content that
+   is itself roughly circular, and these are not: ancient is 0.92 wide to
+   tall, cache 1.23, and nuke 1.68, which in a circle drew a 22 by 13 bar
+   with four pixels of nothing above and below it. A rounded rectangle takes
+   any aspect without looking like the picture missed, and 8px is the radius
+   every other surface on the site already uses. */
+.mapchip i.sil{width:26px;height:26px;border-radius:var(--r)}
+.mapchip i.sil::after{content:"";width:22px;height:22px;
+  background-color:var(--purple);
+  -webkit-mask:var(--sil) center/contain no-repeat;
+  mask:var(--sil) center/contain no-repeat}
+.mapchip.big i.sil{width:32px;height:32px}
+.mapchip.big i.sil::after{width:27px;height:27px}
 .mapchip.big i{width:28px;height:28px}
 
 /* ---- badges ---- */
@@ -528,12 +566,40 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
     display:block;font-family:var(--f-mono);font-size:.62rem;color:var(--faint);
     padding-top:8px}
 }
-.zonerow{display:flex;gap:18px;flex-wrap:wrap;margin-top:18px}
-.zonefig{margin:0;flex:1 1 320px;min-width:0}
+/* The long page's own table of contents. Sticky, because a list that
+   scrolls away is a list you have to scroll back for. */
+.pagenav{position:sticky;top:0;z-index:5;display:flex;gap:4px;flex-wrap:wrap;
+  padding:10px 0;margin-bottom:4px;background:var(--bg);
+  border-bottom:1px solid var(--border)}
+.pagenav a{font-size:.83rem;font-weight:500;color:var(--muted);
+  padding:6px 10px;border-radius:var(--r);white-space:nowrap;
+  text-decoration:none}
+.pagenav a:hover{color:var(--ink);background:var(--surface)}
+.pagenav a.on{color:var(--purple);background:var(--purple-soft)}
+@media (max-width:640px){.pagenav{overflow-x:auto;flex-wrap:nowrap}}
+
+/* A ROW OF MAPS IS LEVELLED BY HEIGHT, NOT BY WIDTH. Four maps of four
+   shapes given equal widths cannot look like a set; whichever axis you
+   equalise, the odd shape is the wrong one. Fix the height and every width
+   falls out of its own aspect, which is how a row of pictures is laid out. */
+.zonerow{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-start;
+  margin-top:18px}
+/* flex-basis 0, not 320px, so the grow factor each figure carries (its
+   own aspect ratio) decides the widths in proportion rather than merely in
+   order. Two floors of one map then come out the same height instead of the
+   taller one rendering three times the size of the wider one. */
+.zonefig{margin:0;flex:0 1 auto;min-width:0;max-width:100%}
 .zonefig svg image{filter:var(--radar-dim)}
-.zonefig svg{width:100%;height:auto;border:1px solid var(--border);
+.zonefig svg{display:block;height:250px;width:auto;max-width:100%;
+  border:1px solid var(--border);
   border-radius:var(--r);background:var(--card)}
 .zonefig figcaption{margin-top:6px}
+/* One map per row on a phone, at the full width, rather than four small
+   ones sharing it. */
+@media (max-width:640px){
+  .zonefig{flex:1 1 100%}
+  .zonefig svg{height:auto;width:100%}
+}
 details summary{cursor:pointer;font-weight:600;color:var(--purple);
   padding:8px 0;font-size:.9rem}
 /* The how-do-I-get-a-demo help sits inside the upload card, so it needs a
@@ -660,7 +726,6 @@ PRIMARY_NAV = [
     ("/players", "Players"),
     ("/stats", "Team stats"),
     ("/trends", "Trends"),
-    ("/league/", "League"),
 ]
 
 
@@ -696,11 +761,16 @@ THEME_BUTTON = ('<button class="themebtn" type="button" onclick="cpTheme()" '
                 'aria-label="Switch between light and dark">&#9681;</button>')
 
 
-def page(title: str, head: str, body: str, user=None) -> str:
-    """Wrap page content in the shell. `head` is the banner, `body` the content."""
+def page(title: str, head: str, body: str, user=None,
+         noindex: bool = False) -> str:
+    """Wrap page content in the shell. `head` is the banner, `body` the content.
+
+    `noindex` is for pages reached by holding a secret URL rather than by
+    signing in. A capability link that a search engine has crawled is not a
+    capability link any more.
+    """
     if user is None:
-        links = ('<a href="/league/">League</a>'
-                 '<a href="/login">Log in</a>'
+        links = ('<a href="/login">Log in</a>'
                  '<a class="btn" href="/signup">Add your team</a>')
         side = THEME_BUTTON
     else:
@@ -710,6 +780,7 @@ def page(title: str, head: str, body: str, user=None) -> str:
     return f"""<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+{'<meta name="robots" content="noindex, nofollow">' if noindex else ''}
 <title>{esc(title)}</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
@@ -756,18 +827,35 @@ RADAR_FOR = {
 }
 
 
-def map_chip(map_name: str, big: bool = False, label: str = "") -> str:
-    """A map's radar as a small round chip, with its name beside it.
+# The maps mapicons.py has produced a silhouette for. Overpass and Train
+# have no stored radar mask, so they fall through to the radar image below;
+# anything with neither renders as a bare name.
+ICON_FOR = {"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno",
+            "de_mirage", "de_nuke"}
 
-    Falls back to the name alone for a map with no radar on disk, because a
-    missing image should read as a plain label rather than as a broken one.
+
+def map_chip(map_name: str, big: bool = False, label: str = "") -> str:
+    """A map's outline as a small round chip, with its name beside it.
+
+    The silhouette is this site's own drawing, built once by mapicons.py from
+    the alpha channel of the radar. At the size a chip renders, an actual
+    radar is a grey smudge: shape is the only thing that reads at twenty
+    pixels, and shape is what tells one map from another.
+
+    Falls back to the radar image for a map without a silhouette, and to the
+    name alone for one with neither, because a missing picture should read as
+    a plain label rather than as a broken one.
     """
     key = (map_name or "").strip()
     short = label or key.replace("de_", "")
+    size = " big" if big else ""
+    if key in ICON_FOR:
+        return (f'<span class="mapchip{size}">'
+                f'<i class="sil" style="--sil:url(/icons/maps/{key}.svg)"></i>'
+                f'{esc(short)}</span>')
     art = RADAR_FOR.get(key)
     if not art:
         return esc(short)
-    size = " big" if big else ""
     return (f'<span class="mapchip{size}">'
             f'<i style="background-image:url(/radars/{art}_radar_psd.png)"></i>'
             f'{esc(short)}</span>')

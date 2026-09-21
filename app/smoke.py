@@ -120,8 +120,8 @@ def run(base: str, demo: Path | None) -> int:
     print("PUBLIC PAGES")
     a = Client(base)
     for label, path in [("landing", "/"), ("signup", "/signup"),
-                        ("login", "/login"), ("sample report", "/sample-report.html"),
-                        ("league site", "/league/")]:
+                        ("login", "/login"),
+                        ("sample report", "/sample-report.html")]:
         code, _, _ = a.get(path)
         r.check(code == 200, f"{label} serves", f"got {code}")
     code, _, _ = a.get("/dashboard")

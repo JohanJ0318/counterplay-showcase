@@ -160,10 +160,17 @@ def picture_extent(x, y, radar):
     ry0, ry1 = float(radar["y0"]), float(radar["y1"])
     dx0, dx1 = np.percentile(x, [0.02, 99.98])
     dy0, dy1 = np.percentile(y, [0.02, 99.98])
+    # The percentile sizes the MARGIN, so one glitched sample cannot inflate
+    # the padding. It does not decide the edges: the box has to contain every
+    # sample the radar admits. Trimming to the percentile and padding from
+    # there put nuke upper's frame at x = -2911 with players out to -2935, so
+    # T spawn was drawn hard against a border it had already crossed. Anything
+    # genuinely outside the world is outside the radar bounds and the clamp
+    # below removes it.
     mx = max(120.0, (dx1 - dx0) * 0.06)
     my = max(120.0, (dy1 - dy0) * 0.06)
-    return (max(rx0, dx0 - mx), min(rx1, dx1 + mx),
-            max(ry0, dy0 - my), min(ry1, dy1 + my))
+    return (max(rx0, float(x.min()) - mx), min(rx1, float(x.max()) + mx),
+            max(ry0, float(y.min()) - my), min(ry1, float(y.max()) + my))
 
 
 # How far the played area may grow into the map. Six cells of a 150 grid is
@@ -220,18 +227,24 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     else:
         x0, x1 = np.percentile(x, [0.2, 99.8])
         y0, y1 = np.percentile(y, [0.2, 99.8])
+    # One scale serves both axes, so the map is never stretched: the longer
+    # side fills the frame and the shorter one is whatever it is. THE BOX IS
+    # THEN CUT TO THE DRAWING on both axes rather than staying `width` wide.
+    #
+    # Centring was tried first and only balanced the problem. Nuke's lower
+    # floor is 1860 by 3341 world units, so at a box 420 wide the map is 205
+    # pixels of it, and centring left 107 pixels of nothing down each side
+    # instead of 215 down one. The height was always computed from the
+    # content; the width is now too.
+    # `req` survives because `width` becomes the fitted box below, and the
+    # style cap still has to mean "no bigger than the caller asked for"
+    # rather than "no bigger than this particular map turned out".
+    req = width
     span = max(x1 - x0, y1 - y0) or 1.0
     scale = (width - 2 * pad) / span
     height = int((y1 - y0) * scale + 2 * pad)
-
-    # Centred in the frame.
-    #
-    # One scale serves both axes so the map is never stretched, which means
-    # the narrower axis does not fill the box. The height is computed from the
-    # drawing so the vertical is already tight; the horizontal was not, and a
-    # map taller than it is wide, which is Nuke's lower floor exactly, was
-    # drawn hard against the left edge with the slack piled up on the right.
-    off_x = pad + max(0.0, (width - 2 * pad - (x1 - x0) * scale) / 2.0)
+    width = int((x1 - x0) * scale + 2 * pad)
+    off_x = pad
 
     # CS2's Y axis points the opposite way to SVG's, so it is flipped here
     # rather than in the data; the stored coordinates stay game-native.
@@ -416,7 +429,7 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     labels = marks_out
 
     return (f'<svg viewBox="0 0 {width} {height}" width="100%" '
-            f'style="max-width:{width}px;color:#5B21B6" '
+            f'style="max-width:{req}px;color:#5B21B6" '
             f'xmlns="http://www.w3.org/2000/svg">'
             f'{"".join(base)}{"".join(dots)}{"".join(marks)}'
             f'{"".join(labels)}</svg>')

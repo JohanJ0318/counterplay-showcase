@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import threading
+import re
 import secrets
 from pathlib import Path
 
@@ -55,9 +56,11 @@ BUILT_FEATURES = {"match_reports", "player_stats", "team_stats",
 
 # Where a working feature actually lives, so "Available" is clickable rather
 # than a claim a coach has to go hunting to verify.
+# No entry for "leaderboards": it pointed into the league site, which is
+# archived rather than served. A feature with no link renders as plain text,
+# which is the right thing for one a reader cannot go and look at.
 FEATURE_LINKS = {"match_reports": "/matches", "player_stats": "/players",
-                 "team_stats": "/stats", "pattern_finder": "/stats",
-                 "leaderboards": "/league/leaderboards.html"}
+                 "team_stats": "/stats", "pattern_finder": "/stats"}
 
 app = FastAPI(title="Counterplay", docs_url=None, redoc_url=None)
 
@@ -116,6 +119,42 @@ def select_field(name: str, label: str, options, value: str = "") -> str:
     return (f'<label>{esc(label)}<select name="{esc(name)}">{opts}</select></label>')
 
 
+def match_href(match_key: str, share: str = "") -> str:
+    """Where a link to a match points, which depends on how you got here.
+
+    A reader holding a share link has no session, so /match/ would bounce them
+    to a login screen. Every link out of a shared page has to stay inside the
+    link's own space.
+    """
+    if share:
+        return f"/r/{esc(share)}/m/{esc(match_key)}"
+    return f"/match/{esc(match_key)}"
+
+
+def share_nav(share: str, here: str) -> str:
+    """The tabs across the top of a shared page.
+
+    A link-holder has no account and therefore no nav, so without this the
+    only route from the season to the roster was an arrow buried in a
+    paragraph. Nobody found it.
+    """
+    if not share:
+        return ""
+    tabs = (("", "Season"), ("/players", "Players"))
+    out = []
+    for path, label in tabs:
+        on = ' class="on"' if path == here else ""
+        out.append(f'<a href="/r/{esc(share)}{path}"{on}>{label}</a>')
+    return f'<nav class="sharenav">{"".join(out)}</nav>'
+
+
+def player_href(steamid: str, share: str = "") -> str:
+    """Where a link to one player points. Same reasoning as match_href."""
+    if share:
+        return f"/r/{esc(share)}/p/{esc(steamid)}"
+    return f"/player/{esc(steamid)}"
+
+
 def csrf_input(user) -> str:
     return f'<input type="hidden" name="csrf" value="{esc(user["csrf"])}">'
 
@@ -135,6 +174,11 @@ def signup_form(values: dict | None = None, error: str = "") -> str:
     <div class="card">
       {warn}
       <form class="stack" method="post" action="/signup">
+        <div class="hp-field" aria-hidden="true">
+          <label for="homepage">Homepage</label>
+          <input type="text" id="homepage" name="homepage" value=""
+                 autocomplete="off" tabindex="-1">
+        </div>
         {form_field("team", "Team or program", value=v.get("team", ""))}
         {form_field("email", "Email", "email", v.get("email", ""), autocomplete="email")}
         {form_field("password", "Password", "password", required=True,
@@ -161,7 +205,7 @@ def signup_get(request: Request):
 def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
                 role: str = Form("other"), name: str = Form(""),
                 email: str = Form(""), password: str = Form(""),
-                faceit_url: str = Form("")):
+                faceit_url: str = Form(""), homepage: str = Form("")):
     values = {"team": team, "league": league, "role": role, "name": name,
               "email": email, "faceit_url": faceit_url}
 
@@ -169,6 +213,13 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
         return HTMLResponse(page("Add your team | Counterplay",
                                  banner("Add your team", label="Free this season"),
                                  signup_form(values, msg)), status_code=400)
+
+    # The honeypot, checked before anything else so a bot costs us no work.
+    # `homepage` is invisible to a person and irresistible to a form filler.
+    if homepage.strip():
+        db.audit(None, "signup_honeypot", f"team={team.strip()[:40]!r}")
+        return fail("That submission looked automated. If you are a person, "
+                    "clear the form and try again.")
 
     problem = auth.email_problem(email) or auth.password_problem(password)
     if problem:
@@ -549,7 +600,7 @@ def dashboard(request: Request):
     status = ""
     if counts["parsed"] == 0:
         status = ('<p class="note">Nothing parsed yet. Upload demos below and the '
-                  'reports fill in. Grab them while they are fresh, because platforms '
+                  'reports fill in. Upload them soon: FACEIT and Valve both '
                   'delete match demos after a few weeks.</p>')
 
     # Record and recent form, so the first screen after logging in is about the
@@ -611,9 +662,9 @@ def dashboard(request: Request):
           fine. <strong>.dem</strong> or <strong>.dem.zst</strong> (what FACEIT's
           download button gives you), up to 400&nbsp;MB each. The same match
           uploaded twice is stored once.</p>
-        <p class="den">Grab them while they are fresh: FACEIT and Valve delete
-          match demos after a few weeks, so the ones worth keeping are the ones
-          you save now.</p>
+        <p class="den"><strong>Demos expire.</strong> FACEIT and Valve both
+          delete match demos after a few weeks, so save the ones worth keeping
+          now.</p>
       </form>
       {DEMO_HELP}
     </div>
@@ -647,6 +698,12 @@ DEMO_HELP = """
       <details class="howto">
         <summary>Where do I find my demo files?</summary>
         <div class="tbl-plain">
+          <p class="den"><strong>FACEIT, from the match room.</strong> Open the
+            match page on faceit.com and use the download button in the middle
+            of it. You get a file named like
+            <code>1-4cfc1e19-....dem.zst</code>. <strong>Do not unzip it.</strong>
+            Upload the <code>.dem.zst</code> exactly as it downloads; this reads
+            it faster than you can unpack it.</p>
           <p class="den"><strong>Premier and Competitive, from the game.</strong>
             Open CS2 and go to <strong>Watch &rarr; Your Matches</strong>. Every
             match from roughly the last month is listed. Click one, then
@@ -655,12 +712,6 @@ DEMO_HELP = """
             <code>game/csgo/replays</code> and is named like
             <code>003837857386282877221_1976594227.dem</code>. Upload it as it
             is.</p>
-          <p class="den"><strong>FACEIT, from the match room.</strong> Open the
-            match page on faceit.com and use the download button in the middle
-            of it. You get a file named like
-            <code>1-4cfc1e19-....dem.zst</code>. <strong>Do not unzip it.</strong>
-            Upload the <code>.dem.zst</code> exactly as it downloads; this reads
-            it faster than you can unpack it.</p>
           <p class="den"><strong>Both platforms delete demos after a few
             weeks</strong>, FACEIT after about thirty days. Anything older than
             that is gone and cannot be recovered, which is the argument for
@@ -670,6 +721,50 @@ DEMO_HELP = """
             normally ten to thirty files and they can all go up together.</p>
         </div>
       </details>"""
+
+
+# A table of contents for a page that is eleven sections long.
+#
+# Built from the rendered headings rather than from a list maintained here,
+# because the two would drift the first time somebody added a section. Empty
+# and invisible without JavaScript, which is correct: with no script there is
+# no smooth way to jump anyway, and an inert row of dead links is worse than
+# no row.
+#
+# The highlight follows whichever heading is nearest the top of the viewport,
+# recomputed on scroll rather than by IntersectionObserver, because sections
+# here differ in height by a factor of twenty and an observer threshold that
+# suits Coverage does not suit Players.
+PAGE_NAV = """
+  <nav class="pagenav" id="pagenav" hidden></nav>
+  <script>
+  (function () {
+    var nav = document.getElementById('pagenav');
+    if (!nav) return;
+    var heads = [].slice.call(document.querySelectorAll('section .sec-head h2'));
+    if (heads.length < 4) return;
+    var links = [];
+    heads.forEach(function (h, i) {
+      var sec = h.closest('section');
+      if (!sec.id) sec.id = 'sec' + i;
+      var a = document.createElement('a');
+      a.href = '#' + sec.id;
+      a.textContent = h.textContent.trim();
+      nav.appendChild(a);
+      links.push({a: a, sec: sec});
+    });
+    function mark() {
+      var best = 0, top = nav.getBoundingClientRect().bottom + 8;
+      links.forEach(function (l, i) {
+        if (l.sec.getBoundingClientRect().top <= top) best = i;
+      });
+      links.forEach(function (l, i) { l.a.className = i === best ? 'on' : ''; });
+    }
+    addEventListener('scroll', mark, {passive: true});
+    nav.hidden = false;
+    mark();
+  })();
+  </script>"""
 
 
 # ---------------------------------------------------------------- upload
@@ -889,7 +984,16 @@ def match_report(request: Request, match_key: str):
     user, redirect = require_user(request)
     if redirect:
         return redirect
+    return _match_body(match_key, user)
 
+
+def _match_body(match_key: str, user=None, share: str = "", share_team=None):
+    """One match, for a signed-in coach or for a link-holder.
+
+    `share_team` is the team the LINK names, handed in rather than looked up,
+    so a shared link opens the team it was made for even when a different
+    coach happens to be signed in on that browser.
+    """
     # A report belongs to whoever owns the demo behind it. One team's match is
     # never shown to another team - the same rule as /team, enforced the same way.
     owner = db.one("""SELECT d.team_id FROM matches m JOIN demos d ON d.id = m.demo_id
@@ -898,7 +1002,16 @@ def match_report(request: Request, match_key: str):
         return HTMLResponse(page("Not found", banner("Not found"),
                                  '<section><p class="lede">No such match.</p></section>',
                                  user), status_code=404)
-    if owner["team_id"] is not None:
+    if share:
+        # The only check a shared link needs, and the only one it gets: this
+        # match must belong to the team the link names. Anything else is
+        # somebody else's match and this link does not reach it.
+        if share_team is None or owner["team_id"] != share_team["id"]:
+            return HTMLResponse(page("Not found", banner("Not found"),
+                                     '<section><p class="lede">No such match.'
+                                     '</p></section>', None, noindex=True),
+                                status_code=404)
+    elif owner["team_id"] is not None:
         member = db.one("SELECT 1 FROM team_members WHERE team_id = ? AND user_id = ?",
                         owner["team_id"], user["id"])
         if member is None:
@@ -923,7 +1036,7 @@ def match_report(request: Request, match_key: str):
     # Whose report the reader is looking at, established once and early:
     # three separate blocks below need it and one of them used to run
     # before it existed.
-    team = db.team_for_user(user["id"]) if user else None
+    team = share_team if share else (db.team_for_user(user["id"]) if user else None)
 
     r = report_mod.build(match_key, team["id"] if team else None)
     if r is None:
@@ -967,7 +1080,7 @@ def match_report(request: Request, match_key: str):
     if you_open:
         rounds_lost = ", ".join(str(n) for n in you_open["lost_rounds"]) or "-"
         od.append(
-            f'<tr><td class="name">You</td>'
+            f'<tr><td class="name">{esc(team["name"]) if team else "You"}</td>'
             f'<td class="num">{count(you_open["saved"], you_open["lost"])}</td>'
             f'<td class="num">{count(you_open["converted"], you_open["taken"])}</td>'
             f'<td class="den">{esc(rounds_lost)}</td></tr>')
@@ -1084,8 +1197,6 @@ def match_report(request: Request, match_key: str):
 
     # How early the first duel lands, which is the number the timeline column
     # beside it is full of and nobody wants to average by eye.
-    _fb = sorted(q["opening_at"] for q in r["rows"] if q.get("opening_at"))
-    first_blood_at = f"{_fb[len(_fb) // 2]:.0f}s" if _fb else "&ndash;"
 
     # ---- the match as a picture, not as twenty-nine rows
     #
@@ -1239,16 +1350,17 @@ def match_report(request: Request, match_key: str):
             i = keys.index(match_key)
             if i + 1 < len(seq):                     # older
                 o = seq[i + 1]
-                nav_prev = (f'<a href="/match/{esc(o["match_key"])}">'
+                nav_prev = (f'<a href="{match_href(o["match_key"], share)}">'
                             f'&larr; {esc(o["map"])} '
                             f'{o["us"]}{DASH}{o["them"]}</a>')
             if i > 0:                                # newer
                 o = seq[i - 1]
-                nav_next = (f'<a href="/match/{esc(o["match_key"])}">'
+                nav_next = (f'<a href="{match_href(o["match_key"], share)}">'
                             f'{esc(o["map"])} {o["us"]}{DASH}{o["them"]} &rarr;</a>')
+    back = (f'<a class="den" href="/r/{esc(share)}">Back to the season</a>'
+            if share else '<a class="den" href="/matches">All matches</a>')
     match_nav = (f'<nav class="pager"><span>{nav_prev}</span>'
-                 f'<a class="den" href="/matches">All matches</a>'
-                 f'<span>{nav_next}</span></nav>')
+                 f'{back}<span>{nav_next}</span></nav>')
 
     body = f"""
   {match_nav}
@@ -1259,12 +1371,11 @@ def match_report(request: Request, match_key: str):
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{r["n_rounds"]}</span>
         <span class="label">rounds</span></div>
-      <div class="stat"><span class="stat-n">{first_blood_at}</span>
-        <span class="label">median first blood</span></div>
-      <div class="stat"><span class="stat-n">{r["deaths"]}</span>
-        <span class="label">deaths</span></div>
+      <div class="stat"><span class="stat-n">{r["score_ct"]}&ndash;{r["score_t"]}</span>
+        <span class="label">rounds won, CT to T</span></div>
       <div class="stat"><span class="stat-n">{r["plants"]}</span>
-        <span class="label">bombs planted</span></div>
+        <span class="label">bombs planted</span>
+        <span class="den">of {r["n_rounds"]} rounds</span></div>
     </div>
   </section>
 
@@ -1317,7 +1428,7 @@ def match_report(request: Request, match_key: str):
       rate to mean anything. Where a season rate exists, it sits beside
       them.</p>
   </section>"""
-    return html_page("Match report", head, body, user)
+    return html_page("Match report", head, body, user, noindex=bool(share))
 
 
 
@@ -1330,13 +1441,27 @@ def players_page(request: Request):
     team = db.team_for_user(user["id"])
     if team is None:
         return see_other("/dashboard")
+    return _players_body(team, user)
 
+
+def _players_body(team, user=None, share: str = ""):
+    """The roster, for a signed-in coach or for a link-holder."""
+    shared_note = (
+        share_nav(share, "/players") +
+        f'<section><p class="note"><strong>Shared read-only.</strong> '
+        f'Every player across {esc(team["name"])}&rsquo;s matches, including '
+        f'the opponents they played. Click a name for that player&rsquo;s '
+        f'own page.</p></section>') if share else ""
     squad = report_mod.squad(team["id"])
     DASH = "&ndash;"
 
     if not (squad["yours"] or squad["others"]):
+        empty = (f'<section><p class="lede">No players yet, because '
+                 f'{esc(team["name"])} has no parsed matches. This fills in '
+                 f'from the first demo.</p></section>'
+                 if share else empty_state("players", team["name"]))
         return html_page("Players", banner("Players", crumb=esc(team["name"])),
-                         empty_state("players", team["name"]), user)
+                         shared_note + empty, user, noindex=bool(share))
 
     ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
 
@@ -1363,7 +1488,8 @@ def players_page(request: Request):
                        if a["opens"] else "&ndash;")
             out.append(
                 f'<tr><td class="name">'
-                f'<a href="/player/{esc(a["steamid"])}">{esc(a["name"])}</a>{thin}</td>'
+                f'<a href="{player_href(a["steamid"], share)}">'
+                f'{esc(a["name"])}</a>{thin}</td>'
                 f'<td><span class="{cls}" title="{esc(a["role_why"])}">'
                 f'{esc(a["role"])}</span></td>'
                 f'<td class="num mono">{a["matches"]}</td>'
@@ -1412,20 +1538,18 @@ def players_page(request: Request):
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'Who keeps turning up</span><h2>Your players</h2></div>'
-            f'<p class="lede">A demo carries no roster, so these are the players '
-            f'who stood on your side of the match and came back for more than '
-            f'one of them. Which side was yours is read off whoever appears '
-            f'across your season; nobody types in a Steam ID.</p>'
+            f'<p class="lede">Everyone who stood on your side in more than one '
+            f'match. A demo carries no roster, so this is read from your season '
+            f'rather than typed in.</p>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
             f'<tbody>{player_rows(regulars)}</tbody></table></div></section>')
     if once:
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'On your side, once</span><h2>Played with you once</h2></div>'
-            f'<p class="lede">Also your team, on the night. Stand-ins, a fifth '
-            f'who could make one match, or a queue that never repeated. Their '
-            f'rounds count as yours and they are not your roster, so they sit '
-            f'apart rather than in it.</p>'
+            f'<p class="lede">Stand-ins and one-off fifths. Their rounds count '
+            f'as yours, but they are not your roster, so they sit apart from '
+            f'it.</p>'
             f'<details><summary>Show {len(once)} player'
             f'{"s" if len(once) != 1 else ""}</summary>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
@@ -1463,15 +1587,15 @@ def players_page(request: Request):
   </section>
   {"".join(blocks)}
   <section>
-    <p class="note"><strong>Counted, not modeled.</strong> Every figure here is
-      arithmetic over parsed rounds. CT and T damage are kept apart on purpose: a
-      player at 90 ADR as CT and 60 as T has a specific problem, and one averaged
-      number hides it. Anyone under {report_mod.MIN_ROUNDS_FOR_ROLE} rounds is marked
-      thin and gets no role. Trades, clutches, multi-kill rounds and flash
-      figures are on each player&rsquo;s own page; click a name.</p>
+    <p class="note"><strong>Counted, not modelled.</strong> CT and T damage are
+      kept apart because a player at 90 ADR as CT and 60 as T has a problem one
+      average would hide. Under {report_mod.MIN_ROUNDS_FOR_ROLE} rounds a player is
+      marked thin and gets no role. Trades, clutches and flash figures are on each
+      player&rsquo;s own page.</p>
   </section>"""
     return html_page("Players", banner("Players", crumb=esc(team["name"]),
-                                       label="Season player stats"), body, user)
+                                       label="Season player stats"),
+                     shared_note + body, user, noindex=bool(share))
 
 
 
@@ -1675,10 +1799,9 @@ def empty_state(what: str, team_name: str = "") -> str:
         <p class="lede">In CS2: <b>Watch &rarr; Your Matches</b>, then Download beside
           the match. Files land in your <code>csgo/replays</code> folder.</p></div>
     </div>
-    <p class="note"><strong>Grab them while they are fresh.</strong> FACEIT and Valve
-      both delete match demos after a few weeks. The ones worth keeping are the ones
-      you save now. A season you cannot download is a season this cannot
-      analyze.</p>
+    <p class="note"><strong>Demos expire.</strong> FACEIT and Valve both delete
+      match demos after a few weeks, so save the ones worth keeping now. A season
+      you cannot download is a season this cannot analyse.</p>
   </section>"""
 
 
@@ -1987,12 +2110,38 @@ def stats_page(request: Request):
     team = db.team_for_user(user["id"])
     if team is None:
         return see_other("/dashboard")
+    return _stats_body(team, user)
 
+
+def _stats_body(team, user=None, share: str = ""):
+    """The season report, for a signed-in coach or for a link-holder.
+
+    `share` is the token when somebody followed a link instead of logging in.
+    It changes where the match links point and nothing else: the roster is
+    meant to read the same page the coach reads.
+    """
+    # Built here rather than at the end, because the empty season returns
+    # before the end and a link-holder who arrives at an empty season still
+    # needs to know what they are looking at and how to reach the roster.
+    shared_note = (
+        share_nav(share, "") +
+        f'<section><p class="note"><strong>Shared read-only.</strong> '
+        f'This is {esc(team["name"])}&rsquo;s season, sent to you by whoever '
+        f'runs the team. Nothing here can be changed from this page and no '
+        f'account is needed to read it.</p></section>') if share else ""
     st = report_mod.team_stats(team["id"])
     if st is None:
+        # The signed-out version of this cannot be the signed-in one. The
+        # empty state tells a coach to go and upload demos, and the person
+        # holding a share link is the one player on the roster who cannot.
+        empty = (f'<section><p class="lede">There is nothing here yet. '
+                 f'{esc(team["name"])} has not had any matches parsed, so '
+                 f'whoever sent you this link will have something to show you '
+                 f'once they upload their first demo.</p></section>'
+                 if share else empty_state("stats", team["name"]))
         return html_page("Team stats",
                          banner("Team stats", crumb=esc(team["name"])),
-                         empty_state("stats", team["name"]), user)
+                         shared_note + empty, user, noindex=bool(share))
 
     DASH = "&ndash;"
     rate = report_mod.rate
@@ -2076,7 +2225,7 @@ def stats_page(request: Request):
             score = (f'{f["us"]}{DASH}{f["them"]}' if f["us"] is not None
                      else "&ndash;")
             cards.append(
-                f'<a class="formcard" href="/match/{esc(f["match_key"])}">'
+                f'<a class="formcard" href="{match_href(f["match_key"], share)}">'
                 f'<span class="res {cls}">{esc(f["result"] or "?")}</span>'
                 f'<span class="mono">{score}</span>'
                 f'<span class="den">{esc(f["map"])}</span></a>')
@@ -2248,6 +2397,11 @@ def stats_page(request: Request):
     MIN_COMPARE = report_mod.MIN_CHANCES
 
     pos_blocks = []
+    # Held back rather than appended, because it renders AFTER the first-death
+    # table below it. A coach opens this part of the page to find out where
+    # rounds are being lost; that is the death table. Where the group stands
+    # twelve seconds in is the context for it, not the preface to it.
+    early_block = ""
     # ---- where you are early: one section, one row per place
     #
     # The setup reading is the spine because it covers more rounds and is the
@@ -2324,7 +2478,7 @@ def stats_page(request: Request):
                      f'together in {all_r - ans} of {all_r} rounds. Those are '
                      f'not counted in a row about how far the group got, '
                      f'because nobody went anywhere as a group to count.</p>')
-        pos_blocks.append(
+        early_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where you are in the opening</h2></div>'
             f'<p class="lede">Where two or more of you stand '
@@ -2393,6 +2547,9 @@ def stats_page(request: Request):
             + f'<th class="num">Of those, won</th>'
             f'</tr></thead><tbody>{"".join(rws)}</tbody></table></div>'
             f'{more}</section>')
+
+    if early_block:
+        pos_blocks.append(early_block)
 
     # ---- the maps, once each, at the head of the three tables
     figs = []
@@ -2509,6 +2666,7 @@ def stats_page(request: Request):
             'alone.</p></section>')
 
     body = f"""
+  {PAGE_NAV}
   <section>
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{st["matches"]}</span>
@@ -2567,9 +2725,10 @@ def stats_page(request: Request):
   </section>
 
   {roster_note}"""
+    body = shared_note + body
     return html_page("Team stats", banner("Team stats", crumb=esc(team["name"]),
                                           label="Across every match you have sent in"),
-                     body, user)
+                     body, user, noindex=bool(share))
 
 
 
@@ -2582,12 +2741,22 @@ def player_page(request: Request, steamid: str):
     team = db.team_for_user(user["id"])
     if team is None:
         return see_other("/dashboard")
+    return _player_body(steamid, team, user)
 
+
+def _player_body(steamid: str, team, user=None, share: str = ""):
+    """One player, for a signed-in coach or for a link-holder.
+
+    `player_matches` is scoped to the team, so an unknown steam id is a 404
+    here rather than a window into anybody else's season. That is what makes
+    this safe to put behind a share link.
+    """
     p = report_mod.player_matches(team["id"], steamid)
     if p is None:
         return HTMLResponse(page("Not found", banner("Not found"),
                                  '<section><p class="lede">No rounds for that player '
-                                 'in your matches.</p></section>', user), status_code=404)
+                                 'in these matches.</p></section>', user,
+                                 noindex=bool(share)), status_code=404)
 
     DASH = "&ndash;"
     t = p["totals"]
@@ -2608,7 +2777,8 @@ def player_page(request: Request, steamid: str):
         blind = (f'{m["blind_per_flash"]:.2f}' if m["flashes_thrown"] else "&ndash;")
         rows.append(
             f'<tr><td class="name">'
-            f'<a href="/match/{esc(m["match_key"])}">{map_chip(m["map_name"])}</a>'
+            f'<a href="{match_href(m["match_key"], share)}">'
+            f'{map_chip(m["map_name"])}</a>'
             f'<div class="den" style="font-weight:400">{esc((m["played_at"] or "")[:10])}</div></td>'
             f'<td>{res}</td>'
             f'<td class="num mono">{esc(m["score"])}</td>'
@@ -2715,10 +2885,106 @@ def player_page(request: Request, steamid: str):
       season average.</p>
   </section>"""
     return html_page(f'{p["name"]}', banner(p["name"], crumb=esc(team["name"]),
-                                            label="Player"), body, user)
+                                            label="Player"),
+                     share_nav(share, "/players") + body, user,
+                     noindex=bool(share))
 
 
 # ---------------------------------------------------------------- account
+
+# ------------------------------------------------------- the shared report
+#
+# Everything under /r/ is reachable by holding the URL and nothing else. No
+# session is read, so a coach signed in on the same browser sees exactly what
+# a player sees, which is the only way to be sure the link works before
+# sending it.
+#
+# A 404 rather than a 403 for a token that names nothing. There is no
+# difference worth telling a stranger between "revoked" and "never existed",
+# and a 403 confirms that a guess was close.
+def _share_team(token: str):
+    return db.team_by_share_token((token or "").strip())
+
+
+def _share_404() -> HTMLResponse:
+    return HTMLResponse(page("Not found", banner("Not found"),
+                             '<section><p class="lede">This link is not valid. '
+                             'It may have been revoked by whoever sent it.'
+                             '</p></section>', None, noindex=True),
+                        status_code=404)
+
+
+@app.get("/r/{token}", response_class=HTMLResponse)
+def shared_season(token: str):
+    team = _share_team(token)
+    if team is None:
+        return _share_404()
+    return _stats_body(team, None, share=token)
+
+
+@app.get("/r/{token}/players", response_class=HTMLResponse)
+def shared_players(token: str):
+    team = _share_team(token)
+    if team is None:
+        return _share_404()
+    return _players_body(team, None, share=token)
+
+
+@app.get("/r/{token}/p/{steamid}", response_class=HTMLResponse)
+def shared_player(token: str, steamid: str):
+    team = _share_team(token)
+    if team is None:
+        return _share_404()
+    return _player_body(steamid, team, None, share=token)
+
+
+@app.get("/r/{token}/m/{match_key}", response_class=HTMLResponse)
+def shared_match(token: str, match_key: str):
+    team = _share_team(token)
+    if team is None:
+        return _share_404()
+    return _match_body(match_key, None, share=token, share_team=team)
+
+
+# --------------------------------------------------- making and revoking one
+@app.post("/share/new")
+def share_new(request: Request, csrf: str = Form("")):
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    team = db.team_for_user(user["id"])
+    if team is None:
+        return see_other("/dashboard")
+    # 32 urlsafe characters out of secrets, which is the same generator the
+    # session cookies use. Guessing one is not a threat model anybody needs to
+    # think about at this length.
+    token = secrets.token_urlsafe(24)
+    # db.execute, not conn.execute: sqlite3 takes its parameters as ONE
+    # sequence, so conn.execute(sql, a, b) is a TypeError and was a 500 on
+    # the button that makes the link. db.execute(*args) is the wrapper that
+    # packs them, and it commits.
+    db.execute("UPDATE teams SET share_token = ? WHERE id = ?",
+               token, team["id"])
+    db.audit(user["id"], "share_new", f"team={team['id']}")
+    return see_other("/account")
+
+
+@app.post("/share/revoke")
+def share_revoke(request: Request, csrf: str = Form("")):
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    team = db.team_for_user(user["id"])
+    if team is None:
+        return see_other("/dashboard")
+    db.execute("UPDATE teams SET share_token = NULL WHERE id = ?", team["id"])
+    db.audit(user["id"], "share_revoke", f"team={team['id']}")
+    return see_other("/account")
+
 
 @app.get("/account", response_class=HTMLResponse)
 def account(request: Request):
@@ -2726,6 +2992,48 @@ def account(request: Request):
     if redirect:
         return redirect
     team = db.team_for_user(user["id"])
+
+    # The link to send the roster. Shown in full and selectable rather than
+    # behind a "copy" button that needs JavaScript to do anything: the normal
+    # use of this page is a coach coming back to re-read a link they already
+    # made, and text you can select always works.
+    if team is None:
+        share_block = ""
+    elif team["share_token"]:
+        # mail.SITE_URL, not the request's own host: the reset emails already
+        # use it, and a link a coach is about to paste somewhere else must be
+        # the site's public address rather than whatever proxy header arrived.
+        link = f"{mail.SITE_URL.rstrip('/')}/r/{esc(team['share_token'])}"
+        share_block = f"""
+  <section>
+    <div class="card">
+      <h3>Your roster&rsquo;s link</h3>
+      <p class="lede">Anyone with this address can read your season and your
+        match reports. They cannot change anything, upload anything, or see
+        any other team, and they do not need an account.</p>
+      <p><a href="{link}" class="mono">{link}</a></p>
+      <p class="den">Send it to your players. If it ends up somewhere it
+        should not, revoke it: the address below stops working immediately and
+        you get a new one.</p>
+      <form method="post" action="/share/revoke">{csrf_input(user)}
+        <button class="btn ghost" type="submit">Revoke and make a new one</button>
+      </form>
+    </div>
+  </section>"""
+    else:
+        share_block = f"""
+  <section>
+    <div class="card">
+      <h3>Share with your roster</h3>
+      <p class="lede">Make a link your players can open to read your season
+        and your match reports. No account for them to create, and they cannot
+        change anything.</p>
+      <form method="post" action="/share/new">{csrf_input(user)}
+        <button class="btn" type="submit">Make a link</button>
+      </form>
+    </div>
+  </section>"""
+
     body = f"""
   <section>
     <div class="card">
@@ -2734,6 +3042,7 @@ def account(request: Request):
       <p class="den">{"Team: " + esc(team["name"]) if team else "No team yet"}</p>
     </div>
   </section>
+  {share_block}
   <section>
     <form method="post" action="/logout">{csrf_input(user)}
       <button class="btn ghost" type="submit">Log out</button></form>
@@ -2945,6 +3254,12 @@ for _p, (_n, _k) in ICONS.items():
 # runs --fetch, and every drawing works without them.
 if (SITE / "radars").is_dir():
     app.mount("/radars", StaticFiles(directory=SITE / "radars"), name="radars")
+
+# The map silhouettes the chips are masked with, built by mapicons.py. Mounted
+# the same way and equally optional: without them map_chip falls back to the
+# radar image it used before.
+if (SITE / "icons").is_dir():
+    app.mount("/icons", StaticFiles(directory=SITE / "icons"), name="icons")
 
 
 # The landing page's video loop and its poster frame. StaticFiles answers Range

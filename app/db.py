@@ -113,6 +113,18 @@ def audit(user_id: int | None, action: str, detail: str = "") -> None:
 
 # ---------------------------------------------------------------- teams
 
+def team_by_share_token(token: str) -> sqlite3.Row | None:
+    """The team a share link points at, or None.
+
+    Guarded against the empty string because a NULL share_token must never
+    match: a team that has revoked its link, or never made one, has to be
+    unreachable rather than reachable by anybody who requests "/r/".
+    """
+    if not token:
+        return None
+    return one("SELECT * FROM teams WHERE share_token = ?", token)
+
+
 def team_for_user(user_id: int) -> sqlite3.Row | None:
     """The team this user belongs to, with their role in it.
 

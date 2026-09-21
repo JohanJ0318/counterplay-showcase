@@ -166,15 +166,33 @@ POSITIONS = {
         ("t", "de_inferno", "T ramp", 6, 25, 1, 1, ""),
     ],
 }
+# Setup and commit, already merged the way /stats merges them: one row per
+# place, the commit reading folded into the sub-line as "also as far as the
+# group got". `other` and `other_won` are the same map and side in the rounds
+# it did not happen, and two rows deliberately fall under MIN_CHANCES there so
+# the column is seen declining to print a rate.
+#
+# (side, map, zone, rounds it happened in, rounds of that map and side,
+#  rounds won of those, other, other won, sub-line)
+EARLY = [
+    ("t", "de_inferno", "T ramp", 19, 25, 11, 6, 2,
+     "2.9 players on average &middot; also as far as the group got in 11 of 25"),
+    ("t", "de_mirage", "A main", 17, 31, 7, 14, 8,
+     "3.7 players on average &middot; also as far as the group got in 14 of 31"),
+    ("ct", "de_nuke", "Ramp", 12, 18, 9, 6, 2,
+     "2.1 players on average &middot; also as far as the group got in 9 of 18"),
+    ("ct", "de_mirage", "A default", 8, 32, 7, 24, 13,
+     "2.4 players on average"),
+    ("t", "de_nuke", "Trophy", 7, 16, 3, 9, 5,
+     "3.0 players on average"),
+    ("t", "de_nuke", "lobby", 7, 16, 2, 9, 6,
+     "the furthest the group got together"),
+    ("t", "de_mirage", "top mid", 5, 31, 1, 26, 11,
+     "the furthest the group got together"),
+]
+EARLY_HIDDEN = 6
+
 POS_SECTIONS = (
-    ("commit", "Where your group ends up",
-     "The furthest three of you get together and hold, inside the first "
-     f"{int(COMMIT_TO)} seconds. Corridors everyone walks through are not "
-     "destinations, so they only appear here when the group never got past "
-     "them, which is itself worth seeing.", 3),
-    ("setup", "Your default setup",
-     f"Where two or more of you are standing {int(SETUP_AT)} seconds in: after "
-     "the round has taken shape, before contact decides it.", 4),
     ("death", "Where your first death happens",
      "The first of you to die, where, and whether anybody got him back. The "
      "same death traded leaves a 4v4 and untraded leaves a 4v5, which is the "
@@ -288,8 +306,73 @@ def render(user=None, pictures=None) -> str:
         f'<span class="den">{esc(den)}</span></div>'
         for i, (big, label, den, tip) in enumerate(UTILITY))
 
-    # ---- positions, with the map drawn beside the table that names it
+    # ---- positions: the maps once, then the tables that name them
+    #
+    # Section order is /stats' order, and the maps are drawn from the union of
+    # every place named below, which is why this gathers the zones before it
+    # renders anything.
     pos_blocks = []
+
+    shown_zones: dict = {}
+    for row in EARLY:
+        shown_zones.setdefault(row[1], set()).add(row[2])
+    for row in POSITIONS["death"]:
+        shown_zones.setdefault(row[1], set()).add(row[2])
+
+    figs = []
+    if pictures:
+        for mp, show in shown_zones.items():
+            for pic in pictures(mp, show=show, width=300):
+                floor = (f' <span class="pill">{esc(pic["level"])}</span>'
+                         if pic["level"] else "")
+                figs.append(
+                    f'<figure class="zonefig">{pic["svg"]}'
+                    f'<figcaption class="den"><strong>'
+                    f'{esc(mp.replace("de_", ""))}</strong>{floor}'
+                    f'</figcaption></figure>')
+    if figs:
+        pos_blocks.append(
+            f'<section><div class="sec-head"><span class="label">From position '
+            f'data</span><h2>The maps you play</h2></div>'
+            f'<p class="lede">Every place named in the two tables below it, '
+            f'drawn from your own rounds. A map whose sites sit on top of each '
+            f'other, like nuke, gets both floors.</p>'
+            f'<div class="zonerow">{"".join(figs)}</div></section>')
+
+    # The merged early table. The fourth column is the same map and side in
+    # the rounds it did not happen; under MIN_CHANCES it declines to answer
+    # rather than printing a percentage off five rounds.
+    erows = ""
+    for side, mp, zone, hit, of, won, other, other_won, extra in EARLY:
+        against = (rate(other_won, other) if other >= MIN_CHANCES else
+                   '<span class="rt nil"><b class="den">&ndash;</b></span>')
+        erows += (f'<tr><td class="name"><span class="pill {side}">'
+                  f'{side.upper()}</span> {esc(zone)}'
+                  f'<span class="den" style="font-weight:400;margin-left:7px">'
+                  f'{esc(mp.replace("de_", ""))} &middot; {extra}</span></td>'
+                  f'<td class="num">{rate(hit, of)}</td>'
+                  f'<td class="num">{rate(won, hit)}</td>'
+                  f'<td class="num">{against}</td></tr>')
+    # Held back: it renders after the first-death table, the way /stats
+    # orders them. Where rounds are lost comes before where the group stands.
+    early_block = (
+        f'<section><div class="sec-head"><span class="label">From position '
+        f'data</span><h2>Where you are in the opening</h2></div>'
+        f'<p class="lede">Where two or more of you stand {int(SETUP_AT)} '
+        f'seconds in, once the round has shape and before contact decides it. '
+        f'The last column is the same map and the same side in the rounds it '
+        f'did not happen, which is the only comparison worth making: read '
+        f'against your season average, most of these numbers are reading the '
+        f'map rather than the habit.</p>'
+        f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
+        f'<th class="num">Rounds</th><th class="num">Of those, won</th>'
+        f'<th class="num" title="The same map and side, in the rounds this '
+        f'did not happen">When you do not</th></tr></thead>'
+        f'<tbody>{erows}</tbody></table></div>'
+        f'<p class="note">{EARLY_HIDDEN} more places showed the same pattern '
+        f'less often; the top {len(EARLY)} are the ones worth practice '
+        f'time.</p></section>')
+
     for kind, title, lede, hidden in POS_SECTIONS:
         rows = POSITIONS[kind]
         # Only a first death can be traded, so the column exists in that one
@@ -307,20 +390,6 @@ def render(user=None, pictures=None) -> str:
                     f'<td class="num">{rate(hit, of)}</td>{traded_cell}'
                     f'<td class="num">{rate(won, hit)}</td></tr>')
 
-        figs = []
-        if pictures:
-            for mp in dict.fromkeys(r[1] for r in rows):
-                show = {r[2] for r in rows if r[1] == mp}
-                for pic in pictures(mp, show=show, width=300):
-                    floor = (f' <span class="pill">{esc(pic["level"])}</span>'
-                             if pic["level"] else "")
-                    figs.append(
-                        f'<figure class="zonefig">{pic["svg"]}'
-                        f'<figcaption class="den"><strong>'
-                        f'{esc(mp.replace("de_", ""))}</strong>{floor}'
-                        f'</figcaption></figure>')
-        maps_here = f'<div class="zonerow">{"".join(figs)}</div>' if figs else ""
-
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'From position data</span><h2>{esc(title)}</h2></div>'
@@ -332,8 +401,10 @@ def render(user=None, pictures=None) -> str:
             + f'<th class="num">Of those, won</th></tr></thead>'
             f'<tbody>{rws}</tbody></table></div>'
             f'<p class="note">{hidden} more places showed the same pattern less '
-            f'often; the top {len(rows)} are the ones worth practice time.</p>'
-            f'{maps_here}</section>')
+            f'often; the top {len(rows)} are the ones worth practice '
+            f'time.</p></section>')
+
+    pos_blocks.append(early_block)
 
     # ---- map pool, sides, buys
     map_rows = "".join(

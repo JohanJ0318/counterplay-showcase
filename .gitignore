@@ -15,6 +15,11 @@ site/nuke-zones.html
 site/finish-zones.html
 site/league/
 
+# The same generated pages after the league section was taken off the site.
+# 980 files, 25MB, rebuilt from league/gen in about a minute. archive/README.md
+# is the part worth keeping: it says what was removed and how to restore it.
+archive/site-league/
+
 # The league API cache: 27MB of somebody else's data.
 league/gen/cache/
 
