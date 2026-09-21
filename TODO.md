@@ -75,9 +75,6 @@ true on purpose.
 
 ## Product gaps a coach will notice
 
-- [ ] **The dashboard is a brochure.** Six feature cards, two of them "coming",
-      are the first thing a returning coach sees. The Monday advice, the most
-      useful thing in here, is two clicks away on Team stats. They should swap.
 - [ ] **Utility has no map or side split.** "67% of your flashes blind your own
       side" is a good line, and the next three questions are which map, which
       side, which player. None are answerable.
@@ -107,12 +104,13 @@ true on purpose.
 
 ## Interface
 
-- [ ] **No favicon.** The tab is a blank page icon next to Leetify's logo.
-- [ ] **Tables scroll sideways on mobile with no hint.** The charts say so; the
-      tables, which are wider and matter more, say nothing.
-- [ ] **No print stylesheet.** Coaches print things for team meetings.
 - [ ] **The Team stats page is 5.9 MB**, because every zone map ships on every
       load.
+- [ ] **HEAD returns 405 everywhere.** FastAPI's `APIRoute` does not add HEAD
+      to a GET route the way plain Starlette does. Link unfurlers use GET so
+      nothing on the outreach path is affected; uptime monitors and link
+      checkers use HEAD, so a monitor pointed at the site would read it as
+      down.
 
 ## Done
 
@@ -137,3 +135,57 @@ with the test.
 
 **A favicon**, drawn sharp at 16, 32, 48 and 64 rather than downsampled from
 one big frame.
+
+**A link preview**, 2026-09-21. The site had no `og:` tags at all, so the URL
+about to be posted in the NECC Discord and mailed to thirteen coaches unfurled
+as a line of grey text. There is a card now, `site/media/og.png`, drawn by
+`makeog.py` in the dark palette and carrying one real reading with its
+denominator. Deliberately not the video poster frame: that is gameplay footage
+with ten strangers' Steam avatars along the top, which is somebody else's data
+on our card.
+
+The same tags are in the page shell, and **suppressed on `noindex` pages**. A
+share link unfurling a team name into a Discord channel is the exact leak the
+noindex is there to stop.
+
+Set in Segoe UI and Consolas, because Space Grotesk and JetBrains Mono are not
+installed on this machine. Drop either `.ttf` into `design/fonts/` and re-run
+`makeog.py` and it picks them up.
+
+**`/robots.txt` and `/sitemap.xml`**, same day. Both 404'd. Six pages are
+public; the other thirty routes want a session or a token, and `/zones.html`
+is 6.4MB of zone-naming tool nobody outside the box has a use for.
+
+**The print stylesheet**, same day. What came out of a printer used to be the
+screen: a black page if the reader had picked dark, the sticky contents bar
+stamped on top, an upload button nobody can press on paper, and every table
+wider than the sheet cut off at the margin. It forces the light palette,
+naming `[data-theme="dark"]` explicitly because that selector is one point
+more specific than `:root` and would otherwise win. Tables print at .72rem
+with 8px gutters, which takes the roster from 925 pixels to 644 and fits it on
+a sheet: letting a scroll container overflow is not the same as making it fit,
+and on paper the columns past the edge are not scrolled away, they are gone.
+
+**The table scroll hint**, same day. The charts said "scroll sideways" and the
+tables, which are wider and matter more, said nothing. The class is set by
+script from the element's real overflow rather than from a breakpoint, for the
+same reason `rate()` will not print a percentage off four rounds: on the live
+sample report at 375px that is eight of ten tables, and a hint under the two
+that fit is a hint a reader learns to ignore. It clears at the right edge and
+comes back on the way left.
+
+**The Monday advice on the dashboard**, same day. It was two clicks away on
+Team stats while the first screen opened with six feature cards, two of them
+"coming". The top three findings are on the dashboard now, under "read this
+one first", with a link through to the full plan grouped by map. `advice_card`
+was lifted out of the Team stats closure so both pages draw the same card; two
+renderings of one recommendation is two things to keep in step, and the one on
+the smaller page is the one that would have drifted.
+
+The cost moved rather than grew: the dashboard is 0.9s cold and 5ms warm,
+because `monday`'s expensive parts are already `@memo.by_team` and the
+dashboard now warms the cache that Team stats reads. Do NOT put `@memo.by_team`
+on `monday` itself. It was tried and it turned 14 tests in `test_advice.py`
+red: those tests never write to the demos table, so `memo.version()` returns
+the same stamp for every one of them and the cache hands back the first test's
+answer.

@@ -574,6 +574,44 @@ def feature_card(key: str, level: Level, team_slug: str | None) -> str:
             f'<p class="lede">{esc(f.blurb)}</p>{go}</div>')
 
 
+def advice_card(it, baseline: float) -> str:
+    """One recommendation, with the count it was drawn from underneath.
+
+    Lifted out of the Team stats page when the dashboard started drawing the
+    top of the same list. Two renderings of one recommendation is two things
+    to keep in step, and the one on the smaller page is the one that would
+    have drifted.
+    """
+    tag = "keep doing this" if it["good"] else "worth changing"
+    cls = "on" if it["good"] else "t"
+    side = (it["side"] or "").upper()
+    # A finding counted in flashes or in dollars brings its own closing line.
+    # The rest are a share of rounds against the team's round win rate -- and
+    # when there is only one count to compare, that belongs ON the count
+    # rather than under it. A card that says "you win 2 of those 9" and then
+    # "22% against your 49% overall, a gap of 27 points across 9 rounds" has
+    # said one thing three ways.
+    lines = list(it["evidence"])
+    foot = it.get("foot")
+    if not foot and len(lines) == 1:
+        lines[0] = (f'{lines[0]} ({it["rate"]:.0f}%), against '
+                    f'{baseline:.0f}% overall')
+    elif not foot:
+        foot = (f'{it["rate"]:.0f}% against your {baseline:.0f}% overall, '
+                f'across {it["of"]} rounds')
+    ev = "".join(f'<li>{esc(e)}</li>' for e in lines)
+    return (
+        f'<div class="card advice{" good" if it["good"] else ""}">'
+        f'<div style="display:flex;gap:9px;align-items:center;'
+        f'flex-wrap:wrap"><span class="pill {cls}">{tag}</span>'
+        + (f'<span class="pill {it["side"]}">{side}</span>' if side else "")
+        + f'</div><h3>{esc(it["do"])}</h3>'
+        f'<p class="lede">{esc(it["because"])}</p>'
+        f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
+        + (f'<p class="den">{esc(foot)}</p>' if foot else "")
+        + '</div>')
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     user, redirect = require_user(request)
@@ -602,6 +640,36 @@ def dashboard(request: Request):
         status = ('<p class="note">Nothing parsed yet. Upload demos below and the '
                   'reports fill in. Upload them soon: FACEIT and Valve both '
                   'delete match demos after a few weeks.</p>')
+
+    # ---- what to work on, on the first screen
+    #
+    # This was two clicks away on Team stats, behind a dashboard that opened
+    # with a grid of six feature cards, two of them "coming". A coach who logs
+    # in on a Monday wants the things to run at practice, not a description of
+    # the product they are already inside. The full ranked plan stays on Team
+    # stats, grouped by map, because that is where practice gets planned; what
+    # goes here is the top of it and a way through to the rest.
+    #
+    # Three cards, not eight. A summary you have to scroll has stopped being
+    # one, and the ranking already puts the findings covering the most rounds
+    # first.
+    plan = advice.monday(team["id"]) if team else {"items": [], "baseline": 0.0}
+    top = plan["items"][:3]
+    if top:
+        rest = len(plan["items"]) - len(top)
+        through = (f'All {len(plan["items"])} of them, grouped by map'
+                   if rest else "The same list, grouped by map")
+        advice_block = f"""
+  <section class="lead">
+    <div class="sec-head"><span class="label">Read this one first</span>
+      <h2>What to work on</h2></div>
+    <div class="grid2">
+      {"".join(advice_card(i, plan["baseline"]) for i in top)}</div>
+    <p class="note" style="margin-top:12px">
+      <a href="/stats">{through} &rarr;</a></p>
+  </section>"""
+    else:
+        advice_block = ""
 
     # Record and recent form, so the first screen after logging in is about the
     # team rather than about the plan. Two cards used to read the same number
@@ -647,6 +715,7 @@ def dashboard(request: Request):
     </div>
     {status}
   </section>
+  {advice_block}
   {form_block}
 
   <section>
@@ -2157,37 +2226,6 @@ def _stats_body(team, user=None, share: str = ""):
     # rather than having to trust it.
     plan = advice.monday(team["id"])
     if plan["items"]:
-        def advice_card(it):
-            tag = "keep doing this" if it["good"] else "worth changing"
-            cls = "on" if it["good"] else "t"
-            side = (it["side"] or "").upper()
-            # A finding counted in flashes or in dollars brings its own
-            # closing line. The rest are a share of rounds against the team's
-            # round win rate -- and when there is only one count to compare,
-            # that belongs ON the count rather than under it. A card that says
-            # "you win 2 of those 9" and then "22% against your 49% overall, a
-            # gap of 27 points across 9 rounds" has said one thing three ways.
-            lines = list(it["evidence"])
-            foot = it.get("foot")
-            if not foot and len(lines) == 1:
-                lines[0] = (f'{lines[0]} ({it["rate"]:.0f}%), against '
-                            f'{plan["baseline"]:.0f}% overall')
-            elif not foot:
-                foot = (f'{it["rate"]:.0f}% against your '
-                        f'{plan["baseline"]:.0f}% overall, across '
-                        f'{it["of"]} rounds')
-            ev = "".join(f'<li>{esc(e)}</li>' for e in lines)
-            return (
-                f'<div class="card advice{" good" if it["good"] else ""}">'
-                f'<div style="display:flex;gap:9px;align-items:center;'
-                f'flex-wrap:wrap"><span class="pill {cls}">{tag}</span>'
-                + (f'<span class="pill {it["side"]}">{side}</span>' if side else "")
-                + f'</div><h3>{esc(it["do"])}</h3>'
-                f'<p class="lede">{esc(it["because"])}</p>'
-                f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
-                + (f'<p class="den">{esc(foot)}</p>' if foot else "")
-                + '</div>')
-
         # Grouped by map, because practice is planned one map at a time. The
         # ranking still decides the order of the groups and of the cards inside
         # them, so what matters most is still read first.
@@ -2199,7 +2237,7 @@ def _stats_body(team, user=None, share: str = ""):
                     f'to work on</h3></div>')
             groups.append(f'<div style="margin-bottom:22px">{head}'
                           f'<div class="grid2">'
-                          f'{"".join(advice_card(i) for i in items)}</div></div>')
+                          f'{"".join(advice_card(i, plan["baseline"]) for i in items)}</div></div>')
         monday_block = f"""
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
@@ -3248,6 +3286,65 @@ def _icon_route(path: str, name: str, kind: str):
 
 for _p, (_n, _k) in ICONS.items():
     _icon_route(_p, _n, _k)
+
+
+# ---- what a crawler is allowed to ask for
+#
+# Six pages on this site are public: the landing page, the sample report, the
+# two legal pages and the two ways in. Everything else is behind a session or
+# behind a share token, and a crawler that walks into one gets a login page
+# for its trouble, which is a wasted fetch for both of us.
+#
+# Two entries earn their place for a reason other than tidiness. `/r/` holds
+# the share links, and a capability URL in an index is not a capability any
+# more; the pages already say `noindex`, and this says it a second time before
+# the fetch rather than after. `/zones.html` is 6.4MB of zone-naming tool that
+# nobody outside this box has any use for.
+#
+# A disallow is not a permission check. Everything here is also enforced in
+# the handler; this only stops well-behaved crawlers from asking.
+ROBOTS = """User-agent: *
+Disallow: /r/
+Disallow: /reset/
+Disallow: /account
+Disallow: /dashboard
+Disallow: /team/
+Disallow: /match/
+Disallow: /player/
+Disallow: /players
+Disallow: /stats
+Disallow: /trends
+Disallow: /matches
+Disallow: /unsubscribe
+Disallow: /zones.html
+Disallow: /finish-zones.html
+Disallow: /nuke-zones.html
+Disallow: /api/
+
+Sitemap: https://counterplaycs.com/sitemap.xml
+"""
+
+# The public pages, listed once. No `lastmod`: a date that is not maintained
+# is worse than no date, because a crawler believes it.
+SITEMAP_PAGES = ("/", "/sample-report", "/signup", "/login", "/privacy", "/terms")
+
+
+@app.get("/robots.txt", include_in_schema=False)
+def robots_txt():
+    return Response(ROBOTS, media_type="text/plain",
+                    headers={"Cache-Control": "public, max-age=86400"})
+
+
+@app.get("/sitemap.xml", include_in_schema=False)
+def sitemap_xml():
+    urls = "".join(
+        f"<url><loc>https://counterplaycs.com{p}</loc></url>"
+        for p in SITEMAP_PAGES)
+    xml = ('<?xml version="1.0" encoding="UTF-8"?>'
+           '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'
+           f'{urls}</urlset>')
+    return Response(xml, media_type="application/xml",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 # Map overview images, fetched by counterplay/radar.py. Absent until someone

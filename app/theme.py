@@ -695,6 +695,87 @@ footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);
   th,td{padding:10px 12px}
   .card{padding:18px}
 }
+
+/* A TABLE THAT SCROLLS SIDEWAYS SAYS SO.
+
+   The charts already do this and the tables, which are wider and matter
+   more, said nothing: the roster carries twelve columns, and on a phone the
+   last four of them are off the right edge with no indication they exist. A
+   table that is cut off and a table that scrolls look identical standing
+   still.
+
+   The class is set by script from the element's real overflow rather than by
+   a breakpoint, for the same reason `rate()` refuses to print a percentage
+   off four rounds. A hint under a table that fits is a hint a reader learns
+   to ignore, and then it is not there when it is true. It also clears itself
+   once you reach the right edge, because by then it is describing something
+   you have already done. */
+.tbl-wrap.over::after{content:"scroll sideways for the rest of the table";
+  display:block;font-family:var(--f-mono);font-size:.62rem;color:var(--faint);
+  padding:9px 16px 11px;border-top:1px solid var(--border)}
+
+/* ---- print ----
+
+   Coaches print this for a team meeting, and until now what came out of the
+   printer was the screen: a dark page if the reader had picked dark, the
+   sticky table of contents stamped across the top, an upload button nobody
+   can press on paper, and every table wider than the sheet cut off at the
+   margin with its last columns gone.
+
+   Naming `[data-theme="dark"]` is not belt and braces. It is one point more
+   specific than `:root`, so a print rule that only said `:root` would lose to
+   a reader's own choice of dark mode and print a black page. */
+@media print{
+  :root[data-theme="dark"], :root{
+    --bg:#FFFFFF; --surface:#FFFFFF; --surface-2:#FFFFFF;
+    --border:#C9C4D4; --border-strong:#A8A1B8;
+    --ink:#000000; --muted:#333042; --faint:#55506A;
+    --purple:#3F1178; --purple-deep:#2A0B50; --purple-bright:#3F1178;
+    --purple-soft:#F2EEFA; --purple-line:#C9BCE8; --on-purple:#FFFFFF;
+    --ct:#3F1178; --ct-soft:#F2EEFA; --t:#7A4208; --t-soft:#FBF3E6;
+    --good:#04543C; --bad:#8B1616; --bad-soft:#FBF0F0;
+    --shadow:none;
+  }
+  @page{margin:14mm}
+  html{color-scheme:light}
+  body{background:#FFFFFF}
+  .wrap{max-width:none;padding-left:0;padding-right:0}
+
+  /* The parts of the page that only work under a cursor. The hints go too:
+     nothing scrolls on paper, so both of them would be instructions to do
+     something impossible. */
+  nav.top, .pagenav, .themebtn, .navbtn, .navchk, button, .btn,
+  input, select, textarea, .howto,
+  .tbl-wrap.over::after, .chart::after{display:none !important}
+
+  /* A container that scrolls on screen has to grow on paper. A printer has
+     no scrollbar, so whatever sits past the edge is not clipped, it is lost. */
+  .tbl-wrap, .chart{overflow:visible !important}
+  .chart svg{max-width:100%;height:auto}
+
+  /* Letting it overflow is not the same as making it fit. A sheet is about
+     680 pixels wide at these margins and the roster is 683 at screen size,
+     so without this the last columns do not scroll away, they fall off the
+     paper, which is the bug this section exists to fix. Smaller type and
+     tighter gutters is the only lever a table of `white-space:nowrap`
+     columns leaves. */
+  table{font-size:.72rem}
+  table.dense{font-size:.66rem}
+  th,td{padding:6px 8px}
+  table.dense th:first-child,table.dense td:first-child{padding-left:8px}
+  table.dense th:last-child,table.dense td:last-child{padding-right:8px}
+
+  /* A header row printed once leaves every sheet after the first as a grid of
+     unlabelled numbers. */
+  thead{display:table-header-group}
+  tr, .card, .stat, .formcard, .note, .chart{break-inside:avoid}
+  h1,h2,h3{break-after:avoid}
+
+  /* Purple in greyscale is just a paler word, and an underline under every
+     link in a dense table is noise. */
+  a{color:inherit;text-decoration:none}
+  tbody tr:hover td{background:transparent}
+}
 """
 
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
@@ -756,9 +837,33 @@ window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
 h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}}
 </script>"""
 
+# Which tables actually scroll, measured rather than assumed.
+#
+# Whether a twelve-column table overflows depends on the window, the font that
+# loaded and the longest nickname in it, so no breakpoint gets this right. It
+# runs at the end of the body, where the tables exist, and again on resize.
+# The listener is attached once per container and guarded by a data attribute
+# because a resize fires many times and this is called on each one.
+TABLE_SCRIPT = """<script>
+function cpOver(e){e.classList.toggle('over',
+  e.scrollWidth-e.clientWidth-e.scrollLeft>2)}
+function cpTables(){var w=document.querySelectorAll('.tbl-wrap'),i,e;
+  for(i=0;i<w.length;i++){e=w[i];
+    if(!e.dataset.cpo){e.dataset.cpo='1';
+      e.addEventListener('scroll',function(){cpOver(this)},{passive:true})}
+    cpOver(e)}}
+cpTables();addEventListener('resize',cpTables,{passive:true});
+</script>"""
+
 THEME_BUTTON = ('<button class="themebtn" type="button" onclick="cpTheme()" '
                 'title="Switch between light and dark" '
                 'aria-label="Switch between light and dark">&#9681;</button>')
+
+
+SOCIAL_BLURB = ("Match analysis for league Counter-Strike teams. Player stats, "
+                "team stats, a report per match, and the patterns a team "
+                "repeats without noticing, each one printed with the rounds "
+                "it came from.")
 
 
 def page(title: str, head: str, body: str, user=None,
@@ -769,6 +874,23 @@ def page(title: str, head: str, body: str, user=None,
     signing in. A capability link that a search engine has crawled is not a
     capability link any more.
     """
+    # The link-preview card, on the pages a stranger is allowed to see.
+    #
+    # Deliberately not on a `noindex` page. Those are the share links, and the
+    # whole point of one is that holding the URL is the only permission there
+    # is. A team name unfurling into a Discord channel because somebody pasted
+    # their link is exactly the leak the noindex is there to prevent, so the
+    # rule is the same rule: if it is not for crawlers, it is not for
+    # unfurlers either.
+    social = "" if noindex else f"""
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Counterplay">
+<meta property="og:title" content="{esc(title)}">
+<meta property="og:description" content="{esc(SOCIAL_BLURB)}">
+<meta property="og:image" content="https://counterplaycs.com/media/og.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta name="twitter:card" content="summary_large_image">"""
     if user is None:
         links = ('<a href="/login">Log in</a>'
                  '<a class="btn" href="/signup">Add your team</a>')
@@ -784,7 +906,7 @@ def page(title: str, head: str, body: str, user=None,
 <title>{esc(title)}</title>
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="apple-touch-icon" href="/apple-touch-icon.png">{FONTS}
+<link rel="apple-touch-icon" href="/apple-touch-icon.png">{social}{FONTS}
 <style>{CSS}</style>{THEME_SCRIPT}</head><body>
 <nav class="top"><div class="nav-in">
   <a class="mark" href="/">Counter<em>play</em></a>
@@ -803,7 +925,7 @@ def page(title: str, head: str, body: str, user=None,
   <span><a href="/privacy">Privacy</a> &middot; <a href="/terms">Terms</a>
     &middot; <a href="/unsubscribe">Unsubscribe</a></span>
 </footer>
-</div></body></html>"""
+</div>{TABLE_SCRIPT}</body></html>"""
 
 
 def banner(title: str, crumb: str = "", label: str = "") -> str:
