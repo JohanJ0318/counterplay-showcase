@@ -226,7 +226,8 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    the network did. */
 #reveal{position:fixed;inset:0;z-index:100;background:#141119;
   display:none;align-items:center;justify-content:center;gap:22px;
-  flex-direction:column}
+  flex-direction:column;overflow:hidden}
+#reveal svg,#reveal .word{position:relative;z-index:1}
 /* The dark palette, pinned. Not var(), because this panel does not follow
    the reader's theme: it is the thing the theme is revealed from. Colours
    here override the SVG's own fill attributes, which is what CSS does. */
@@ -269,10 +270,24 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 
 /* The lock. Punches past its size and settles. */
 #reveal .dot{opacity:0;
-  animation:dotin .34s cubic-bezier(.3,1.7,.4,1) .3s forwards}
+  animation:dotin .52s cubic-bezier(.3,1.7,.4,1) .3s forwards}
 @keyframes dotin{
-  from{opacity:0;transform:scale(0) rotate(-45deg)}
-  to{opacity:1;transform:none}}
+  0%{opacity:0;transform:scale(0) rotate(-45deg);
+     filter:drop-shadow(0 0 0 rgba(224,164,88,0))}
+  55%{opacity:1;filter:drop-shadow(0 0 13px rgba(224,164,88,.95))}
+  100%{opacity:1;transform:none;
+       filter:drop-shadow(0 0 5px rgba(224,164,88,.45))}}
+
+/* The same light, thrown wider and softer behind the whole mark. A plain
+   div rather than an SVG filter, because a blurred radial gradient composites
+   on the GPU and a feGaussianBlur over the whole lockup does not. */
+#reveal .bloom{position:absolute;width:320px;height:320px;border-radius:50%;
+  background:radial-gradient(circle,rgba(167,139,250,.30) 0%,
+    rgba(167,139,250,.10) 42%,rgba(167,139,250,0) 70%);
+  opacity:0;pointer-events:none;
+  animation:bloomin .7s ease .28s forwards}
+@keyframes bloomin{0%{opacity:0;transform:scale(.55)}
+  45%{opacity:1}100%{opacity:.6;transform:scale(1)}}
 
 /* Wiped, not faded: the mask opens left to right across the word. */
 #reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.95rem;
@@ -457,6 +472,7 @@ footer a{color:var(--muted)}
 <!-- Hidden unless the head script opted in, so this is never a blank screen
      for a reader without JavaScript. -->
 <div id="reveal" aria-hidden="true">
+  <span class="bloom" aria-hidden="true"></span>
   <svg viewBox="0 0 64 64" aria-hidden="true">
     <circle class="ring" cx="32" cy="32" r="27"/>
     <g fill="var(--purple)">
