@@ -224,8 +224,10 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    mapicons.py generates for the map chips, which is why a blocky outline
    sits correctly beside a mark built on a four-unit grid.
 
-   Everything lands by 900ms and the panel is gone by 1150ms whatever the
-   network did. */
+   Everything lands by about 1.5s and the panel is gone by 1.75s whatever
+   the network did. Every duration and every delay here was scaled by the
+   same 1.55, because slowing the durations alone slides the beats out of
+   step with one another. */
 #reveal{position:fixed;inset:0;z-index:100;background:#141119;
   display:none;align-items:center;justify-content:center;gap:16px;
   flex-direction:column;overflow:hidden}
@@ -243,10 +245,10 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    Nothing cross-fades: a dark panel dissolving into a light page spends
    every frame in the middle as a wash of the two. */
 #reveal.done{pointer-events:none;
-  animation:revlift .44s cubic-bezier(.7,0,.28,1) .16s forwards}
+  animation:revlift .52s cubic-bezier(.7,0,.28,1) .18s forwards}
 @keyframes revlift{from{transform:translateY(0)}to{transform:translateY(-101%)}}
 #reveal.done .scene,#reveal.done .word{
-  animation:revout .19s cubic-bezier(.5,0,.75,0) forwards}
+  animation:revout .24s cubic-bezier(.5,0,.75,0) forwards}
 @keyframes revout{to{opacity:0;transform:scale(1.07)}}
 
 .scene{position:relative;width:min(330px,72vw);aspect-ratio:49/45;
@@ -256,7 +258,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    before the wordmark arrives so the lockup is never competing with it. */
 #reveal .mapsil{position:absolute;inset:0;width:100%;height:100%;
   color:#A78BFA;opacity:0;
-  animation:mapin 0.9s ease forwards}
+  animation:mapin 1.4s ease forwards}
 @keyframes mapin{
   0%{opacity:0;transform:scale(.95)}
   18%{opacity:.13}
@@ -268,7 +270,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    functions are what make each leg snap and settle rather than drift.
    It ends at the centre, because that is where the logo lives. */
 #reveal .mark{position:absolute;width:118px;height:118px;opacity:0;
-  animation:sweep .72s forwards}
+  animation:sweep 1.12s forwards}
 @keyframes sweep{
   0%{opacity:0;transform:translate(-88px,-76px) scale(.70);
      animation-timing-function:cubic-bezier(.2,.8,.3,1)}
@@ -290,7 +292,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 /* The hit ring, at the lock rather than at the start. Amber, because it
    belongs to the pip and not to the arms. */
 #reveal .ring{fill:none;stroke-width:1.1;opacity:0;
-  animation:ringhit .42s cubic-bezier(.2,.8,.3,1) .5s forwards}
+  animation:ringhit .65s cubic-bezier(.2,.8,.3,1) .78s forwards}
 @keyframes ringhit{
   0%{opacity:0;transform:scale(.55)}
   30%{opacity:.85}
@@ -299,7 +301,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 /* The lock itself. Punches past its size, blooms on impact, settles back.
    The bloom belongs to the landing, so it does not stay lit. */
 #reveal .dot{opacity:0;
-  animation:dotin .5s cubic-bezier(.3,1.7,.4,1) .5s forwards}
+  animation:dotin .78s cubic-bezier(.3,1.7,.4,1) .78s forwards}
 @keyframes dotin{
   0%{opacity:0;transform:scale(0) rotate(-45deg);
      filter:drop-shadow(0 0 0 rgba(224,164,88,0))}
@@ -314,7 +316,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   margin:-150px 0 0 -150px;border-radius:50%;pointer-events:none;
   background:radial-gradient(circle,rgba(167,139,250,.30) 0%,
     rgba(167,139,250,.10) 42%,rgba(167,139,250,0) 70%);
-  opacity:0;animation:bloomin .6s ease .48s forwards}
+  opacity:0;animation:bloomin .93s ease .74s forwards}
 @keyframes bloomin{0%{opacity:0;transform:scale(.5)}
   45%{opacity:1}100%{opacity:.62;transform:scale(1)}}
 
@@ -322,7 +324,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 #reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.95rem;
   letter-spacing:-.035em;position:relative;z-index:1;
   clip-path:inset(0 100% 0 0);opacity:0;
-  animation:wordin .34s cubic-bezier(.2,.75,.3,1) .62s forwards}
+  animation:wordin .53s cubic-bezier(.2,.75,.3,1) .96s forwards}
 @keyframes wordin{
   from{clip-path:inset(0 100% 0 0);opacity:1;transform:translateX(-5px)}
   to{clip-path:inset(0 0 0 0);opacity:1;transform:none}}
@@ -794,8 +796,8 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
   var done=false;
   function go(){if(done)return;done=true;r.className='done';
-    setTimeout(function(){h.classList.remove('reveal');},640);}
-  setTimeout(go,1150);
+    setTimeout(function(){h.classList.remove('reveal');},760);}
+  setTimeout(go,1750);
   addEventListener('load',function(){setTimeout(go,350);});
 })();
 
