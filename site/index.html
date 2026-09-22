@@ -238,11 +238,14 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 #reveal .word em{color:#A78BFA}
 :root.reveal #reveal{display:flex}
 :root.reveal body{overflow:hidden}
-/* The lockup steps back as it leaves, so it hands off to the page rather
-   than blinking out of it. */
-#reveal.done{animation:revgo .34s cubic-bezier(.4,0,.7,.2) forwards;
-  pointer-events:none}
-@keyframes revgo{to{opacity:0;transform:scale(1.04);visibility:hidden}}
+/* The lockup goes first, in under a fifth of a second, so the panel is
+   empty before it starts to move. */
+#reveal.done{pointer-events:none;
+  animation:revlift .44s cubic-bezier(.7,0,.28,1) .16s forwards}
+@keyframes revlift{from{transform:translateY(0)}to{transform:translateY(-101%)}}
+#reveal.done svg,#reveal.done .word,#reveal.done .bloom{
+  animation:revout .19s cubic-bezier(.5,0,.75,0) forwards}
+@keyframes revout{to{opacity:0;transform:scale(1.07)}}
 #reveal svg{width:132px;height:132px;overflow:visible;transform-box:view-box}
 #reveal svg *{transform-box:view-box;transform-origin:32px 32px}
 
@@ -760,7 +763,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
   var done=false;
   function go(){if(done)return;done=true;r.className='done';
-    setTimeout(function(){h.classList.remove('reveal');},450);}
+    setTimeout(function(){h.classList.remove('reveal');},640);}
   setTimeout(go,1000);
   addEventListener('load',function(){setTimeout(go,350);});
 })();
