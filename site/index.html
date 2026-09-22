@@ -40,7 +40,12 @@ h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}
 // wrapped because sessionStorage throws in a locked-down browser.
 (function(){try{
   var m=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if(m||sessionStorage.getItem('cp-seen'))return;
+  if(m)return;
+  // ?reveal on the end of the address plays it again without clearing
+  // storage. It is once per SESSION, which for anyone who keeps the tab
+  // open means once, so there has to be a way to watch it a second time.
+  var force=location.search.indexOf('reveal')>-1;
+  if(!force&&sessionStorage.getItem('cp-seen'))return;
   sessionStorage.setItem('cp-seen','1');
   document.documentElement.classList.add('reveal');
 }catch(e){}})();
@@ -259,7 +264,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   animation:revout .24s cubic-bezier(.5,0,.75,0) forwards}
 /* The crosshair is reparented out of the panel before this runs, so the
    rule below only ever catches it if the flight could not start. */
-#reveal.done .mark{animation:none}
+#reveal.done .xhair{animation:none}
 @keyframes revout{to{opacity:0;transform:scale(1.07)}}
 
 .scene{position:relative;width:min(330px,72vw);aspect-ratio:49/45;
@@ -280,7 +285,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
    crosshair being aimed moves in corrections. The per-keyframe timing
    functions are what make each leg snap and settle rather than drift.
    It ends at the centre, because that is where the logo lives. */
-#reveal .mark{position:absolute;width:118px;height:118px;opacity:0;
+#reveal .xhair{position:absolute;width:118px;height:118px;opacity:0;
   animation:sweep 1.12s forwards}
 @keyframes sweep{
   0%{opacity:0;transform:translate(-88px,-76px) scale(.70);
@@ -296,9 +301,20 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   76%{transform:translate(28px,21px) scale(.9);
       animation-timing-function:cubic-bezier(.5,0,.2,1)}
   100%{opacity:1;transform:translate(0,0) scale(1)}}
-#reveal .mark svg{width:100%;height:100%;overflow:visible;
+#reveal .xhair svg{width:100%;height:100%;overflow:visible;
   transform-box:view-box}
-#reveal .mark svg *{transform-box:view-box;transform-origin:32px 32px}
+#reveal .xhair svg *{transform-box:view-box;transform-origin:32px 32px}
+
+/* WHAT THE CROSSHAIR WEARS ONCE IT HAS LEFT THE PANEL.
+   Added by the flight, at top level, because #reveal-scoped rules stop
+   applying the instant the element is reparented and the mark would
+   otherwise travel as a black shape at the wrong size. */
+.cp-fly{position:fixed;z-index:200;margin:0;pointer-events:none}
+.cp-fly svg{width:100%;height:100%;display:block;overflow:visible}
+.cp-fly svg *{transform-box:view-box;transform-origin:32px 32px}
+.cp-fly .arm{fill:#A78BFA}
+.cp-fly .dot{fill:#E0A458;filter:none}
+.cp-fly .ring{display:none}
 
 /* The hit ring, at the lock rather than at the start. Amber, because it
    belongs to the pip and not to the arms. */
@@ -516,7 +532,7 @@ footer a{color:var(--muted)}
   <div class="scene">
     <svg class="mapsil" viewBox="0 0 49 45" fill="currentColor"
          aria-hidden="true"><rect x="4" y="0" width="11" height="1"/><rect x="27" y="0" width="15" height="1"/><rect x="3" y="1" width="18" height="1"/><rect x="27" y="1" width="15" height="1"/><rect x="3" y="2" width="18" height="1"/><rect x="27" y="2" width="5" height="1"/><rect x="35" y="2" width="13" height="1"/><rect x="3" y="3" width="29" height="1"/><rect x="35" y="3" width="13" height="1"/><rect x="0" y="4" width="32" height="1"/><rect x="36" y="4" width="13" height="1"/><rect x="0" y="5" width="32" height="1"/><rect x="36" y="5" width="13" height="1"/><rect x="0" y="6" width="32" height="1"/><rect x="36" y="6" width="4" height="1"/><rect x="45" y="6" width="4" height="1"/><rect x="0" y="7" width="25" height="1"/><rect x="35" y="7" width="4" height="1"/><rect x="46" y="7" width="3" height="1"/><rect x="0" y="8" width="25" height="1"/><rect x="35" y="8" width="4" height="1"/><rect x="47" y="8" width="2" height="1"/><rect x="0" y="9" width="25" height="1"/><rect x="35" y="9" width="4" height="1"/><rect x="47" y="9" width="2" height="1"/><rect x="3" y="10" width="12" height="1"/><rect x="16" y="10" width="9" height="1"/><rect x="35" y="10" width="4" height="1"/><rect x="47" y="10" width="2" height="1"/><rect x="3" y="11" width="12" height="1"/><rect x="21" y="11" width="4" height="1"/><rect x="35" y="11" width="4" height="1"/><rect x="47" y="11" width="2" height="1"/><rect x="3" y="12" width="12" height="1"/><rect x="18" y="12" width="6" height="1"/><rect x="35" y="12" width="5" height="1"/><rect x="47" y="12" width="2" height="1"/><rect x="3" y="13" width="12" height="1"/><rect x="18" y="13" width="7" height="1"/><rect x="35" y="13" width="5" height="1"/><rect x="47" y="13" width="2" height="1"/><rect x="3" y="14" width="12" height="1"/><rect x="18" y="14" width="7" height="1"/><rect x="34" y="14" width="6" height="1"/><rect x="46" y="14" width="3" height="1"/><rect x="3" y="15" width="7" height="1"/><rect x="18" y="15" width="22" height="1"/><rect x="47" y="15" width="2" height="1"/><rect x="3" y="16" width="8" height="1"/><rect x="18" y="16" width="22" height="1"/><rect x="47" y="16" width="2" height="1"/><rect x="3" y="17" width="11" height="1"/><rect x="17" y="17" width="23" height="1"/><rect x="47" y="17" width="2" height="1"/><rect x="3" y="18" width="11" height="1"/><rect x="17" y="18" width="23" height="1"/><rect x="47" y="18" width="2" height="1"/><rect x="3" y="19" width="11" height="1"/><rect x="17" y="19" width="23" height="1"/><rect x="47" y="19" width="2" height="1"/><rect x="3" y="20" width="4" height="1"/><rect x="9" y="20" width="6" height="1"/><rect x="17" y="20" width="23" height="1"/><rect x="47" y="20" width="2" height="1"/><rect x="11" y="21" width="5" height="1"/><rect x="17" y="21" width="23" height="1"/><rect x="47" y="21" width="2" height="1"/><rect x="11" y="22" width="9" height="1"/><rect x="23" y="22" width="4" height="1"/><rect x="28" y="22" width="12" height="1"/><rect x="47" y="22" width="2" height="1"/><rect x="11" y="23" width="9" height="1"/><rect x="23" y="23" width="4" height="1"/><rect x="47" y="23" width="2" height="1"/><rect x="11" y="24" width="9" height="1"/><rect x="23" y="24" width="4" height="1"/><rect x="42" y="24" width="7" height="1"/><rect x="11" y="25" width="9" height="1"/><rect x="23" y="25" width="4" height="1"/><rect x="40" y="25" width="9" height="1"/><rect x="11" y="26" width="9" height="1"/><rect x="23" y="26" width="4" height="1"/><rect x="40" y="26" width="9" height="1"/><rect x="11" y="27" width="4" height="1"/><rect x="17" y="27" width="4" height="1"/><rect x="22" y="27" width="6" height="1"/><rect x="40" y="27" width="9" height="1"/><rect x="11" y="28" width="4" height="1"/><rect x="17" y="28" width="11" height="1"/><rect x="40" y="28" width="9" height="1"/><rect x="11" y="29" width="4" height="1"/><rect x="17" y="29" width="11" height="1"/><rect x="31" y="29" width="18" height="1"/><rect x="11" y="30" width="5" height="1"/><rect x="17" y="30" width="30" height="1"/><rect x="11" y="31" width="5" height="1"/><rect x="23" y="31" width="24" height="1"/><rect x="11" y="32" width="5" height="1"/><rect x="23" y="32" width="24" height="1"/><rect x="7" y="33" width="8" height="1"/><rect x="23" y="33" width="12" height="1"/><rect x="44" y="33" width="3" height="1"/><rect x="7" y="34" width="8" height="1"/><rect x="23" y="34" width="11" height="1"/><rect x="44" y="34" width="3" height="1"/><rect x="7" y="35" width="9" height="1"/><rect x="23" y="35" width="13" height="1"/><rect x="37" y="35" width="10" height="1"/><rect x="7" y="36" width="9" height="1"/><rect x="23" y="36" width="24" height="1"/><rect x="11" y="37" width="5" height="1"/><rect x="23" y="37" width="24" height="1"/><rect x="12" y="38" width="4" height="1"/><rect x="23" y="38" width="24" height="1"/><rect x="12" y="39" width="20" height="1"/><rect x="33" y="39" width="14" height="1"/><rect x="13" y="40" width="19" height="1"/><rect x="33" y="40" width="14" height="1"/><rect x="13" y="41" width="19" height="1"/><rect x="33" y="41" width="14" height="1"/><rect x="15" y="42" width="11" height="1"/><rect x="18" y="43" width="6" height="1"/><rect x="21" y="44" width="2" height="1"/></svg>
-    <span class="mark">
+    <span class="xhair">
       <span class="bloom"></span>
       <svg viewBox="0 0 64 64" aria-hidden="true">
         <circle class="ring" cx="32" cy="32" r="22"/>
@@ -534,7 +550,7 @@ footer a{color:var(--muted)}
 </div>
 
 <nav><div class="nav-in">
-  <a class="mark" href="#top"><svg class="navmark" viewBox="0 0 64 64"
+  <a class="mark" href="/"><svg class="navmark" viewBox="0 0 64 64"
        aria-hidden="true"><g class="a"><rect x="28" y="8" width="8" height="16"/>
        <rect x="28" y="40" width="8" height="16"/><rect x="8" y="28" width="16" height="8"/>
        <rect x="40" y="28" width="16" height="8"/></g>
@@ -842,7 +858,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   // requestAnimationFrame. rAF does not fire in a tab that is not painting,
   // which would leave the mark parked mid-flight forever.
   function flyHome(){
-    var fly=document.querySelector('#reveal .mark'),
+    var fly=document.querySelector('#reveal .xhair'),
         dest=document.querySelector('.navmark');
     if(!fly||!dest||!fly.getBoundingClientRect)return false;
     var a=fly.getBoundingClientRect(), b=dest.getBoundingClientRect();
@@ -854,9 +870,9 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
     var ring=fly.querySelector('.ring');
     if(ring)ring.style.display='none';
     fly.style.animation='none';
-    fly.style.cssText+=';position:fixed;margin:0;z-index:200;'+
-      'left:'+a.left+'px;top:'+a.top+'px;width:'+a.width+'px;'+
-      'height:'+a.height+'px;transform:none';
+    fly.className='xhair cp-fly';
+    fly.style.cssText+=';left:'+a.left+'px;top:'+a.top+'px;width:'+a.width+
+      'px;height:'+a.height+'px;transform:none';
     document.body.appendChild(fly);
     fly.offsetHeight;                       // commit the start of the move
     fly.style.transition='transform .6s cubic-bezier(.6,0,.16,1)';
