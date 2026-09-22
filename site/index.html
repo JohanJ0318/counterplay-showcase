@@ -34,6 +34,16 @@ function cpTheme(){var h=document.documentElement,c=h.getAttribute('data-theme')
 n=c?(c==='dark'?'light':'dark'):(window.matchMedia&&
 window.matchMedia('(prefers-color-scheme: dark)').matches?'light':'dark');
 h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}}
+// Opt into the reveal here, in the head, so the overlay is already on screen
+// at first paint rather than appearing over a page the reader has started
+// reading. Once per session, never against a stated motion preference, and
+// wrapped because sessionStorage throws in a locked-down browser.
+(function(){try{
+  var m=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(m||sessionStorage.getItem('cp-seen'))return;
+  sessionStorage.setItem('cp-seen','1');
+  document.documentElement.classList.add('reveal');
+}catch(e){}})();
 </script>
 <style>
 :root{
@@ -178,6 +188,70 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .fade{opacity:0;transform:translateY(6px);animation:rise .5s ease forwards}
 @keyframes rise{to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none;opacity:1;transform:none}}
+
+
+/* ---------- the reveal ----------
+
+   The mark draws itself once, then gets out of the way.
+
+   Three rules it obeys, because an intro that breaks any of them is a tax on
+   every visit rather than a moment:
+
+     * It never delays the page. The overlay sits ON TOP of a document that
+       has already rendered, so a reader who arrives mid-animation and
+       scrolls immediately loses nothing. Nothing waits on it.
+     * Once per session, not once per page view. `sessionStorage` means
+       clicking through to the sample report and back does not replay it.
+     * Off entirely for `prefers-reduced-motion`, and off if the script in
+       the head did not run, because the overlay is hidden until that script
+       opts in. No script, no overlay, no blank screen.
+
+   The class goes on <html> from the head, before first paint, so the overlay
+   is never seen arriving. */
+#reveal{position:fixed;inset:0;z-index:100;background:var(--bg);
+  display:none;align-items:center;justify-content:center;gap:18px;
+  flex-direction:column}
+:root.reveal #reveal{display:flex}
+:root.reveal body{overflow:hidden}
+#reveal.done{animation:revgo .42s ease forwards;pointer-events:none}
+@keyframes revgo{to{opacity:0;visibility:hidden}}
+#reveal svg{width:88px;height:88px;overflow:visible}
+/* Each arm slides out of the centre to where it belongs. The dot is last and
+   lands hardest, because it is the one part of the mark that is not purple
+   and the whole shape reads from it. */
+#reveal .arm{transform-origin:32px 32px;opacity:0;
+  animation:armin .44s cubic-bezier(.2,.9,.25,1) forwards}
+#reveal .arm:nth-child(2){animation-delay:.02s}
+#reveal .arm:nth-child(3){animation-delay:.06s}
+#reveal .arm:nth-child(4){animation-delay:.08s}
+@keyframes armin{from{opacity:0;transform:scale(.18)}to{opacity:1;transform:none}}
+#reveal .dot{opacity:0;transform-origin:32px 32px;
+  animation:dotin .3s cubic-bezier(.3,1.5,.4,1) .3s forwards}
+@keyframes dotin{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
+#reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.55rem;
+  letter-spacing:-.035em;color:var(--ink);opacity:0;
+  animation:wordin .4s ease .42s forwards}
+#reveal .word em{font-style:normal;color:var(--purple)}
+@keyframes wordin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@media (prefers-reduced-motion:reduce){:root.reveal #reveal{display:none}}
+
+/* ---------- sections arrive ----------
+   Six points of travel and a fade. Enough that the page feels assembled
+   rather than printed, small enough that nobody scrolling fast ever waits
+   for it. Anything still off screen when the observer cannot run stays
+   visible, which is why the hidden state is applied by script. */
+.io{opacity:0;transform:translateY(14px);
+  transition:opacity .5s ease,transform .5s cubic-bezier(.2,.7,.3,1)}
+.io.in{opacity:1;transform:none}
+@media (prefers-reduced-motion:reduce){.io{opacity:1;transform:none;transition:none}}
+
+/* The nav is flat against the hero and lifts once you leave it. */
+nav{transition:box-shadow .2s ease,border-color .2s ease}
+nav.stuck{box-shadow:0 1px 0 var(--border),0 8px 24px -16px rgba(0,0,0,.45)}
+
+/* The cards that are not built yet. Present, legible, and visibly second. */
+.pcard.later{background:var(--bg)}
+.pcard.later h3,.pcard.later p{opacity:.72}
 
 /* ---------- sections ---------- */
 section{padding:64px 0}
@@ -325,6 +399,21 @@ footer a{color:var(--muted)}
 </head>
 <body>
 
+<!-- Hidden unless the head script opted in, so this is never a blank screen
+     for a reader without JavaScript. -->
+<div id="reveal" aria-hidden="true">
+  <svg viewBox="0 0 64 64" aria-hidden="true">
+    <g fill="var(--purple)">
+      <rect class="arm" x="28" y="8" width="8" height="16"/>
+      <rect class="arm" x="28" y="40" width="8" height="16"/>
+      <rect class="arm" x="8" y="28" width="16" height="8"/>
+      <rect class="arm" x="40" y="28" width="16" height="8"/>
+    </g>
+    <rect class="dot" x="28" y="28" width="8" height="8" fill="var(--t)"/>
+  </svg>
+  <span class="word">Counter<em>play</em></span>
+</div>
+
 <nav><div class="nav-in">
   <a class="mark" href="#top">Counter<em>play</em></a>
   <div class="nav-links">
@@ -392,7 +481,7 @@ footer a{color:var(--muted)}
   <div class="scrim" aria-hidden="true"></div>
   <div class="wrap film-copy">
     <span class="label">For the game you actually play</span>
-    <h2>Level up your gaming with Counterplay.</h2>
+    <h2>The rounds you played, not the ones you remember.</h2>
     <p class="under">Your own demos, read round by round, with every number
       printed beside the rounds it came from.</p>
   </div>
@@ -433,13 +522,13 @@ footer a{color:var(--muted)}
         <p>Map pool with round records rather than just match records, side splits, economy
           habits, and how often you convert the situations you get into.</p>
       </div>
-      <div class="pcard">
+      <div class="pcard later">
         <div class="top"><span class="label">Per moment</span><span class="badge soon">Building</span></div>
         <h3>2D replay of the moments</h3>
         <p>Top-down playback of the rounds a report flags: ten seconds either side, so you
           watch the thing that mattered instead of scrubbing a whole demo to find it.</p>
       </div>
-      <div class="pcard">
+      <div class="pcard later">
         <div class="top"><span class="label">Per round</span><span class="badge soon">Coming</span></div>
         <h3>Decision scoring</h3>
         <p>Which decisions cost you rounds you were winning: the retake that was never on,
@@ -592,6 +681,41 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   a.href = "mailto:" + CONTACT_EMAIL;
   if (a.textContent.trim() === "CONTACT_EMAIL") a.textContent = CONTACT_EMAIL;
 });
+</script>
+<script>
+// End the reveal on load, or after a beat if load is slow, whichever is
+// first. Never leave it up: a bad network must not mean a covered page.
+(function(){
+  var r=document.getElementById('reveal'),h=document.documentElement;
+  if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
+  var done=false;
+  function go(){if(done)return;done=true;r.className='done';
+    setTimeout(function(){h.classList.remove('reveal');},450);}
+  setTimeout(go,900);
+  addEventListener('load',function(){setTimeout(go,350);});
+})();
+
+// Sections arrive as they come into view. The hidden state is added by
+// script, so a reader whose browser cannot observe anything sees the page
+// exactly as it was before this existed.
+(function(){
+  if(!('IntersectionObserver' in window))return;
+  if(window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches)return;
+  var els=document.querySelectorAll('#features,#numbers,#how,#data,.filmband,.signup');
+  for(var i=0;i<els.length;i++)els[i].classList.add('io');
+  var io=new IntersectionObserver(function(es){
+    es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');
+      io.unobserve(e.target);}});
+  },{rootMargin:'0px 0px -8% 0px'});
+  for(var j=0;j<els.length;j++)io.observe(els[j]);
+})();
+
+// The nav lifts once the hero is behind you.
+(function(){
+  var n=document.querySelector('nav');if(!n)return;
+  function f(){n.classList.toggle('stuck',scrollY>8);}
+  f();addEventListener('scroll',f,{passive:true});
+})();
 </script>
 </body>
 </html>
