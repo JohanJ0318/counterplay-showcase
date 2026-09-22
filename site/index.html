@@ -508,6 +508,23 @@ ol.steps p{color:var(--muted);font-size:.95rem}
    the words are HTML so they lose nothing but the motion. */
 @media (prefers-reduced-motion:reduce){.filmband video{display:none}}
 
+@media (max-width:700px){
+  /* Roughly the desktop proportion instead of a strip: tall enough that the
+     heading is part of a composition rather than the whole of it. */
+  .filmband{max-height:none;height:clamp(380px,56vh,520px)}
+  /* Cropped to the sides now, so the framing is nudged off centre to keep
+     the busier right of the shot in view behind the words. */
+  .filmband video,.filmband img.poster{object-position:58% center}
+  /* The desktop scrim darkens the LEFT, because there the words occupy the
+     left third. On a phone they run the full width, so a sideways gradient
+     leaves the end of every line sitting on bright picture. Vertical, and
+     heavier, because the crop is zoomed in and brighter than the wide shot. */
+  .scrim{background:linear-gradient(180deg,rgba(11,9,16,.58) 0%,
+    rgba(11,9,16,.66) 45%,rgba(11,9,16,.82) 100%)}
+  .film-copy h2{max-width:13ch}
+  .film-copy p.under{max-width:34ch}
+}
+
 /* ---------- the close ---------- */
 /* One row, not a section. The nav's button is sticky and never leaves the
    screen, so the foot of the page does not need to repeat the hero; it needs
@@ -795,13 +812,21 @@ footer a{color:var(--muted)}
     var go = f.play();
     if (go && go.catch) go.catch(function () {});
   };
-  // NOT ON A PHONE. The clip is six megabytes of decoration, the band sits
-  // one swipe below the hero, and the poster underneath it is 87KB and says
-  // the same thing. Most of the people arriving from a Discord link are on
-  // mobile data, and charging them six megabytes for a background is the
-  // rudest thing this page could do.
-  var small = window.matchMedia && window.matchMedia("(max-width: 700px)");
-  if (small && small.matches) return;
+  // NOT ON A METERED OR SLOW CONNECTION. The clip is six megabytes of
+  // decoration and the poster underneath is 87KB and says the same thing,
+  // so nobody paying by the megabyte should be charged for it. This used to
+  // be a width test, which also refused the film to every phone on wifi.
+  //
+  // Save-Data is the reader telling the browser to economise, and anything
+  // reported as 2g or 3g will not stream six megabytes usefully anyway.
+  // Browsers without the API, Safari among them, fall through and play it.
+  var net = navigator.connection || navigator.mozConnection ||
+            navigator.webkitConnection;
+  if (net) {
+    if (net.saveData) return;
+    var kind = net.effectiveType || "";
+    if (kind === "slow-2g" || kind === "2g" || kind === "3g") return;
+  }
   if (!("IntersectionObserver" in window)) return start();
   var io = new IntersectionObserver(function (rows) {
     rows.forEach(function (r) {
