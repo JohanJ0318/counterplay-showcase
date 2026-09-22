@@ -208,72 +208,98 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 
    The class goes on <html> from the head, before first paint, so the overlay
    is never seen arriving. */
-/* A CROSSHAIR ACQUIRING A TARGET.
+/* A CROSSHAIR SCANNING A MAP, AND LOCKING ONTO A PLACE.
 
-   The first version scaled four rectangles up from nothing on a generic
-   ease, which is a keyframe rather than an idea. This one animates the thing
-   the mark actually is.
+   The version before this assembled the mark from four flying rectangles,
+   which was fine and said nothing. This one says the product: the crosshair
+   sweeps a map, settles, and locks onto a position. That is literally what
+   the reports are, "your first death is in A main, T-side Mirage".
 
-   The reticle contracts from outside the frame. The four arms fly IN from
-   the four directions, overshoot the centre and settle, which is the whole
-   difference: motion that arrives from somewhere reads as deliberate, motion
-   that grows from zero reads as a default. The amber pip lands last and
-   hardest, because it is the only part of the mark that is not purple and
-   the shape resolves from it. Then the wordmark wipes out of the lockup
-   rather than fading, so it feels cut, not dissolved.
+   It deliberately does NOT lock onto a player. A crosshair snapping to a
+   head is the single most recognisable image in cheat-software marketing,
+   and this link gets forwarded to athletics departments.
 
-   Everything lands inside 780ms and the overlay is gone by 1000ms whatever
-   the network did. */
+   The map is Mirage, inlined from site/icons/maps rather than fetched, so
+   the reveal never waits on a request. It is the same pixel-grid silhouette
+   mapicons.py generates for the map chips, which is why a blocky outline
+   sits correctly beside a mark built on a four-unit grid.
+
+   Everything lands by 900ms and the panel is gone by 1150ms whatever the
+   network did. */
 #reveal{position:fixed;inset:0;z-index:100;background:#141119;
-  display:none;align-items:center;justify-content:center;gap:22px;
+  display:none;align-items:center;justify-content:center;gap:16px;
   flex-direction:column;overflow:hidden}
-#reveal svg,#reveal .word{position:relative;z-index:1}
-/* The dark palette, pinned. Not var(), because this panel does not follow
-   the reader's theme: it is the thing the theme is revealed from. Colours
-   here override the SVG's own fill attributes, which is what CSS does. */
-#reveal .arm{fill:#A78BFA}
-#reveal .dot{fill:#E0A458}
-#reveal .ring{stroke:#A78BFA}
-#reveal .word{color:#EDE9F3}
-#reveal .word em{color:#A78BFA}
 :root.reveal #reveal{display:flex}
 :root.reveal body{overflow:hidden}
-/* The lockup goes first, in under a fifth of a second, so the panel is
-   empty before it starts to move. */
+/* The dark palette, pinned. Not var(), because this panel does not follow
+   the reader's theme: it is the thing the theme is revealed from. */
+#reveal .arm{fill:#A78BFA}
+#reveal .dot{fill:#E0A458}
+#reveal .ring{stroke:#E0A458}
+#reveal .word{color:#EDE9F3}
+#reveal .word em{color:#A78BFA}
+
+/* The lockup goes first, then the panel lifts off the top like a curtain.
+   Nothing cross-fades: a dark panel dissolving into a light page spends
+   every frame in the middle as a wash of the two. */
 #reveal.done{pointer-events:none;
   animation:revlift .44s cubic-bezier(.7,0,.28,1) .16s forwards}
 @keyframes revlift{from{transform:translateY(0)}to{transform:translateY(-101%)}}
-#reveal.done svg,#reveal.done .word,#reveal.done .bloom{
+#reveal.done .scene,#reveal.done .word{
   animation:revout .19s cubic-bezier(.5,0,.75,0) forwards}
 @keyframes revout{to{opacity:0;transform:scale(1.07)}}
-#reveal svg{width:132px;height:132px;overflow:visible;transform-box:view-box}
-#reveal svg *{transform-box:view-box;transform-origin:32px 32px}
 
-/* The scope closing. Big, thin, brief: present for about a third of a second
-   and gone before the mark finishes assembling, so it is felt more than it
-   is seen. */
-#reveal .ring{fill:none;stroke:var(--purple);stroke-width:1.2;opacity:0;
-  animation:ringin .46s cubic-bezier(.22,.8,.3,1) forwards}
-@keyframes ringin{
-  0%{opacity:0;transform:scale(2.3)}
-  35%{opacity:.5}
-  100%{opacity:0;transform:scale(.82)}}
+.scene{position:relative;width:min(330px,72vw);aspect-ratio:49/45;
+  display:flex;align-items:center;justify-content:center}
 
-/* Each arm travels in from its own side. `--tx` and `--ty` are in viewBox
-   units, and 46 of 64 puts every one of them off the mark before it starts. */
-#reveal .arm{opacity:0;
-  animation:armin .42s cubic-bezier(.34,1.56,.64,1) forwards}
-#reveal .a1{--tx:0;--ty:-46}
-#reveal .a2{--tx:0;--ty:46;animation-delay:.045s}
-#reveal .a3{--tx:-46;--ty:0;animation-delay:.09s}
-#reveal .a4{--tx:46;--ty:0;animation-delay:.135s}
-@keyframes armin{
-  from{opacity:0;transform:translate(calc(var(--tx) * 1px),calc(var(--ty) * 1px))}
-  to{opacity:1;transform:none}}
+/* The map. Faint enough to be a ground rather than a subject, and gone
+   before the wordmark arrives so the lockup is never competing with it. */
+#reveal .mapsil{position:absolute;inset:0;width:100%;height:100%;
+  color:#A78BFA;opacity:0;
+  animation:mapin 0.9s ease forwards}
+@keyframes mapin{
+  0%{opacity:0;transform:scale(.95)}
+  18%{opacity:.13}
+  62%{opacity:.13;transform:scale(1)}
+  100%{opacity:0;transform:scale(1.02)}}
 
-/* The lock. Punches past its size and settles. */
+/* THE SWEEP. Straight segments with holds, not a smooth arc, because a
+   crosshair being aimed moves in corrections. The per-keyframe timing
+   functions are what make each leg snap and settle rather than drift.
+   It ends at the centre, because that is where the logo lives. */
+#reveal .mark{position:absolute;width:118px;height:118px;opacity:0;
+  animation:sweep .72s forwards}
+@keyframes sweep{
+  0%{opacity:0;transform:translate(-88px,-76px) scale(.70);
+     animation-timing-function:cubic-bezier(.2,.8,.3,1)}
+  12%{opacity:1}
+  30%{transform:translate(70px,-48px) scale(.76);
+      animation-timing-function:cubic-bezier(.6,0,.2,1)}
+  50%{transform:translate(-42px,48px) scale(.82);
+      animation-timing-function:cubic-bezier(.6,0,.15,1)}
+  68%{transform:translate(31px,23px) scale(.88);
+      animation-timing-function:cubic-bezier(.3,1.4,.5,1)}
+  /* the lock, with a half-pixel settle so it reads as landing on something */
+  76%{transform:translate(28px,21px) scale(.9);
+      animation-timing-function:cubic-bezier(.5,0,.2,1)}
+  100%{opacity:1;transform:translate(0,0) scale(1)}}
+#reveal .mark svg{width:100%;height:100%;overflow:visible;
+  transform-box:view-box}
+#reveal .mark svg *{transform-box:view-box;transform-origin:32px 32px}
+
+/* The hit ring, at the lock rather than at the start. Amber, because it
+   belongs to the pip and not to the arms. */
+#reveal .ring{fill:none;stroke-width:1.1;opacity:0;
+  animation:ringhit .42s cubic-bezier(.2,.8,.3,1) .5s forwards}
+@keyframes ringhit{
+  0%{opacity:0;transform:scale(.55)}
+  30%{opacity:.85}
+  100%{opacity:0;transform:scale(1.75)}}
+
+/* The lock itself. Punches past its size, blooms on impact, settles back.
+   The bloom belongs to the landing, so it does not stay lit. */
 #reveal .dot{opacity:0;
-  animation:dotin .52s cubic-bezier(.3,1.7,.4,1) .3s forwards}
+  animation:dotin .5s cubic-bezier(.3,1.7,.4,1) .5s forwards}
 @keyframes dotin{
   0%{opacity:0;transform:scale(0) rotate(-45deg);
      filter:drop-shadow(0 0 0 rgba(224,164,88,0))}
@@ -281,23 +307,22 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   100%{opacity:1;transform:none;
        filter:drop-shadow(0 0 5px rgba(224,164,88,.45))}}
 
-/* The same light, thrown wider and softer behind the whole mark. A plain
-   div rather than an SVG filter, because a blurred radial gradient composites
-   on the GPU and a feGaussianBlur over the whole lockup does not. */
-#reveal .bloom{position:absolute;width:320px;height:320px;border-radius:50%;
+/* The same light thrown wider, travelling with the mark. A blurred radial
+   gradient on a plain span composites on the GPU; an feGaussianBlur over
+   the lockup repaints it every frame. */
+#reveal .bloom{position:absolute;left:50%;top:50%;width:300px;height:300px;
+  margin:-150px 0 0 -150px;border-radius:50%;pointer-events:none;
   background:radial-gradient(circle,rgba(167,139,250,.30) 0%,
     rgba(167,139,250,.10) 42%,rgba(167,139,250,0) 70%);
-  opacity:0;pointer-events:none;
-  animation:bloomin .7s ease .28s forwards}
-@keyframes bloomin{0%{opacity:0;transform:scale(.55)}
-  45%{opacity:1}100%{opacity:.6;transform:scale(1)}}
+  opacity:0;animation:bloomin .6s ease .48s forwards}
+@keyframes bloomin{0%{opacity:0;transform:scale(.5)}
+  45%{opacity:1}100%{opacity:.62;transform:scale(1)}}
 
 /* Wiped, not faded: the mask opens left to right across the word. */
 #reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.95rem;
-  letter-spacing:-.035em;
+  letter-spacing:-.035em;position:relative;z-index:1;
   clip-path:inset(0 100% 0 0);opacity:0;
-  animation:wordin .42s cubic-bezier(.2,.75,.3,1) .40s forwards}
-#reveal .word em{font-style:normal;color:var(--purple)}
+  animation:wordin .34s cubic-bezier(.2,.75,.3,1) .62s forwards}
 @keyframes wordin{
   from{clip-path:inset(0 100% 0 0);opacity:1;transform:translateX(-5px)}
   to{clip-path:inset(0 0 0 0);opacity:1;transform:none}}
@@ -475,17 +500,23 @@ footer a{color:var(--muted)}
 <!-- Hidden unless the head script opted in, so this is never a blank screen
      for a reader without JavaScript. -->
 <div id="reveal" aria-hidden="true">
-  <span class="bloom" aria-hidden="true"></span>
-  <svg viewBox="0 0 64 64" aria-hidden="true">
-    <circle class="ring" cx="32" cy="32" r="27"/>
-    <g fill="var(--purple)">
-      <rect class="arm a1" x="28" y="8" width="8" height="16"/>
-      <rect class="arm a2" x="28" y="40" width="8" height="16"/>
-      <rect class="arm a3" x="8" y="28" width="16" height="8"/>
-      <rect class="arm a4" x="40" y="28" width="16" height="8"/>
-    </g>
-    <rect class="dot" x="28" y="28" width="8" height="8" fill="var(--t)"/>
-  </svg>
+  <div class="scene">
+    <svg class="mapsil" viewBox="0 0 49 45" fill="currentColor"
+         aria-hidden="true"><rect x="4" y="0" width="11" height="1"/><rect x="27" y="0" width="15" height="1"/><rect x="3" y="1" width="18" height="1"/><rect x="27" y="1" width="15" height="1"/><rect x="3" y="2" width="18" height="1"/><rect x="27" y="2" width="5" height="1"/><rect x="35" y="2" width="13" height="1"/><rect x="3" y="3" width="29" height="1"/><rect x="35" y="3" width="13" height="1"/><rect x="0" y="4" width="32" height="1"/><rect x="36" y="4" width="13" height="1"/><rect x="0" y="5" width="32" height="1"/><rect x="36" y="5" width="13" height="1"/><rect x="0" y="6" width="32" height="1"/><rect x="36" y="6" width="4" height="1"/><rect x="45" y="6" width="4" height="1"/><rect x="0" y="7" width="25" height="1"/><rect x="35" y="7" width="4" height="1"/><rect x="46" y="7" width="3" height="1"/><rect x="0" y="8" width="25" height="1"/><rect x="35" y="8" width="4" height="1"/><rect x="47" y="8" width="2" height="1"/><rect x="0" y="9" width="25" height="1"/><rect x="35" y="9" width="4" height="1"/><rect x="47" y="9" width="2" height="1"/><rect x="3" y="10" width="12" height="1"/><rect x="16" y="10" width="9" height="1"/><rect x="35" y="10" width="4" height="1"/><rect x="47" y="10" width="2" height="1"/><rect x="3" y="11" width="12" height="1"/><rect x="21" y="11" width="4" height="1"/><rect x="35" y="11" width="4" height="1"/><rect x="47" y="11" width="2" height="1"/><rect x="3" y="12" width="12" height="1"/><rect x="18" y="12" width="6" height="1"/><rect x="35" y="12" width="5" height="1"/><rect x="47" y="12" width="2" height="1"/><rect x="3" y="13" width="12" height="1"/><rect x="18" y="13" width="7" height="1"/><rect x="35" y="13" width="5" height="1"/><rect x="47" y="13" width="2" height="1"/><rect x="3" y="14" width="12" height="1"/><rect x="18" y="14" width="7" height="1"/><rect x="34" y="14" width="6" height="1"/><rect x="46" y="14" width="3" height="1"/><rect x="3" y="15" width="7" height="1"/><rect x="18" y="15" width="22" height="1"/><rect x="47" y="15" width="2" height="1"/><rect x="3" y="16" width="8" height="1"/><rect x="18" y="16" width="22" height="1"/><rect x="47" y="16" width="2" height="1"/><rect x="3" y="17" width="11" height="1"/><rect x="17" y="17" width="23" height="1"/><rect x="47" y="17" width="2" height="1"/><rect x="3" y="18" width="11" height="1"/><rect x="17" y="18" width="23" height="1"/><rect x="47" y="18" width="2" height="1"/><rect x="3" y="19" width="11" height="1"/><rect x="17" y="19" width="23" height="1"/><rect x="47" y="19" width="2" height="1"/><rect x="3" y="20" width="4" height="1"/><rect x="9" y="20" width="6" height="1"/><rect x="17" y="20" width="23" height="1"/><rect x="47" y="20" width="2" height="1"/><rect x="11" y="21" width="5" height="1"/><rect x="17" y="21" width="23" height="1"/><rect x="47" y="21" width="2" height="1"/><rect x="11" y="22" width="9" height="1"/><rect x="23" y="22" width="4" height="1"/><rect x="28" y="22" width="12" height="1"/><rect x="47" y="22" width="2" height="1"/><rect x="11" y="23" width="9" height="1"/><rect x="23" y="23" width="4" height="1"/><rect x="47" y="23" width="2" height="1"/><rect x="11" y="24" width="9" height="1"/><rect x="23" y="24" width="4" height="1"/><rect x="42" y="24" width="7" height="1"/><rect x="11" y="25" width="9" height="1"/><rect x="23" y="25" width="4" height="1"/><rect x="40" y="25" width="9" height="1"/><rect x="11" y="26" width="9" height="1"/><rect x="23" y="26" width="4" height="1"/><rect x="40" y="26" width="9" height="1"/><rect x="11" y="27" width="4" height="1"/><rect x="17" y="27" width="4" height="1"/><rect x="22" y="27" width="6" height="1"/><rect x="40" y="27" width="9" height="1"/><rect x="11" y="28" width="4" height="1"/><rect x="17" y="28" width="11" height="1"/><rect x="40" y="28" width="9" height="1"/><rect x="11" y="29" width="4" height="1"/><rect x="17" y="29" width="11" height="1"/><rect x="31" y="29" width="18" height="1"/><rect x="11" y="30" width="5" height="1"/><rect x="17" y="30" width="30" height="1"/><rect x="11" y="31" width="5" height="1"/><rect x="23" y="31" width="24" height="1"/><rect x="11" y="32" width="5" height="1"/><rect x="23" y="32" width="24" height="1"/><rect x="7" y="33" width="8" height="1"/><rect x="23" y="33" width="12" height="1"/><rect x="44" y="33" width="3" height="1"/><rect x="7" y="34" width="8" height="1"/><rect x="23" y="34" width="11" height="1"/><rect x="44" y="34" width="3" height="1"/><rect x="7" y="35" width="9" height="1"/><rect x="23" y="35" width="13" height="1"/><rect x="37" y="35" width="10" height="1"/><rect x="7" y="36" width="9" height="1"/><rect x="23" y="36" width="24" height="1"/><rect x="11" y="37" width="5" height="1"/><rect x="23" y="37" width="24" height="1"/><rect x="12" y="38" width="4" height="1"/><rect x="23" y="38" width="24" height="1"/><rect x="12" y="39" width="20" height="1"/><rect x="33" y="39" width="14" height="1"/><rect x="13" y="40" width="19" height="1"/><rect x="33" y="40" width="14" height="1"/><rect x="13" y="41" width="19" height="1"/><rect x="33" y="41" width="14" height="1"/><rect x="15" y="42" width="11" height="1"/><rect x="18" y="43" width="6" height="1"/><rect x="21" y="44" width="2" height="1"/></svg>
+    <span class="mark">
+      <span class="bloom"></span>
+      <svg viewBox="0 0 64 64" aria-hidden="true">
+        <circle class="ring" cx="32" cy="32" r="22"/>
+        <g class="arm">
+          <rect x="28" y="8" width="8" height="16"/>
+          <rect x="28" y="40" width="8" height="16"/>
+          <rect x="8" y="28" width="16" height="8"/>
+          <rect x="40" y="28" width="16" height="8"/>
+        </g>
+        <rect class="dot" x="28" y="28" width="8" height="8"/>
+      </svg>
+    </span>
+  </div>
   <span class="word">Counter<em>play</em></span>
 </div>
 
@@ -764,7 +795,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   var done=false;
   function go(){if(done)return;done=true;r.className='done';
     setTimeout(function(){h.classList.remove('reveal');},640);}
-  setTimeout(go,1000);
+  setTimeout(go,1150);
   addEventListener('load',function(){setTimeout(go,350);});
 })();
 
