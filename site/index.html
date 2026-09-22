@@ -887,10 +887,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
 (function(){
   var r=document.getElementById('reveal'),h=document.documentElement;
   if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
-  // Release the sequence. This is the first thing done here, because until
-  // it happens every animation in the panel is holding on its first frame.
-  h.classList.add('cp-go');
-  var done=false;
+  var done=false, released=false, START=0, FULL=2050;
   function go(){
     if(done)return; done=true;
     var wait=flyHome()?680:760;
@@ -940,13 +937,46 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
     setTimeout(function(){if(fly.parentNode)fly.parentNode.removeChild(fly);},660);
     return true;
   }
-  var START=Date.now(), FULL=2050, CAP=3400;
+  // WHEN THE SEQUENCE ACTUALLY STARTS.
+  //
+  // Parse end was not far enough. The head loads a stylesheet from
+  // fonts.googleapis.com, and a stylesheet is render blocking, so the first
+  // paint waits on a third-party round trip that this page does not
+  // control. Everything the animation did before that paint was never seen,
+  // and because the round trip is a different length every time, the
+  // opening went missing only sometimes.
+  //
+  // Two nested rAFs put the start after a frame has actually been painted.
+  // Waiting on fonts.ready first stops the wordmark wiping in with a
+  // fallback face and swapping to Space Grotesk halfway through. Both are
+  // capped, because neither the promise nor the frame is owed to us: a tab
+  // that is not painting never fires rAF at all.
+  function afterPaint(fn){
+    if(!window.requestAnimationFrame)return fn();
+    requestAnimationFrame(function(){requestAnimationFrame(fn);});
+  }
+  function release(){
+    if(released)return; released=true;
+    START=Date.now();
+    h.classList.add('cp-go');
+    // The full-run floor is measured from HERE, not from when this script
+    // ran. Fixing the start without moving the clock with it would just
+    // move the missing part to the end.
+    if(document.readyState==='complete') whenReady();
+    else addEventListener('load', whenReady);
+  }
   function whenReady(){
     setTimeout(go, Math.max(0, FULL-(Date.now()-START)));
   }
-  if(document.readyState==='complete') whenReady();
-  else addEventListener('load', whenReady);
-  setTimeout(go, CAP);
+  if(document.fonts && document.fonts.ready && document.fonts.ready.then)
+    document.fonts.ready.then(function(){afterPaint(release);});
+  else afterPaint(release);
+  setTimeout(release, 700);
+
+  // The backstop, from the moment this script ran. Whatever fails above,
+  // the panel comes down: a page that stays covered is worse than one that
+  // skips its intro.
+  setTimeout(go, 4200);
 })();
 
 // Sections arrive as they come into view. The hidden state is added by
