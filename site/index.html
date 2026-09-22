@@ -221,6 +221,21 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 
    The class goes on <html> from the head, before first paint, so the overlay
    is never seen arriving. */
+/* Nothing in here moves until the document has been parsed. A CSS
+   animation begins ticking when its element is STYLED, not when it is
+   drawn, and this overlay is the first thing in the body, so its clock
+   started while the remaining fifty kilobytes were still being read.
+   domInteractive here is around 360ms, and everything that elapsed before
+   the first paint was never seen: the reticle closing and the first arms
+   land in precisely that window. That is why it was the opening that went
+   missing, and why it depended on how fast the parse happened to be. */
+/* Specificity matters here. `#reveal *` is one ID, and every rule that sets
+   an animation is `#reveal .something`, one ID plus a class. The `animation`
+   shorthand in those rules resets play-state to running, and being more
+   specific it won: the pause did nothing at all. Negating the class on the
+   root adds the weight to beat them. */
+:root:not(.cp-go) #reveal *{animation-play-state:paused}
+
 /* A CROSSHAIR SCANNING A MAP, AND LOCKING ONTO A PLACE.
 
    The version before this assembled the mark from four flying rectangles,
@@ -872,6 +887,9 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
 (function(){
   var r=document.getElementById('reveal'),h=document.documentElement;
   if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
+  // Release the sequence. This is the first thing done here, because until
+  // it happens every animation in the panel is holding on its first frame.
+  h.classList.add('cp-go');
   var done=false;
   function go(){
     if(done)return; done=true;
