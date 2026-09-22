@@ -208,31 +208,81 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 
    The class goes on <html> from the head, before first paint, so the overlay
    is never seen arriving. */
-#reveal{position:fixed;inset:0;z-index:100;background:var(--bg);
-  display:none;align-items:center;justify-content:center;gap:18px;
+/* A CROSSHAIR ACQUIRING A TARGET.
+
+   The first version scaled four rectangles up from nothing on a generic
+   ease, which is a keyframe rather than an idea. This one animates the thing
+   the mark actually is.
+
+   The reticle contracts from outside the frame. The four arms fly IN from
+   the four directions, overshoot the centre and settle, which is the whole
+   difference: motion that arrives from somewhere reads as deliberate, motion
+   that grows from zero reads as a default. The amber pip lands last and
+   hardest, because it is the only part of the mark that is not purple and
+   the shape resolves from it. Then the wordmark wipes out of the lockup
+   rather than fading, so it feels cut, not dissolved.
+
+   Everything lands inside 780ms and the overlay is gone by 1000ms whatever
+   the network did. */
+#reveal{position:fixed;inset:0;z-index:100;background:#141119;
+  display:none;align-items:center;justify-content:center;gap:22px;
   flex-direction:column}
+/* The dark palette, pinned. Not var(), because this panel does not follow
+   the reader's theme: it is the thing the theme is revealed from. Colours
+   here override the SVG's own fill attributes, which is what CSS does. */
+#reveal .arm{fill:#A78BFA}
+#reveal .dot{fill:#E0A458}
+#reveal .ring{stroke:#A78BFA}
+#reveal .word{color:#EDE9F3}
+#reveal .word em{color:#A78BFA}
 :root.reveal #reveal{display:flex}
 :root.reveal body{overflow:hidden}
-#reveal.done{animation:revgo .42s ease forwards;pointer-events:none}
-@keyframes revgo{to{opacity:0;visibility:hidden}}
-#reveal svg{width:88px;height:88px;overflow:visible}
-/* Each arm slides out of the centre to where it belongs. The dot is last and
-   lands hardest, because it is the one part of the mark that is not purple
-   and the whole shape reads from it. */
-#reveal .arm{transform-origin:32px 32px;opacity:0;
-  animation:armin .44s cubic-bezier(.2,.9,.25,1) forwards}
-#reveal .arm:nth-child(2){animation-delay:.02s}
-#reveal .arm:nth-child(3){animation-delay:.06s}
-#reveal .arm:nth-child(4){animation-delay:.08s}
-@keyframes armin{from{opacity:0;transform:scale(.18)}to{opacity:1;transform:none}}
-#reveal .dot{opacity:0;transform-origin:32px 32px;
-  animation:dotin .3s cubic-bezier(.3,1.5,.4,1) .3s forwards}
-@keyframes dotin{from{opacity:0;transform:scale(0)}to{opacity:1;transform:none}}
-#reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.55rem;
-  letter-spacing:-.035em;color:var(--ink);opacity:0;
-  animation:wordin .4s ease .42s forwards}
+/* The lockup steps back as it leaves, so it hands off to the page rather
+   than blinking out of it. */
+#reveal.done{animation:revgo .34s cubic-bezier(.4,0,.7,.2) forwards;
+  pointer-events:none}
+@keyframes revgo{to{opacity:0;transform:scale(1.04);visibility:hidden}}
+#reveal svg{width:132px;height:132px;overflow:visible;transform-box:view-box}
+#reveal svg *{transform-box:view-box;transform-origin:32px 32px}
+
+/* The scope closing. Big, thin, brief: present for about a third of a second
+   and gone before the mark finishes assembling, so it is felt more than it
+   is seen. */
+#reveal .ring{fill:none;stroke:var(--purple);stroke-width:1.2;opacity:0;
+  animation:ringin .46s cubic-bezier(.22,.8,.3,1) forwards}
+@keyframes ringin{
+  0%{opacity:0;transform:scale(2.3)}
+  35%{opacity:.5}
+  100%{opacity:0;transform:scale(.82)}}
+
+/* Each arm travels in from its own side. `--tx` and `--ty` are in viewBox
+   units, and 46 of 64 puts every one of them off the mark before it starts. */
+#reveal .arm{opacity:0;
+  animation:armin .42s cubic-bezier(.34,1.56,.64,1) forwards}
+#reveal .a1{--tx:0;--ty:-46}
+#reveal .a2{--tx:0;--ty:46;animation-delay:.045s}
+#reveal .a3{--tx:-46;--ty:0;animation-delay:.09s}
+#reveal .a4{--tx:46;--ty:0;animation-delay:.135s}
+@keyframes armin{
+  from{opacity:0;transform:translate(calc(var(--tx) * 1px),calc(var(--ty) * 1px))}
+  to{opacity:1;transform:none}}
+
+/* The lock. Punches past its size and settles. */
+#reveal .dot{opacity:0;
+  animation:dotin .34s cubic-bezier(.3,1.7,.4,1) .3s forwards}
+@keyframes dotin{
+  from{opacity:0;transform:scale(0) rotate(-45deg)}
+  to{opacity:1;transform:none}}
+
+/* Wiped, not faded: the mask opens left to right across the word. */
+#reveal .word{font-family:var(--f-display);font-weight:800;font-size:1.95rem;
+  letter-spacing:-.035em;
+  clip-path:inset(0 100% 0 0);opacity:0;
+  animation:wordin .42s cubic-bezier(.2,.75,.3,1) .40s forwards}
 #reveal .word em{font-style:normal;color:var(--purple)}
-@keyframes wordin{from{opacity:0;transform:translateY(7px)}to{opacity:1;transform:none}}
+@keyframes wordin{
+  from{clip-path:inset(0 100% 0 0);opacity:1;transform:translateX(-5px)}
+  to{clip-path:inset(0 0 0 0);opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){:root.reveal #reveal{display:none}}
 
 /* ---------- sections arrive ----------
@@ -408,11 +458,12 @@ footer a{color:var(--muted)}
      for a reader without JavaScript. -->
 <div id="reveal" aria-hidden="true">
   <svg viewBox="0 0 64 64" aria-hidden="true">
+    <circle class="ring" cx="32" cy="32" r="27"/>
     <g fill="var(--purple)">
-      <rect class="arm" x="28" y="8" width="8" height="16"/>
-      <rect class="arm" x="28" y="40" width="8" height="16"/>
-      <rect class="arm" x="8" y="28" width="16" height="8"/>
-      <rect class="arm" x="40" y="28" width="16" height="8"/>
+      <rect class="arm a1" x="28" y="8" width="8" height="16"/>
+      <rect class="arm a2" x="28" y="40" width="8" height="16"/>
+      <rect class="arm a3" x="8" y="28" width="16" height="8"/>
+      <rect class="arm a4" x="40" y="28" width="16" height="8"/>
     </g>
     <rect class="dot" x="28" y="28" width="8" height="8" fill="var(--t)"/>
   </svg>
@@ -694,7 +745,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   var done=false;
   function go(){if(done)return;done=true;r.className='done';
     setTimeout(function(){h.classList.remove('reveal');},450);}
-  setTimeout(go,900);
+  setTimeout(go,1000);
   addEventListener('load',function(){setTimeout(go,350);});
 })();
 
@@ -711,6 +762,17 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
       io.unobserve(e.target);}});
   },{rootMargin:'0px 0px -8% 0px'});
   for(var j=0;j<els.length;j++)io.observe(els[j]);
+  // A DEAD MAN'S SWITCH, because this effect can hide the page.
+  //
+  // The hidden state is opacity:0, so anything the observer never reports on
+  // stays invisible for good. That happens in more situations than it
+  // sounds: a zero-height viewport, a tab restored in the background, an
+  // embedded webview. Whatever the reason, after two and a half seconds
+  // every section is shown regardless. An animation that did not play is a
+  // shrug; a section that never appears is a broken page.
+  setTimeout(function(){
+    for(var k=0;k<els.length;k++)els[k].classList.add('in');
+  },2500);
 })();
 
 // The nav lifts once the hero is behind you.
