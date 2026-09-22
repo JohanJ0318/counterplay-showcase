@@ -116,7 +116,15 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .nav-in{max-width:1040px;margin:0 auto;padding:14px 22px;display:flex;align-items:center;
   justify-content:space-between;gap:16px}
 .mark{font-family:var(--f-display);font-weight:800;letter-spacing:-.035em;font-size:1.12rem;
-  text-decoration:none;color:var(--ink)}
+  text-decoration:none;color:var(--ink);display:inline-flex;align-items:center;gap:8px}
+/* The crosshair, at reading size beside the word. Present on every load,
+   with or without the reveal: the reveal lands on it, it does not exist for
+   the reveal. Hidden only while the panel is up, so the flying copy is the
+   only one on screen. */
+.navmark{width:19px;height:19px;flex:none;display:block}
+.navmark .a{fill:var(--purple)}
+.navmark .d{fill:var(--t)}
+:root.reveal .navmark{opacity:0}
 .mark em{font-style:normal;color:var(--purple)}
 .nav-links{display:flex;gap:18px;align-items:center}
 .nav-links a{font-size:.9rem;text-decoration:none;color:var(--muted);
@@ -249,6 +257,9 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 @keyframes revlift{from{transform:translateY(0)}to{transform:translateY(-101%)}}
 #reveal.done .scene,#reveal.done .word{
   animation:revout .24s cubic-bezier(.5,0,.75,0) forwards}
+/* The crosshair is reparented out of the panel before this runs, so the
+   rule below only ever catches it if the flight could not start. */
+#reveal.done .mark{animation:none}
 @keyframes revout{to{opacity:0;transform:scale(1.07)}}
 
 .scene{position:relative;width:min(330px,72vw);aspect-ratio:49/45;
@@ -523,7 +534,11 @@ footer a{color:var(--muted)}
 </div>
 
 <nav><div class="nav-in">
-  <a class="mark" href="#top">Counter<em>play</em></a>
+  <a class="mark" href="#top"><svg class="navmark" viewBox="0 0 64 64"
+       aria-hidden="true"><g class="a"><rect x="28" y="8" width="8" height="16"/>
+       <rect x="28" y="40" width="8" height="16"/><rect x="8" y="28" width="16" height="8"/>
+       <rect x="40" y="28" width="16" height="8"/></g>
+       <rect class="d" x="28" y="28" width="8" height="8"/></svg>Counter<em>play</em></a>
   <div class="nav-links">
     <a href="#features">What you get</a>
     <a href="#numbers">The numbers</a>
@@ -789,16 +804,74 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
 });
 </script>
 <script>
-// End the reveal on load, or after a beat if load is slow, whichever is
-// first. Never leave it up: a bad network must not mean a covered page.
+// WHEN THE REVEAL IS ALLOWED TO END.
+//
+// Not "on load, whichever is first". That was the old rule and it was
+// wrong: this page is 15KB gzipped with nothing blocking, so `load` fires
+// almost at once and the reveal was cut at about half a second on every
+// fast connection. Lengthening the animation did nothing, because the extra
+// length was being discarded.
+//
+// So load is a FLOOR and not a trigger. The sequence always gets its full
+// run from the moment the panel went up, and a hard cap still covers a slow
+// network, because a page that stays covered is worse than one that skips
+// its intro.
 (function(){
   var r=document.getElementById('reveal'),h=document.documentElement;
   if(!r||!h.classList.contains('reveal')){h.classList.remove('reveal');return;}
   var done=false;
-  function go(){if(done)return;done=true;r.className='done';
-    setTimeout(function(){h.classList.remove('reveal');},760);}
-  setTimeout(go,1750);
-  addEventListener('load',function(){setTimeout(go,350);});
+  function go(){
+    if(done)return; done=true;
+    var wait=flyHome()?680:760;
+    r.className='done';
+    setTimeout(function(){h.classList.remove('reveal');},wait);
+  }
+
+  // THE MARK DOES NOT LEAVE WITH THE PANEL. IT FLIES TO THE NAV.
+  //
+  // Straight FLIP: measure where the crosshair is, measure where the nav's
+  // copy of it sits, and transform the first onto the second. Two details
+  // make it work rather than nearly work.
+  //
+  // It is reparented to <body> first. The panel is lifting off the top at
+  // the same time, and anything still inside it rides along and leaves the
+  // screen. Fixed coordinates taken before the move keep it exactly where
+  // it already was.
+  //
+  // And the start value is committed with a forced reflow rather than
+  // requestAnimationFrame. rAF does not fire in a tab that is not painting,
+  // which would leave the mark parked mid-flight forever.
+  function flyHome(){
+    var fly=document.querySelector('#reveal .mark'),
+        dest=document.querySelector('.navmark');
+    if(!fly||!dest||!fly.getBoundingClientRect)return false;
+    var a=fly.getBoundingClientRect(), b=dest.getBoundingClientRect();
+    if(!a.width||!b.width)return false;
+    var bloom=fly.querySelector('.bloom');
+    if(bloom){bloom.style.transition='opacity .18s ease';bloom.style.opacity='0';}
+    fly.style.animation='none';
+    fly.style.cssText+=';position:fixed;margin:0;z-index:200;'+
+      'left:'+a.left+'px;top:'+a.top+'px;width:'+a.width+'px;'+
+      'height:'+a.height+'px;transform:none';
+    document.body.appendChild(fly);
+    fly.offsetHeight;                       // commit the start of the move
+    fly.style.transition='transform .6s cubic-bezier(.6,0,.16,1)';
+    fly.style.transform='translate('+
+      ((b.left+b.width/2)-(a.left+a.width/2))+'px,'+
+      ((b.top+b.height/2)-(a.top+a.height/2))+'px) scale('+(b.width/a.width)+')';
+    // The flying copy is removed in the same tick the nav's own becomes
+    // visible, and they are the same size in the same place, so the swap is
+    // not visible.
+    setTimeout(function(){if(fly.parentNode)fly.parentNode.removeChild(fly);},660);
+    return true;
+  }
+  var START=Date.now(), FULL=2050, CAP=3400;
+  function whenReady(){
+    setTimeout(go, Math.max(0, FULL-(Date.now()-START)));
+  }
+  if(document.readyState==='complete') whenReady();
+  else addEventListener('load', whenReady);
+  setTimeout(go, CAP);
 })();
 
 // Sections arrive as they come into view. The hidden state is added by
