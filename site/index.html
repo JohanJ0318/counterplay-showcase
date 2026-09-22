@@ -538,7 +538,7 @@ footer a{color:var(--muted)}
        aria-hidden="true"><g class="a"><rect x="28" y="8" width="8" height="16"/>
        <rect x="28" y="40" width="8" height="16"/><rect x="8" y="28" width="16" height="8"/>
        <rect x="40" y="28" width="16" height="8"/></g>
-       <rect class="d" x="28" y="28" width="8" height="8"/></svg>Counter<em>play</em></a>
+       <rect class="d" x="28" y="28" width="8" height="8"/></svg><span>Counter<em>play</em></span></a>
   <div class="nav-links">
     <a href="#features">What you get</a>
     <a href="#numbers">The numbers</a>
@@ -848,7 +848,11 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
     var a=fly.getBoundingClientRect(), b=dest.getBoundingClientRect();
     if(!a.width||!b.width)return false;
     var bloom=fly.querySelector('.bloom');
-    if(bloom){bloom.style.transition='opacity .18s ease';bloom.style.opacity='0';}
+    if(bloom&&bloom.parentNode)bloom.parentNode.removeChild(bloom);
+    var pip=fly.querySelector('.dot');
+    if(pip){pip.style.animation='none';pip.style.opacity='1';pip.style.filter='none';}
+    var ring=fly.querySelector('.ring');
+    if(ring)ring.style.display='none';
     fly.style.animation='none';
     fly.style.cssText+=';position:fixed;margin:0;z-index:200;'+
       'left:'+a.left+'px;top:'+a.top+'px;width:'+a.width+'px;'+
