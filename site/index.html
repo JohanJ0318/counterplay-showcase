@@ -508,21 +508,33 @@ ol.steps p{color:var(--muted);font-size:.95rem}
    the words are HTML so they lose nothing but the motion. */
 @media (prefers-reduced-motion:reduce){.filmband video{display:none}}
 
+/* THE BAND ON A PHONE.
+   The height is left alone: 56.25vw is the film's own 16:9 and the band is
+   the right shape at it. What was wrong was the TYPE. At desktop sizes the
+   copy is 51% of the band's width and 47% of its height, so half of what
+   you see is film. On a 375px screen the same three elements at the same
+   sizes covered the whole thing, and there was no film left to look at.
+
+   A phone cannot have a half-width column of readable display type, so the
+   split goes horizontal instead of vertical: the words sit along the bottom
+   and the top of the frame stays clear. Same idea, turned ninety degrees. */
 @media (max-width:700px){
-  /* Roughly the desktop proportion instead of a strip: tall enough that the
-     heading is part of a composition rather than the whole of it. */
-  .filmband{max-height:none;height:clamp(380px,56vh,520px)}
-  /* Cropped to the sides now, so the framing is nudged off centre to keep
-     the busier right of the shot in view behind the words. */
-  .filmband video,.filmband img.poster{object-position:58% center}
-  /* The desktop scrim darkens the LEFT, because there the words occupy the
-     left third. On a phone they run the full width, so a sideways gradient
-     leaves the end of every line sitting on bright picture. Vertical, and
-     heavier, because the crop is zoomed in and brighter than the wide shot. */
-  .scrim{background:linear-gradient(180deg,rgba(11,9,16,.58) 0%,
-    rgba(11,9,16,.66) 45%,rgba(11,9,16,.82) 100%)}
-  .film-copy h2{max-width:13ch}
-  .film-copy p.under{max-width:34ch}
+  /* Anchored to the band's floor rather than bottom-aligned inside it.
+     `.film-copy` is height:100%, and the band's height comes from a clamp
+     that max-height then overrides, so the percentage resolves against the
+     pre-clamp value and the box came out 81px tall inside a 211px band:
+     justify-content had almost nothing to push against. Absolute to the
+     bottom edge does not care how the parent's height was arrived at. */
+  .film-copy{position:absolute;left:0;right:0;bottom:0;height:auto;
+    justify-content:flex-end;padding-bottom:20px;gap:7px}
+  .film-copy h2{font-size:1.32rem;line-height:1.08;max-width:24ch;
+    text-shadow:0 2px 18px rgba(0,0,0,.75)}
+  .film-copy p.under{font-size:.88rem;line-height:1.45;max-width:38ch}
+  .film-copy .label{font-size:.6rem}
+  /* Bottom-weighted, because that is where the words are now. The top half
+     is left alone so the picture is actually visible. */
+  .scrim{background:linear-gradient(180deg,rgba(11,9,16,.10) 0%,
+    rgba(11,9,16,.18) 38%,rgba(11,9,16,.66) 68%,rgba(11,9,16,.88) 100%)}
 }
 
 /* ---------- the close ---------- */
