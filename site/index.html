@@ -249,9 +249,14 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 nav{transition:box-shadow .2s ease,border-color .2s ease}
 nav.stuck{box-shadow:0 1px 0 var(--border),0 8px 24px -16px rgba(0,0,0,.45)}
 
-/* The cards that are not built yet. Present, legible, and visibly second. */
-.pcard.later{background:var(--bg)}
-.pcard.later h3,.pcard.later p{opacity:.72}
+/* The share link, which is the section's conclusion rather than one more
+   card in the grid. Bordered on the accent so it reads as the payoff of the
+   four above it, not a fifth sibling. */
+.shareblock{margin-top:26px;border:1px solid var(--purple);
+  background:var(--purple-soft);border-radius:12px;padding:24px 26px;
+  display:flex;flex-direction:column;gap:11px;max-width:72ch}
+.shareblock .label{color:var(--purple)}
+.shareblock .den{font-size:.88rem;color:var(--muted)}
 
 /* ---------- sections ---------- */
 section{padding:64px 0}
@@ -492,7 +497,7 @@ footer a{color:var(--muted)}
   <section id="features">
     <div class="sec-head">
       <span class="label">What you get</span>
-      <h2>Six things, off one folder of demos.</h2>
+      <h2>Four things, off one folder of demos.</h2>
       <p>Upload a season's matches once. Everything below comes out of the same parse, so
         there is nothing else to set up and nothing to keep in sync.</p>
     </div>
@@ -522,20 +527,18 @@ footer a{color:var(--muted)}
         <p>Map pool with round records rather than just match records, side splits, economy
           habits, and how often you convert the situations you get into.</p>
       </div>
-      <div class="pcard later">
-        <div class="top"><span class="label">Per moment</span><span class="badge soon">Building</span></div>
-        <h3>2D replay of the moments</h3>
-        <p>Top-down playback of the rounds a report flags: ten seconds either side, so you
-          watch the thing that mattered instead of scrubbing a whole demo to find it.</p>
-      </div>
-      <div class="pcard later">
-        <div class="top"><span class="label">Per round</span><span class="badge soon">Coming</span></div>
-        <h3>Decision scoring</h3>
-        <p>Which decisions cost you rounds you were winning: the retake that was never on,
-          the save that should have been. The part nobody else does, and the part still
-          being calibrated.</p>
-      </div>
     </div>
+    <div class="shareblock">
+      <span class="label">And one link</span>
+      <h3>Your roster reads it without making accounts.</h3>
+      <p>One address opens your season read-only: the stats, the patterns, every match
+        report. Send it to five players and a graduate assistant and none of them sign
+        up, install anything, or ask you for a seat. Revoke it whenever you like.</p>
+      <p class="den">Every other team tool in this game sells seats, with a minimum of
+        five. A seat minimum is a purchase order and a conversation with whoever holds
+        the budget. This is a link.</p>
+    </div>
+
     <div class="notyet" style="margin-top:26px">
       <span class="label">On purpose</span>
       <p>There is no ranking of you against professional teams here, and there will not
