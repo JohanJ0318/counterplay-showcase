@@ -299,8 +299,10 @@ picks them up; nothing parses inside a web request.
 ### Where demos come from
 
 `api.faceit.com/match/v2/match/{id}` returns `demoURLs` with **no API key and no
-login**. The authenticated Data API returns 403 for a match you did not organise;
-the public endpoint does not care. `league/gen/fetch.py` also already cached
+login**. The authenticated Data API works too: it returned 200, with `demo_url`,
+for a match we did not organise. An earlier note here said it 403s in that case.
+It does not. That 403 was Cloudflare, and **where you call from decides
+everything**. See "FACEIT is behind Cloudflare" in CLAUDE.md. `league/gen/fetch.py` also already cached
 `demo_url` for every match it saw — 1,681 links across 780 NECC matches — which
 `build.py` never used.
 
