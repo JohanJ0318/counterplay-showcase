@@ -65,7 +65,14 @@ true on purpose.
       the SAME call, so good executions can be compared against bad ones with
       the plan held constant. Eleven matches gives six calls worth printing and
       splits of 7 against 12. The `app/pull.py` cache cannot supply more: its
-      1,681 FACEIT demo links have expired, six of six dead on 403 or DNS.
+      1,681 FACEIT demo links could not be fetched: six of six returned 403
+      or failed DNS. NOTE 2026-09-23: the 403s are almost certainly NOT
+      expiry. demos-us-central1.faceit-cdn.net sits behind Cloudflare bot
+      protection, which answers curl and urllib with 403 Cf-Mitigated:
+      challenge and a real browser with an interstitial. faceit.head() uses
+      urllib, so that test measured the bot block, not the file. Whether
+      those demos still exist is UNKNOWN. Do not repeat "the spring is
+      gone" as fact anywhere public.
 
 - [ ] **The smoke line under Utility.** One sentence, removed at the same time:
       how many smokes nobody was inside, how many an opponent walked into, and
