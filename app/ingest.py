@@ -24,9 +24,9 @@ Storage is the cheapest thing in this system: the whole NECC corpus is around
 100-140GB compressed, a few euro a month. Parse time and RAM are the real costs,
 and keeping the file does not affect either.
 
-What is NOT kept is the decompressed `.dem`. FACEIT serves zstd, the expanded
-file is 3-4x larger, and it is only needed for the seconds the parser is
-reading it.
+What is NOT kept is the decompressed `.dem`. FACEIT serves gzip today and
+served zstd before that, the expanded file is 3-4x larger either way, and it
+is only needed for the seconds the parser is reading it.
 
 Validation is not optional. `validate.py` exists because parsing fails silently
 far more often than it raises, and a demo that parses into nonsense would be
@@ -96,7 +96,7 @@ class TransientError(IngestError):
 
 def stored_path(sha: str) -> Path | None:
     """Where this demo lives on disk, compressed or not, or None."""
-    for name in (f"{sha}.dem.zst", f"{sha}.dem"):
+    for name in (f"{sha}.dem.zst", f"{sha}.dem.gz", f"{sha}.dem"):
         p = db.DEMO_DIR / name
         if p.exists():
             return p
@@ -155,15 +155,45 @@ def is_zstd(path: Path) -> bool:
         return f.read(4) == b"\x28\xb5\x2f\xfd"
 
 
-def decompress(src: Path, dest: Path) -> int:
-    """Expand a .dem.zst. Returns bytes written.
+def is_gzip(path: Path) -> bool:
+    """FACEIT serves .dem.gz. A coach who downloads one gets exactly this.
 
-    Streaming, not in memory: a 70MB .zst expands to ~300MB.
+    Checked by magic number for the same reason as zstd: a browser, an
+    unzip tool or a rename can leave the extension saying anything at all.
     """
-    import zstandard
-    with src.open("rb") as fin, dest.open("wb") as fout:
-        zstandard.ZstdDecompressor().copy_stream(
-            fin, fout, write_size=DOWNLOAD_CHUNK)
+    with path.open("rb") as f:
+        return f.read(2) == b"\x1f\x8b"
+
+
+def packing_of(path: Path) -> str:
+    """"zstd", "gzip", or "" for an already-playable .dem."""
+    if is_zstd(path):
+        return "zstd"
+    if is_gzip(path):
+        return "gzip"
+    return ""
+
+
+def decompress(src: Path, dest: Path) -> int:
+    """Expand a packed demo, zstd or gzip. Returns bytes written.
+
+    Streaming in both branches, not in memory: a 70MB archive expands to
+    around 300MB and this box has 7GB of RAM to run everything else in.
+    """
+    kind = packing_of(src)
+    if kind == "zstd":
+        import zstandard
+        with src.open("rb") as fin, dest.open("wb") as fout:
+            zstandard.ZstdDecompressor().copy_stream(
+                fin, fout, write_size=DOWNLOAD_CHUNK)
+    elif kind == "gzip":
+        import gzip
+        import shutil as _shutil
+        with gzip.open(src, "rb") as fin, dest.open("wb") as fout:
+            _shutil.copyfileobj(fin, fout, DOWNLOAD_CHUNK)
+    else:
+        raise IngestError("not a packed demo: no zstd or gzip magic number")
+
     size = dest.stat().st_size
     if size == 0:
         raise IngestError("decompressed to nothing")
@@ -426,7 +456,8 @@ def process(demo_row) -> tuple[bool, str]:
             # Replace it now so an upload of the same match is recognized as a
             # duplicate rather than parsed twice.
             real = sha256_of(tmp)
-            suffix = ".dem.zst" if is_zstd(tmp) else ".dem"
+            suffix = {"zstd": ".dem.zst", "gzip": ".dem.gz"}.get(
+                packing_of(tmp), ".dem")
             archive = db.DEMO_DIR / f"{real}{suffix}"
             if archive.exists():
                 tmp.unlink(missing_ok=True)
@@ -448,7 +479,7 @@ def process(demo_row) -> tuple[bool, str]:
                 sha = real
 
         source_file = archive if external is None else external
-        if is_zstd(source_file):
+        if packing_of(source_file):
             playable = work / "demo.dem"
             decompress(source_file, playable)
         else:
