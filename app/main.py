@@ -24,7 +24,9 @@ import secrets
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, Request, UploadFile
-from fastapi.responses import HTMLResponse, RedirectResponse, Response
+from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
+                               Response)
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
 from . import (advice, auth, charts, db, legal, mail, movement,
@@ -3294,6 +3296,37 @@ def _icon_route(path: str, name: str, kind: str):
 
 for _p, (_n, _k) in ICONS.items():
     _icon_route(_p, _n, _k)
+
+
+# ---- the page for an address that is not here
+#
+# FastAPI answers an unclaimed path with `{"detail":"Not Found"}`, which is
+# right for a client parsing a response and wrong for a coach who mistyped
+# the address or followed a link from an email after a page moved.
+#
+# Anything under /api/ keeps the JSON, and so does a caller that did not ask
+# for HTML, because something reading a response should not be handed a
+# document. Everything else gets the same shell as the rest of the site,
+# noindex, with the two links worth having from a dead end.
+@app.exception_handler(StarletteHTTPException)
+async def not_found(request: Request, exc: StarletteHTTPException):
+    wants_html = "text/html" in (request.headers.get("accept") or "")
+    if (exc.status_code != 404 or not wants_html
+            or request.url.path.startswith("/api/")):
+        return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+    body = """
+  <section>
+    <p class="lede">The address you asked for is not here. It may have moved,
+      or it may never have existed; either way nothing is broken at your end.</p>
+    <p style="margin-top:18px">
+      <a class="btn" href="/">Back to the start</a>
+      <a class="btn btn-ghost" href="/sample-report"
+         style="margin-left:9px">See a sample report</a></p>
+  </section>"""
+    return HTMLResponse(
+        page("Not found | Counterplay",
+             banner("Not found", label="404"), body, noindex=True),
+        status_code=404)
 
 
 # ---- what a crawler is allowed to ask for
