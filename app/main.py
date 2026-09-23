@@ -29,7 +29,7 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import (advice, auth, charts, db, legal, mail, movement,
+from . import (advice, auth, charts, db, legal, mail, movement, traffic,
                report as report_mod, resets, sample as sample_page,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
@@ -3328,6 +3328,123 @@ def _icon_route(path: str, name: str, kind: str):
 
 for _p, (_n, _k) in ICONS.items():
     _icon_route(_p, _n, _k)
+
+
+# ---- who visited
+#
+# Admin only, and the flag is given by grantadmin.py, which is deliberately
+# not something a web page can do. Everyone else gets the 404 they would get
+# for any address that is not theirs, rather than a 403: a page you may not
+# see should not confirm it exists.
+#
+# There is no script on the landing page feeding this. It reads Caddy's own
+# access log, which is why the privacy section did not need a word changing
+# to add it. See app/traffic.py.
+@app.get("/admin/traffic", response_class=HTMLResponse)
+def admin_traffic(request: Request):
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not user["is_admin"]:
+        raise StarletteHTTPException(status_code=404)
+
+    t = traffic.read(force=request.query_params.get("fresh") == "1")
+    if t.get("error"):
+        return html_page("Traffic | Counterplay", banner("Traffic"),
+                         f'<p class="note">{esc(t["error"])}</p>', user,
+                         noindex=True)
+
+    first, last = t["covers"]
+    stat = (lambda n, label: f'<div class="stat"><span class="stat-n">{n}</span>'
+                             f'<span class="label">{esc(label)}</span></div>')
+
+    # The daily series, newest last, as the trends page draws a season.
+    pts = [(d[5:], real, "") for d, _v, _p, real in t["series"]]
+    chart = (f'<div class="chart">{charts.trend(pts, unit="", is_pct=False)}</div>'
+             if len(pts) > 1 else "")
+
+    rows = "".join(
+        f'<tr><td class="name">{esc(p)}</td>'
+        f'<td class="num">{n}</td></tr>' for p, n in t["pages"])
+    refs = "".join(
+        f'<tr><td class="name">{esc(r)}</td><td class="num">{n}</td></tr>'
+        for r, n in t["referrers"])
+    if not refs:
+        refs = ('<tr><td colspan="2" class="den">Nothing. Every visit was '
+                'typed, pasted, or arrived without a referrer.</td></tr>')
+
+    ok = t["signup"].get(303, 0)
+    rejected = sum(n for code, n in t["signup"].items() if code != 303)
+
+    body = f"""
+  <section>
+    <div class="stat-row">
+      {stat(t["real_browsers"], "real browsers")}
+      {stat(t["saw_home"], "opened the landing page")}
+      {stat(t["went_deeper"], "got past it")}
+      {stat(ok, "signups accepted")}
+    </div>
+    <p class="note">{esc(first or "?")} to {esc(last or "?")}, {t["days_counted"]}
+      days. An address is not a person: a phone on a carrier network shares one
+      with thousands, and the same reader on wifi and then on data counts
+      twice. These are a floor, counted the same way every time, so they are
+      worth comparing with each other and not worth quoting as a headcount.</p>
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="label">Per day</span>
+      <h2>Real browsers</h2></div>
+    <p class="lede">An address that asked for a page AND for the images on it.
+      Anything that requested the HTML and nothing else was not rendering it.</p>
+    {chart}
+  </section>
+
+  <section>
+    <div class="sec-head"><span class="label">What reached the server</span>
+      <h2>Almost none of it is a person</h2></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Source</th><th class="num">Requests</th></tr></thead>
+      <tbody>
+        <tr><td class="name">Vulnerability scanners
+          <span class="den">({t["scanner_addresses"]} addresses that probed for
+          wordpress, .env or .git)</span></td>
+          <td class="num">{t["scanner_hits"]}</td></tr>
+        <tr><td class="name">Declared bots and crawlers</td>
+          <td class="num">{t["declared_bots"]}</td></tr>
+        <tr><td class="name">Page views by everything else</td>
+          <td class="num">{t["real_views"]}</td></tr>
+        <tr><td class="name"><strong>Total</strong></td>
+          <td class="num"><strong>{t["requests"]}</strong></td></tr>
+      </tbody></table></div>
+  </section>
+
+  <section class="grid2">
+    <div>
+      <div class="sec-head"><span class="label">Pages</span><h3>What they opened</h3></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Path</th><th class="num">Views</th></tr></thead>
+        <tbody>{rows}</tbody></table></div>
+    </div>
+    <div>
+      <div class="sec-head"><span class="label">Referrers</span><h3>Where they came from</h3></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th>Host</th><th class="num">Visits</th></tr></thead>
+        <tbody>{refs}</tbody></table></div>
+      <p class="note" style="margin-top:12px">Signup form submitted
+        <strong>{ok + rejected}</strong> times: {ok} accepted,
+        {rejected} rejected by validation or the honeypot.</p>
+    </div>
+  </section>
+
+  <section>
+    <p class="den">Read from {t["log_bytes"] // 1048576}MB of access log,
+      cached until the file grows.
+      <a href="/admin/traffic?fresh=1">Re-read it now</a>.
+      No script on the landing page feeds this and no cookie is set for it.</p>
+  </section>"""
+
+    return html_page("Traffic | Counterplay",
+                     banner("Traffic", label="Admin"), body, user, noindex=True)
 
 
 # ---- the page for an address that is not here
