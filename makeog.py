@@ -21,7 +21,7 @@ with its denominator beside it. If those change on the page, change them here.
 
 FONTS
 -----
-The site sets display type in Space Grotesk and numbers in JetBrains Mono,
+The site sets display type in DM Sans and numbers in JetBrains Mono,
 neither of which is installed on this machine. If a `.ttf` for either is
 dropped into `design/fonts/`, this picks it up; otherwise it falls back to
 Segoe UI and Consolas, which are close enough in weight and width that the
@@ -72,7 +72,7 @@ DOMAIN = "counterplaycs.com"
 
 def font(kind, size):
     """A face for `kind`, preferring the real one if somebody dropped it in."""
-    wanted = {"display": ["SpaceGrotesk-Bold.ttf", "SpaceGrotesk-SemiBold.ttf"],
+    wanted = {"display": ["DMSans-Bold.ttf", "DMSans-SemiBold.ttf"],
               "body": ["PublicSans-Regular.ttf"],
               "mono": ["JetBrainsMono-Regular.ttf"]}[kind]
     for name in wanted:

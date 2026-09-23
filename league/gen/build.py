@@ -338,7 +338,7 @@ CSS = """
      pages are square boxes on an identical palette, which is enough to read
      as somebody else's site. */
   --r:8px; --shadow:0 1px 2px rgba(25,19,37,.05);
-  --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-display:"DM Sans","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
@@ -511,7 +511,7 @@ SHELL = """<!doctype html>
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>@@CSS@@</style><script>
 (function(){try{var t=localStorage.getItem('cp-theme');
 if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();

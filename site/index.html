@@ -43,7 +43,7 @@
 </script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@500;600;700;800&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <script>
 (function(){try{var t=localStorage.getItem('cp-theme');
 if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
@@ -74,7 +74,7 @@ h.setAttribute('data-theme',n);try{localStorage.setItem('cp-theme',n)}catch(e){}
   --border:#E7E3F0; --border-strong:#D6D0E4;
   --purple:#5B21B6;  --purple-soft:#F3EFFE;
   --t:#A65B0B; --t-soft:#FDF3E4; --on-purple:#FFFFFF;
-  --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-display:"DM Sans","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 }
@@ -186,8 +186,7 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .receipt{border:1px solid var(--border-strong);background:var(--surface);
   border-radius:12px;display:flex;flex-direction:column;gap:0;overflow:hidden;
   box-shadow:0 24px 60px -20px rgba(25,19,37,.28)}
-.receipt-src{padding-bottom:13px;border-bottom:1px solid var(--border)}
-.receipt-src .label{letter-spacing:.08em;text-transform:none}
+
 .receipt-body{padding:18px 20px 20px;display:flex;flex-direction:column}
 .receipt-top{display:flex;justify-content:space-between;align-items:baseline;
   padding-bottom:12px;border-bottom:1px solid var(--border-strong)}
@@ -492,7 +491,7 @@ ol.steps p{color:var(--muted);font-size:.95rem}
    for, in the half second before anybody reads a word.
 
    THE WORDS ARE HTML OVER THE FILM, NOT BAKED INTO IT. Baking them was tried
-   and the type was the giveaway: no font on this machine is Space Grotesk, so
+   and the type was the giveaway: no font on this machine is DM Sans, so
    the band read as a video with text on it rather than as part of the page.
    Fetching the real face fixed that and left the reason that actually decides
    it, which is the scrim. A gradient burned into a file is one gradient. This
@@ -659,7 +658,6 @@ footer a{color:var(--muted)}
 
   <div class="receipt" aria-label="Example of how figures are reported">
     <div class="receipt-body">
-    <div class="receipt-src"><span class="label">counterplaycs.com/stats</span></div>
     <div class="receipt-top">
       <span class="label">Real lines, real matches</span>
       <span class="label">observed / chances</span>
@@ -680,6 +678,8 @@ footer a{color:var(--muted)}
       <span class="what">Your first death is in A main, T-side Mirage</span>
       <span class="fig"><span class="pct">29%</span><span class="den">10 / 34</span></span>
     </div>
+    <div class="receipt-foot">Read off one team's own season at
+      counterplaycs.com/stats. Every rate prints the rounds behind it.</div>
     </div>
   </div>
 </div></div>
@@ -988,7 +988,7 @@ document.querySelectorAll('a[href^="mailto:CONTACT_EMAIL"]').forEach(function (a
   //
   // Two nested rAFs put the start after a frame has actually been painted.
   // Waiting on fonts.ready first stops the wordmark wiping in with a
-  // fallback face and swapping to Space Grotesk halfway through. Both are
+  // fallback face and swapping to DM Sans halfway through. Both are
   // capped, because neither the promise nor the frame is owed to us: a tab
   // that is not painting never fires rAF at all.
   function afterPaint(fn){

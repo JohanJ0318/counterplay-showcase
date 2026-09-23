@@ -54,7 +54,7 @@ CSS = """
   --bad:#A61B1B;
   --bad-soft:#FDF0F0;
 
-  --f-display:"Space Grotesk","Helvetica Neue",Arial,sans-serif;
+  --f-display:"DM Sans","Helvetica Neue",Arial,sans-serif;
   --f-body:"Public Sans","Helvetica Neue",Arial,sans-serif;
   --f-mono:"JetBrains Mono",ui-monospace,Menlo,monospace;
 
@@ -781,7 +781,7 @@ footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);
 FONTS = ('<link rel="preconnect" href="https://fonts.googleapis.com">'
          '<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>'
          '<link rel="stylesheet" href="https://fonts.googleapis.com/css2?'
-         'family=Space+Grotesk:wght@500;600;700&'
+         'family=DM+Sans:wght@500;600;700;800&'
          'family=Public+Sans:wght@400;500;600&'
          'family=JetBrains+Mono:wght@400;500&display=swap">')
 
