@@ -29,7 +29,8 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import (advice, auth, charts, db, legal, mail, movement, traffic,
+from . import (advice, alert, auth, charts, db, legal, mail, movement,
+               traffic,
                report as report_mod, resets, sample as sample_page,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
@@ -260,6 +261,7 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
     db.execute("""INSERT INTO team_members (team_id, user_id, member_role, created_at)
                   VALUES (?,?,?,?)""", team_id, user_id, "owner", db.utcnow())
     db.audit(user_id, "signup", f"team={slug} league={league}")
+    alert.signup(team.strip(), email.strip(), league, role)
 
     token, _ = auth.start_session(user_id, request.headers.get("user-agent", ""))
     response = see_other("/dashboard")

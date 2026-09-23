@@ -45,7 +45,7 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
-from . import db, faceit
+from . import alert, db, faceit
 
 # A demo that fails this many times is left alone. Almost always a genuinely
 # broken file or an unsupported demo version, and retrying forever turns one
@@ -515,6 +515,17 @@ def process(demo_row) -> tuple[bool, str]:
                                        map_name=?, parsed_at=?
                        WHERE id = ?""",
                    note[:400], n, map_name, db.utcnow(), demo_id)
+
+        # The row is written, so the work is safe whatever happens next.
+        # Only uploads are worth a message: pull.py backfills the league
+        # corpus in runs of hundreds and nobody wants that in their inbox.
+        if demo_row["source"] == "upload":
+            team = (db.one("SELECT name FROM teams WHERE id = ?",
+                           demo_row["team_id"])
+                    if demo_row["team_id"] else None)
+            alert.parsed(team["name"] if team else "", demo_row["filename"],
+                         n, map_name)
+
         return True, f"{n} rounds, {map_name}, {note}"
 
     except TransientError as e:
