@@ -102,8 +102,15 @@ def main() -> int:
         offset += len(blob)
     ico.write_bytes(head + b"".join(entries) + b"".join(body))
     draw(180).save(SITE / "apple-touch-icon.png")
+    # 192 and 512 are what a web app manifest asks for: Android draws the
+    # home screen icon from the first and the splash from the second. Drawn
+    # at size like every other frame here rather than resampled down from
+    # one big one, for the same reason.
+    for size in (192, 512):
+        draw(size).save(SITE / f"icon-{size}.png")
     print(f"wrote {ico}  ({', '.join(str(s[0]) for s in ICO_SIZES)})")
     print(f"wrote {SITE / 'apple-touch-icon.png'}  (180)")
+    print(f"wrote icon-192.png and icon-512.png")
     return 0
 
 

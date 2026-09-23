@@ -3277,7 +3277,39 @@ def sample_report(request: Request):
 # would put both back at addresses this app deliberately does not answer.
 ICONS = {"/favicon.svg": ("favicon.svg", "image/svg+xml"),
          "/favicon.ico": ("favicon.ico", "image/x-icon"),
-         "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png")}
+         "/apple-touch-icon.png": ("apple-touch-icon.png", "image/png"),
+         "/icon-192.png": ("icon-192.png", "image/png"),
+         "/icon-512.png": ("icon-512.png", "image/png")}
+
+# What a phone reads when somebody saves this to a home screen: the name to
+# print under the icon, which icon to draw, and what colour to paint round
+# it while it opens.
+#
+# `display: browser` deliberately. The alternatives hide the address bar,
+# which is right for an app and wrong for this one: a coach who saved a
+# report should be able to see where they are, and a page arguing that every
+# number is checkable should not open in a window that hides its own URL.
+MANIFEST = """{
+  "name": "Counterplay: match analysis for league teams",
+  "short_name": "Counterplay",
+  "description": "Your Counter-Strike matches, read round by round.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "browser",
+  "background_color": "#141119",
+  "theme_color": "#5B21B6",
+  "icons": [
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png"},
+    {"src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml"}
+  ]
+}"""
+
+
+@app.get("/site.webmanifest", include_in_schema=False)
+def webmanifest():
+    return Response(MANIFEST, media_type="application/manifest+json",
+                    headers={"Cache-Control": "public, max-age=86400"})
 
 
 def _icon_route(path: str, name: str, kind: str):
