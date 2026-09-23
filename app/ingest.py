@@ -25,8 +25,9 @@ Storage is the cheapest thing in this system: the whole NECC corpus is around
 and keeping the file does not affect either.
 
 What is NOT kept is the decompressed `.dem`. FACEIT serves gzip today and
-served zstd before that, the expanded file is 3-4x larger either way, and it
-is only needed for the seconds the parser is reading it.
+served zstd before that, Valve matchmaking serves bzip2, the expanded file is
+3-4x larger whichever it was, and it is only needed for the seconds the
+parser is reading it.
 
 Validation is not optional. `validate.py` exists because parsing fails silently
 far more often than it raises, and a demo that parses into nonsense would be
@@ -96,7 +97,8 @@ class TransientError(IngestError):
 
 def stored_path(sha: str) -> Path | None:
     """Where this demo lives on disk, compressed or not, or None."""
-    for name in (f"{sha}.dem.zst", f"{sha}.dem.gz", f"{sha}.dem"):
+    for name in (f"{sha}.dem.zst", f"{sha}.dem.gz", f"{sha}.dem.bz2",
+                 f"{sha}.dem"):
         p = db.DEMO_DIR / name
         if p.exists():
             return p
@@ -165,12 +167,24 @@ def is_gzip(path: Path) -> bool:
         return f.read(2) == b"\x1f\x8b"
 
 
+def is_bzip2(path: Path) -> bool:
+    """Valve serves matchmaking demos as .dem.bz2.
+
+    That is what a player downloads from their own match history, so it is
+    what a team's scrims arrive as, and scrims are most of what a team plays.
+    """
+    with path.open("rb") as f:
+        return f.read(3) == b"\x42\x5a\x68"
+
+
 def packing_of(path: Path) -> str:
-    """"zstd", "gzip", or "" for an already-playable .dem."""
+    """"zstd", "gzip", "bzip2", or "" for an already-playable .dem."""
     if is_zstd(path):
         return "zstd"
     if is_gzip(path):
         return "gzip"
+    if is_bzip2(path):
+        return "bzip2"
     return ""
 
 
@@ -191,8 +205,14 @@ def decompress(src: Path, dest: Path) -> int:
         import shutil as _shutil
         with gzip.open(src, "rb") as fin, dest.open("wb") as fout:
             _shutil.copyfileobj(fin, fout, DOWNLOAD_CHUNK)
+    elif kind == "bzip2":
+        import bz2
+        import shutil as _shutil
+        with bz2.open(src, "rb") as fin, dest.open("wb") as fout:
+            _shutil.copyfileobj(fin, fout, DOWNLOAD_CHUNK)
     else:
-        raise IngestError("not a packed demo: no zstd or gzip magic number")
+        raise IngestError(
+            "not a packed demo: no zstd, gzip or bzip2 magic number")
 
     size = dest.stat().st_size
     if size == 0:
@@ -456,8 +476,8 @@ def process(demo_row) -> tuple[bool, str]:
             # Replace it now so an upload of the same match is recognized as a
             # duplicate rather than parsed twice.
             real = sha256_of(tmp)
-            suffix = {"zstd": ".dem.zst", "gzip": ".dem.gz"}.get(
-                packing_of(tmp), ".dem")
+            suffix = {"zstd": ".dem.zst", "gzip": ".dem.gz",
+                      "bzip2": ".dem.bz2"}.get(packing_of(tmp), ".dem")
             archive = db.DEMO_DIR / f"{real}{suffix}"
             if archive.exists():
                 tmp.unlink(missing_ok=True)

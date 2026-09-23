@@ -8,6 +8,7 @@ to the parser as gzip bytes.
 That path is about to matter: the emails sent on 2026-09-23 tell a coach to
 download their demo and upload it, and what FACEIT hands them is gzip.
 """
+import bz2
 import gzip
 import shutil
 
@@ -46,10 +47,33 @@ def test_zstd_still_detected(tmp_path, raw):
     assert ingest.packing_of(packed) == "zstd"
 
 
+def test_bzip2_is_detected(tmp_path, raw):
+    """Valve matchmaking demos. What a team's own scrims arrive as."""
+    packed = tmp_path / "match.dem.bz2"
+    with raw.open("rb") as fin, bz2.open(packed, "wb") as fout:
+        shutil.copyfileobj(fin, fout)
+
+    assert ingest.is_bzip2(packed) is True
+    assert ingest.is_zstd(packed) is False
+    assert ingest.is_gzip(packed) is False
+    assert ingest.packing_of(packed) == "bzip2"
+
+
+def test_bzip2_round_trips_through_decompress(tmp_path, raw):
+    packed = tmp_path / "match.dem.bz2"
+    with raw.open("rb") as fin, bz2.open(packed, "wb") as fout:
+        shutil.copyfileobj(fin, fout)
+
+    out = tmp_path / "expanded.dem"
+    assert ingest.decompress(packed, out) == len(DEMO_BYTES)
+    assert out.read_bytes() == DEMO_BYTES
+
+
 def test_a_raw_demo_is_not_packed(raw):
     assert ingest.packing_of(raw) == ""
     assert ingest.is_gzip(raw) is False
     assert ingest.is_zstd(raw) is False
+    assert ingest.is_bzip2(raw) is False
 
 
 def test_gzip_round_trips_through_decompress(tmp_path, raw):
