@@ -186,12 +186,8 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
 .receipt{border:1px solid var(--border-strong);background:var(--surface);
   border-radius:12px;display:flex;flex-direction:column;gap:0;overflow:hidden;
   box-shadow:0 24px 60px -20px rgba(25,19,37,.28)}
-.receipt-bar{display:flex;align-items:center;gap:7px;padding:11px 14px;
-  background:var(--sunk);border-bottom:1px solid var(--border)}
-.receipt-bar i{width:10px;height:10px;border-radius:50%;
-  background:var(--border-strong);display:block}
-.receipt-bar span{font-family:var(--f-mono);font-size:.7rem;color:var(--faint);
-  margin-left:6px}
+.receipt-src{padding-bottom:13px;border-bottom:1px solid var(--border)}
+.receipt-src .label{letter-spacing:.08em;text-transform:none}
 .receipt-body{padding:18px 20px 20px;display:flex;flex-direction:column}
 .receipt-top{display:flex;justify-content:space-between;align-items:baseline;
   padding-bottom:12px;border-bottom:1px solid var(--border-strong)}
@@ -470,11 +466,16 @@ ol.steps p{color:var(--muted);font-size:.95rem}
 .why p{font-size:1rem}
 .why strong{font-weight:600}
 
-.data ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:11px;
+.data ul{margin:0;padding:0;list-style:none;display:flex;flex-direction:column;gap:17px;
   max-width:66ch}
-.data li{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:baseline;
-  color:var(--muted);font-size:.96rem}
-.data li .tick{font-family:var(--f-mono);color:var(--purple);font-size:.8rem}
+/* No marker at all. Each item opens with its point in bold, which says more
+   than a glyph can, and a tick in particular claims something these lines
+   cannot: a tick reads as verified, and these are promises.
+   Deliberately not a coloured left rule either. That is the same costume in
+   a different cut, and it is its own line on the same list. The bold lead
+   and the space between items are enough. */
+.data li{color:var(--muted);font-size:.96rem}
+.data li strong{display:block;margin-bottom:3px}
 .data li strong{color:var(--ink);font-weight:600}
 
 .leagues{display:flex;flex-wrap:wrap;gap:8px}
@@ -657,10 +658,8 @@ footer a{color:var(--muted)}
   </div>
 
   <div class="receipt" aria-label="Example of how figures are reported">
-    <div class="receipt-bar" aria-hidden="true">
-      <i></i><i></i><i></i><span>counterplaycs.com/stats</span>
-    </div>
     <div class="receipt-body">
+    <div class="receipt-src"><span class="label">counterplaycs.com/stats</span></div>
     <div class="receipt-top">
       <span class="label">Real lines, real matches</span>
       <span class="label">observed / chances</span>
@@ -836,16 +835,16 @@ footer a{color:var(--muted)}
         <a href="/privacy">privacy policy</a>.</p>
     </div>
     <ul>
-      <li><span class="tick">&check;</span><span><strong>We parse them and keep the round data.</strong>
+      <li><span><strong>We parse them and keep the round data.</strong>
         Positions, buys, outcomes: the numbers that build league baselines.</span></li>
-      <li><span class="tick">&check;</span><span><strong>Your team's report is yours.</strong>
+      <li><span><strong>Your team's report is yours.</strong>
         We do not show one team's report to another team.</span></li>
-      <li><span class="tick">&check;</span><span><strong>We do not publish or sell demo files.</strong>
+      <li><span><strong>We do not publish or sell demo files.</strong>
         They are not redistributed, and they are not listed anywhere public.</span></li>
-      <li><span class="tick">&check;</span><span><strong>Baselines are aggregate.</strong>
+      <li><span><strong>Baselines are aggregate.</strong>
         League-wide reference numbers are situation rates by map, side and tier, not
         profiles of individual players who never signed up.</span></li>
-      <li><span class="tick">&check;</span><span><strong>Your data stays yours.</strong>
+      <li><span><strong>Your data stays yours.</strong>
         Ask for your team's data to be deleted and it is deleted, no conversation
         required.</span></li>
     </ul>
