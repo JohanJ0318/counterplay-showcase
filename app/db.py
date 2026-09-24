@@ -125,8 +125,36 @@ def team_by_share_token(token: str) -> sqlite3.Row | None:
     return one("SELECT * FROM teams WHERE share_token = ?", token)
 
 
+def is_admin(user_id: int) -> bool:
+    """The master account flag.
+
+    Set by grantadmin.py and deliberately not by anything a web page can
+    reach, which is the same rule /admin/traffic already relies on.
+    """
+    row = one("SELECT is_admin FROM users WHERE id = ?", user_id)
+    return bool(row and row["is_admin"])
+
+
 def teams_for_user(user_id: int) -> list[sqlite3.Row]:
-    """Every team this user belongs to, oldest membership first."""
+    """Every team this user can work on, oldest membership first.
+
+    For a master account that is every team on the box. It does not widen
+    what the operator can reach, since anybody with the database already
+    has all of it; it makes it reachable through the product instead of
+    through sqlite3, which is the difference between reading a report and
+    reconstructing one.
+
+    `member_role` comes back as "admin" for a team they are not actually in,
+    never "owner", so the handover and revoke buttons stay shut. A master
+    account is for reading somebody's season, not for giving it away.
+    """
+    if is_admin(user_id):
+        return query(
+            """SELECT t.*, COALESCE(m.member_role, 'admin') AS member_role
+                 FROM teams t
+                 LEFT JOIN team_members m
+                        ON m.team_id = t.id AND m.user_id = ?
+             ORDER BY m.created_at IS NULL, m.created_at, t.name""", user_id)
     return query(
         """SELECT t.*, m.member_role
              FROM teams t
@@ -157,6 +185,19 @@ def team_for_user(user_id: int) -> sqlite3.Row | None:
             WHERE m.user_id = ? AND t.id = u.active_team_id""", user_id)
     if row is not None:
         return row
+
+    # A master account may be parked on a team it does not belong to. Same
+    # rule as above about the role: "admin", never "owner".
+    if is_admin(user_id):
+        row = one(
+            """SELECT t.*, COALESCE(m.member_role, 'admin') AS member_role
+                 FROM teams t
+                 JOIN users u ON u.id = ?
+                 LEFT JOIN team_members m
+                        ON m.team_id = t.id AND m.user_id = u.id
+                WHERE t.id = u.active_team_id""", user_id)
+        if row is not None:
+            return row
     return one(
         """SELECT t.*, m.member_role
              FROM teams t
@@ -167,10 +208,17 @@ def team_for_user(user_id: int) -> sqlite3.Row | None:
 
 
 def set_active_team(user_id: int, team_id: int) -> bool:
-    """Point a user at one of their own teams. False if it is not theirs."""
-    member = one("SELECT 1 FROM team_members WHERE user_id = ? AND team_id = ?",
-                 user_id, team_id)
-    if not member:
+    """Point a user at one of their own teams. False if it is not theirs.
+
+    A master account may point at any team that exists. Everybody else is
+    held to their own memberships, which is what stops a forged id in the
+    switch form from opening somebody else's season.
+    """
+    allowed = one("SELECT 1 FROM team_members WHERE user_id = ? AND team_id = ?",
+                  user_id, team_id)
+    if not allowed and is_admin(user_id):
+        allowed = one("SELECT 1 FROM teams WHERE id = ?", team_id)
+    if not allowed:
         return False
     execute("UPDATE users SET active_team_id = ? WHERE id = ?", team_id, user_id)
     return True

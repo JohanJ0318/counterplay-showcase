@@ -947,6 +947,12 @@ def team_page(request: Request, slug: str):
     membership = db.one("""SELECT member_role FROM team_members
                             WHERE team_id = ? AND user_id = ?""",
                         team["id"], user["id"])
+    if membership is None and user["is_admin"]:
+        # The master account reads any team. Logged every time, because an
+        # operator opening somebody's season should leave a trace even when
+        # the operator is the only person who will ever read the log.
+        db.audit(user["id"], "admin_view_team", f"team={team['id']}")
+        membership = {"member_role": "admin"}
     if membership is None:
         # One team's report is never shown to another team. That promise is on
         # the marketing page, so it is enforced here rather than assumed.
@@ -3234,12 +3240,14 @@ def account(request: Request):
         options = "".join(
             f'<option value="{t["id"]}"'
             f'{" selected" if team is not None and t["id"] == team["id"] else ""}>'
-            f'{esc(t["name"])}</option>' for t in mine)
+            f'{esc(t["name"])}'
+            f'{" (not yours)" if t["member_role"] == "admin" else ""}'
+            f'</option>' for t in mine)
         switch_block = f"""
   <section>
     <div class="card">
       <h3>Which team are you working on?</h3>
-      <p class="lede">You are on {len(mine)} of them. Everything else on the
+      <p class="lede">{"This is the master account, so every team on the site is listed. The ones marked <em>not yours</em> you can read but not hand over." if user["is_admin"] else f"You are on {len(mine)} of them."} Everything else on the
         site, the dashboard, the uploads and the roster link, follows this
         choice.</p>
       <form class="stack" method="post" action="/team/switch">{csrf_input(user)}

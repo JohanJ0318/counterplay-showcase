@@ -145,3 +145,92 @@ def test_empty_token_matches_nothing(two_teams):
     found = db.one("SELECT id FROM teams WHERE claim_token = ? "
                    "AND claim_token != ''", "")
     assert found is None
+
+
+# --------------------------------------------------------------- master account
+#
+# One flag on one row. The point of these is the second half of the request:
+# "all other ones dont have that access and it works like before". So every
+# admin capability below is paired with the non-admin assertion that it is
+# still refused.
+
+def _make_admin(uid):
+    db.execute("UPDATE users SET is_admin = 1 WHERE id = ?", uid)
+
+
+def test_a_normal_account_sees_only_its_own_teams(two_teams):
+    uid, other, ids = two_teams
+    third = db.execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan,
+                              created_at, created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        "Someone Else", "someone-else", "NECC", "", "free", db.utcnow(), other)
+    assert third not in [t["id"] for t in db.teams_for_user(uid)]
+    assert db.is_admin(uid) is False
+
+
+def test_the_master_account_sees_every_team(two_teams):
+    uid, other, ids = two_teams
+    third = db.execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan,
+                              created_at, created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        "Someone Else", "someone-else", "NECC", "", "free", db.utcnow(), other)
+    _make_admin(uid)
+    seen = {t["id"] for t in db.teams_for_user(uid)}
+    assert seen == set(ids) | {third}
+
+
+def test_master_account_gets_admin_role_not_owner(two_teams):
+    """The handover buttons key off owner. They must stay shut on a team
+    the master account only reads."""
+    uid, other, ids = two_teams
+    third = db.execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan,
+                              created_at, created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        "Someone Else", "someone-else", "NECC", "", "free", db.utcnow(), other)
+    _make_admin(uid)
+    roles = {t["id"]: t["member_role"] for t in db.teams_for_user(uid)}
+    assert roles[third] == "admin"
+    assert roles[ids[0]] == "owner"          # their own is untouched
+
+    assert db.set_active_team(uid, third) is True
+    assert db.team_for_user(uid)["member_role"] == "admin"
+
+
+def test_a_normal_account_still_cannot_switch_to_someone_elses_team(two_teams):
+    """The regression that matters: the flag is the ONLY thing that opens this."""
+    uid, other, ids = two_teams
+    third = db.execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan,
+                              created_at, created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        "Someone Else", "someone-else", "NECC", "", "free", db.utcnow(), other)
+    assert db.set_active_team(uid, third) is False
+    assert db.team_for_user(uid)["id"] == ids[0]
+
+
+def test_master_account_switching_to_a_team_that_does_not_exist_fails(two_teams):
+    uid, _other, _ids = two_teams
+    _make_admin(uid)
+    assert db.set_active_team(uid, 999999) is False
+
+
+def test_losing_the_flag_closes_the_door_again(two_teams):
+    """Demoting an account must take the extra teams back immediately."""
+    uid, other, ids = two_teams
+    third = db.execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan,
+                              created_at, created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        "Someone Else", "someone-else", "NECC", "", "free", db.utcnow(), other)
+    _make_admin(uid)
+    db.set_active_team(uid, third)
+    assert db.team_for_user(uid)["id"] == third
+
+    db.execute("UPDATE users SET is_admin = 0 WHERE id = ?", uid)
+    # active_team_id still points at a team they cannot see, so they fall
+    # back to their own oldest membership rather than keeping the access.
+    assert db.team_for_user(uid)["id"] == ids[0]
+    assert third not in [t["id"] for t in db.teams_for_user(uid)]
