@@ -457,6 +457,27 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_share
             ON teams(share_token) WHERE share_token IS NOT NULL;
     """),
+
+    (18, "more than one team, and handing one over", """
+        -- Which team this user is currently looking at. NULL means "the
+        -- oldest one", which is exactly what every existing row did before
+        -- this column existed, so nothing changes for anybody who has one.
+        --
+        -- Deliberately on users rather than in the session: a coach who signs
+        -- in on the lab machine should land where they left off, and a
+        -- session-scoped choice would also vanish on every password reset.
+        ALTER TABLE users ADD COLUMN active_team_id INTEGER
+            REFERENCES teams(id) ON DELETE SET NULL;
+
+        -- A handover link. Same reasoning as share_token, stored in plain
+        -- text because the person holding it has to be able to re-read it,
+        -- but unlike a share link this one BURNS on use: it grants ownership
+        -- of a team, so it must not be replayable.
+        ALTER TABLE teams ADD COLUMN claim_token TEXT;
+
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_claim
+            ON teams(claim_token) WHERE claim_token IS NOT NULL;
+    """),
 ]
 
 

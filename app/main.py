@@ -3021,6 +3021,147 @@ def share_new(request: Request, csrf: str = Form("")):
     return see_other("/account")
 
 
+@app.post("/team/switch")
+def team_switch(request: Request, team_id: str = Form(""), csrf: str = Form("")):
+    """Point this account at a different one of its own teams."""
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    try:
+        wanted = int(team_id)
+    except (TypeError, ValueError):
+        return see_other("/account")
+    # set_active_team refuses a team the user is not a member of, so a forged
+    # id in the form gets a redirect rather than somebody else's season.
+    if db.set_active_team(user["id"], wanted):
+        db.audit(user["id"], "team_switch", f"team={wanted}")
+    return see_other("/dashboard")
+
+
+@app.post("/claim/new")
+def claim_new(request: Request, csrf: str = Form("")):
+    """Make a one-time link that hands this team to whoever opens it.
+
+    For the case this product is actually sold in: a report is built FOR a
+    coach out of their own public demos, and they then want it to be theirs.
+    Without this, every such report is a demo that dies with the account that
+    made it.
+    """
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    team = db.team_for_user(user["id"])
+    if team is None or team["member_role"] != "owner":
+        return see_other("/account")
+    token = secrets.token_urlsafe(24)
+    db.execute("UPDATE teams SET claim_token = ? WHERE id = ?", token, team["id"])
+    db.audit(user["id"], "claim_new", f"team={team['id']}")
+    return see_other("/account")
+
+
+@app.post("/claim/revoke")
+def claim_revoke(request: Request, csrf: str = Form("")):
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    team = db.team_for_user(user["id"])
+    if team is not None and team["member_role"] == "owner":
+        db.execute("UPDATE teams SET claim_token = NULL WHERE id = ?", team["id"])
+        db.audit(user["id"], "claim_revoke", f"team={team['id']}")
+    return see_other("/account")
+
+
+@app.get("/claim/{token}", response_class=HTMLResponse)
+def claim_page(request: Request, token: str):
+    """Confirm a handover. GET never changes anything; the POST below does.
+
+    Taking a team away from its current owner on a GET would mean any crawler,
+    link preview or antivirus scanner that touched the address could perform
+    it. So this page asks.
+    """
+    team = db.one("SELECT * FROM teams WHERE claim_token = ? AND claim_token != ''",
+                  token) if token else None
+    if team is None:
+        raise StarletteHTTPException(status_code=404)
+
+    user = current(request)
+    if user is None:
+        body = f"""
+  <section>
+    <div class="card">
+      <h3>{esc(team["name"])} is being handed to you</h3>
+      <p class="lede">Whoever built this team wants it to be yours: the
+        season, the demos already in it, and the link you send your roster.</p>
+      <p>Sign in first, or make an account, and then open this link again.</p>
+      <p><a class="btn" href="/login">Log in</a>
+         <a class="btn ghost" href="/signup">Make an account</a></p>
+      <p class="den">Nothing has changed yet.</p>
+    </div>
+  </section>"""
+        return HTMLResponse(page("Claim a team | Counterplay",
+                                 banner("Claim a team"), body, noindex=True))
+
+    roster = db.query("""SELECT u.email FROM team_members m
+                           JOIN users u ON u.id = m.user_id
+                          WHERE m.team_id = ?""", team["id"])
+    others = ", ".join(esc(r["email"]) for r in roster) or "nobody"
+    body = f"""
+  <section>
+    <div class="card">
+      <h3>Take over {esc(team["name"])}?</h3>
+      <p class="lede">You will become the owner. Everything already in the
+        team comes with it: every demo, every match report, and the season.</p>
+      <p class="den">Whoever has it now ({others}) loses access when you
+        accept. If you want them to keep reading it, send them the roster
+        link afterwards.</p>
+      <form method="post" action="/claim/{esc(token)}">{csrf_input(user)}
+        <button class="btn" type="submit">Yes, this team is mine</button>
+      </form>
+      <p class="den">Signed in as {esc(user["email"])}. If that is the wrong
+        account, log out and open this link again.</p>
+    </div>
+  </section>"""
+    return HTMLResponse(page("Claim a team | Counterplay",
+                             banner("Claim a team"), body, user, noindex=True))
+
+
+@app.post("/claim/{token}")
+def claim_accept(request: Request, token: str, csrf: str = Form("")):
+    """Perform the handover. The token burns, because ownership is not replayable."""
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf):
+        return see_other("/account")
+    team = db.one("SELECT * FROM teams WHERE claim_token = ? AND claim_token != ''",
+                  token) if token else None
+    if team is None:
+        raise StarletteHTTPException(status_code=404)
+
+    with db.connect() as c:
+        # A complete handover, not a shared login. The people who held it lose
+        # access, because a team that was built for somebody as a pitch should
+        # not leave the builder reading their season forever. The new owner can
+        # always send the roster link back.
+        c.execute("DELETE FROM team_members WHERE team_id = ?", (team["id"],))
+        c.execute("""INSERT INTO team_members (team_id, user_id, member_role,
+                                               created_at)
+                     VALUES (?,?,?,?)""",
+                  (team["id"], user["id"], "owner", db.utcnow()))
+        c.execute("UPDATE teams SET claim_token = NULL WHERE id = ?",
+                  (team["id"],))
+        c.execute("UPDATE users SET active_team_id = ? WHERE id = ?",
+                  (team["id"], user["id"]))
+    db.audit(user["id"], "claim_accept", f"team={team['id']}")
+    return see_other("/dashboard")
+
+
 @app.post("/share/revoke")
 def share_revoke(request: Request, csrf: str = Form("")):
     user, redirect = require_user(request)
@@ -3084,6 +3225,69 @@ def account(request: Request):
     </div>
   </section>"""
 
+    # More than one team is not the coach case, it is the case of somebody
+    # building a report FOR a coach before that coach has an account. Without
+    # a picker the second team is unreachable: team_for_user() falls back to
+    # the oldest membership and nothing else in the UI names the others.
+    mine = db.teams_for_user(user["id"])
+    if len(mine) > 1:
+        options = "".join(
+            f'<option value="{t["id"]}"'
+            f'{" selected" if team is not None and t["id"] == team["id"] else ""}>'
+            f'{esc(t["name"])}</option>' for t in mine)
+        switch_block = f"""
+  <section>
+    <div class="card">
+      <h3>Which team are you working on?</h3>
+      <p class="lede">You are on {len(mine)} of them. Everything else on the
+        site, the dashboard, the uploads and the roster link, follows this
+        choice.</p>
+      <form class="stack" method="post" action="/team/switch">{csrf_input(user)}
+        <label>Team<select name="team_id">{options}</select></label>
+        <button class="btn" type="submit">Switch</button>
+      </form>
+    </div>
+  </section>"""
+    else:
+        switch_block = ""
+
+    # Handing a team over. The report that wins a coach is usually built for
+    # them out of their own public demos, before they have an account at all,
+    # and a report they cannot own is a demo with a shelf life.
+    if team is None or team["member_role"] != "owner":
+        claim_block = ""
+    elif team["claim_token"]:
+        clink = f"{mail.SITE_URL.rstrip('/')}/claim/{esc(team['claim_token'])}"
+        claim_block = f"""
+  <section>
+    <div class="card">
+      <h3>Handover link for {esc(team["name"])}</h3>
+      <p class="lede">Whoever opens this and signs in becomes the owner of
+        this team. They get the demos, the match reports and the season.</p>
+      <p><a href="{clink}" class="mono">{clink}</a></p>
+      <p class="den">It works once and then stops. <strong>You lose access
+        when they accept</strong>, which is the point: it is a handover, not
+        a shared login. Send it to one person, not a channel.</p>
+      <form method="post" action="/claim/revoke">{csrf_input(user)}
+        <button class="btn ghost" type="submit">Cancel this link</button>
+      </form>
+    </div>
+  </section>"""
+    else:
+        claim_block = f"""
+  <section>
+    <div class="card">
+      <h3>Give this team to somebody</h3>
+      <p class="lede">If you built {esc(team["name"])} for the coach who
+        actually runs it, this makes a one-time link that hands it over:
+        demos, reports, season and all.</p>
+      <p class="den">You lose access when they accept it.</p>
+      <form method="post" action="/claim/new">{csrf_input(user)}
+        <button class="btn ghost" type="submit">Make a handover link</button>
+      </form>
+    </div>
+  </section>"""
+
     body = f"""
   <section>
     <div class="card">
@@ -3092,7 +3296,9 @@ def account(request: Request):
       <p class="den">{"Team: " + esc(team["name"]) if team else "No team yet"}</p>
     </div>
   </section>
+  {switch_block}
   {share_block}
+  {claim_block}
   <section>
     <form method="post" action="/logout">{csrf_input(user)}
       <button class="btn ghost" type="submit">Log out</button></form>

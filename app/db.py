@@ -125,13 +125,38 @@ def team_by_share_token(token: str) -> sqlite3.Row | None:
     return one("SELECT * FROM teams WHERE share_token = ?", token)
 
 
-def team_for_user(user_id: int) -> sqlite3.Row | None:
-    """The team this user belongs to, with their role in it.
+def teams_for_user(user_id: int) -> list[sqlite3.Row]:
+    """Every team this user belongs to, oldest membership first."""
+    return query(
+        """SELECT t.*, m.member_role
+             FROM teams t
+             JOIN team_members m ON m.team_id = t.id
+            WHERE m.user_id = ?
+         ORDER BY m.created_at""", user_id)
 
-    v1 assumes one team per user. That is true of every coach and player in a
-    college league, and the schema is a join table rather than a column so the
-    day it stops being true is a query change and not a migration.
+
+def team_for_user(user_id: int) -> sqlite3.Row | None:
+    """The team this user is currently working on, with their role in it.
+
+    That day arrived. v1 assumed one team per person, which is true of every
+    coach and player in a college league and false for the person selling to
+    them, who ends up with a team per prospect. As predicted in the comment
+    this replaces, the schema was already a join table, so it was a query
+    change and not a migration.
+
+    `users.active_team_id` picks which one. It is only honoured while the
+    user is still a member of that team, so a handover or a removal falls
+    back to their oldest membership instead of stranding them on a team they
+    can no longer see.
     """
+    row = one(
+        """SELECT t.*, m.member_role
+             FROM teams t
+             JOIN team_members m ON m.team_id = t.id
+             JOIN users u        ON u.id = m.user_id
+            WHERE m.user_id = ? AND t.id = u.active_team_id""", user_id)
+    if row is not None:
+        return row
     return one(
         """SELECT t.*, m.member_role
              FROM teams t
@@ -139,6 +164,16 @@ def team_for_user(user_id: int) -> sqlite3.Row | None:
             WHERE m.user_id = ?
          ORDER BY m.created_at
             LIMIT 1""", user_id)
+
+
+def set_active_team(user_id: int, team_id: int) -> bool:
+    """Point a user at one of their own teams. False if it is not theirs."""
+    member = one("SELECT 1 FROM team_members WHERE user_id = ? AND team_id = ?",
+                 user_id, team_id)
+    if not member:
+        return False
+    execute("UPDATE users SET active_team_id = ? WHERE id = ?", team_id, user_id)
+    return True
 
 
 def team_by_slug(slug: str) -> sqlite3.Row | None:
