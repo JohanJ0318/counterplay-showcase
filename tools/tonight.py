@@ -80,6 +80,28 @@ def demo_urls(match_id: str) -> list[str]:
     return []
 
 
+def resolves(url: str) -> bool:
+    """Does the demo host exist in DNS at all?
+
+    FACEIT hands out URLs on hosts that sometimes do not resolve, which is
+    the other half of the "dead links" story in TODO.md: some of those were
+    NXDOMAIN rather than 403. On the night of 2026-09-23 every demo for the
+    placements tournament pointed at demos-us-east.backblaze.faceit-cdn.net,
+    which answered NXDOMAIN on four separate resolvers while the older
+    demos-us-central1 host resolved fine. Probably processing lag on their
+    side. Worth saying out loud rather than handing over a link that cannot
+    be clicked.
+    """
+    import socket
+    import urllib.parse
+    host = urllib.parse.urlparse(url).hostname or ""
+    try:
+        socket.getaddrinfo(host, 443)
+        return True
+    except OSError:
+        return False
+
+
 def when(ms) -> str:
     if not ms:
         return "?"
@@ -131,7 +153,12 @@ def main() -> int:
                      when(origin.get("schedule"))))
             print("    https://www.faceit.com/en/cs2/room/%s" % mid)
             for u in urls:
-                print("    DEMO: %s" % u)
+                if resolves(u):
+                    print("    DEMO: %s" % u)
+                else:
+                    print("    DEMO: %s" % u)
+                    print("          ^ host does not resolve yet (NXDOMAIN).")
+                    print("            FACEIT is still processing it. Try later.")
             print()
 
     if not found:
