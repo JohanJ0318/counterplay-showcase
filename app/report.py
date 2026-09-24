@@ -397,6 +397,22 @@ def scoreboard(match_key: str, rows: list,
                                  if a["rounds"] else 0.0)
         a["role"], a["role_why"] = role_of(a)
 
+    # Coaches out. A FACEIT coach occupies a slot in the demo and is alive
+    # all round without ever shooting, so they arrive here like a player and
+    # every number computed for them is an artifact: role_of() calls them a
+    # Rifle because their ADR is zero, and the clutch counter calls them the
+    # last man alive in every long round, which reads as "0 of 22" against a
+    # man who cannot hold a gun.
+    #
+    # Filtering the "Coach|" name prefix would be trusting a convention that
+    # anybody can type into their profile. This filters on what a coach is:
+    # there for the rounds, and no kills, no deaths and no damage in any of
+    # them. A real player does not go a whole match without dying once.
+    agg = {sid: a for sid, a in agg.items()
+           if a["kills"] or a["deaths"] or a["damage"]}
+    if not agg:
+        return []
+
     # Which of the two rosters is the reader's. The side map says who was on
     # which side per round, so the roster that STARTED on our first-round side
     # is ours. Cheap to work out and the difference between a scoreboard and
