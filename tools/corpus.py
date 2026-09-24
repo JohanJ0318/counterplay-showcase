@@ -67,19 +67,24 @@ def wanted() -> list[dict]:
     return out
 
 
-def have(db) -> set[str]:
-    """Match ids already parsed into the database.
+def have(db) -> dict[str, int]:
+    """{match id: how many of its maps are parsed}.
 
-    Keyed on the filename, because a FACEIT download is named after its match:
-    1-<uuid>-1-1.dem.zst. That is the only link between a file on disk and the
-    room it came from once the bytes are in the database.
+    Keyed off the filename, because that is the only link between bytes in the
+    database and the room they came from: FACEIT names a download
+    1-<uuid>-<series>-<map>.dem.zst.
+
+    Counting MAPS rather than matches matters. A match that goes to two maps
+    arrives as two files, and an earlier version keyed on the match id alone,
+    so downloading map 1 marked the whole match done and map 2 fell out of
+    --todo for good. A tool whose only job is saying what is missing must not
+    quietly stop mentioning something.
     """
-    got = set()
+    got: dict[str, int] = {}
     for row in db.query("SELECT filename FROM demos WHERE status = 'parsed'"):
-        name = row["filename"] or ""
-        m = re.match(r"(1-[0-9a-f-]{36})", name, re.I)
+        m = re.match(r"(1-[0-9a-f-]{36})", row["filename"] or "", re.I)
         if m:
-            got.add(m.group(1).lower())
+            got[m.group(1).lower()] = got.get(m.group(1).lower(), 0) + 1
     return got
 
 
@@ -124,13 +129,25 @@ def main() -> int:
 
     rows, got = wanted(), have(db)
     missing = [r for r in rows if r["match_id"].lower() not in got]
+    maps_in = sum(got.get(r["match_id"].lower(), 0) for r in rows)
+    multi = sorted(r for r in rows if got.get(r["match_id"].lower(), 0) > 1)  # noqa
 
     if args.status or not (args.todo or args.ingest):
         by_tier = {r["tier"]: r["n"] for r in db.query(
             "SELECT tier, COUNT(*) n FROM demos WHERE status='parsed' GROUP BY tier")}
+        extra = maps_in - (len(rows) - len(missing))
         print("championship matches with a demo to get   %d" % len(rows))
-        print("  already parsed                          %d" % (len(rows) - len(missing)))
+        print("  at least one map parsed                 %d" % (len(rows) - len(missing)))
         print("  still to download                       %d" % len(missing))
+        print("  maps parsed in total                    %d%s"
+              % (maps_in,
+                 "  (%d of them second maps of a match)" % extra if extra else ""))
+        if extra:
+            print()
+            print("  A match can go to more than one map, and the championship")
+            print("  CSV has no map column, so this cannot tell you in advance")
+            print("  which ones did. Check a room for a second demo before")
+            print("  ticking it off.")
         print()
         print("whole corpus by tier: %s" % (by_tier or "empty"))
         league = by_tier.get("league", 0)
