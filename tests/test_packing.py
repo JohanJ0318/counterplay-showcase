@@ -113,3 +113,58 @@ def test_stored_path_finds_a_gz_archive(tmp_path, monkeypatch):
     sha = "a" * 64
     (tmp_path / f"{sha}.dem.gz").write_bytes(b"\x1f\x8b\x08\x00")
     assert ingest.stored_path(sha) == tmp_path / f"{sha}.dem.gz"
+
+
+# ---------------------------------------------------------------- duplicates
+#
+# The same match arrives by several routes: a coach uploads it, pull.py
+# queues it off a FACEIT url, and the corpus tool points at a folder it was
+# copied into. from_directory() dedupes on source_url, which is the path,
+# so all three look different and the demo gets parsed once per route.
+#
+# That is not clutter. match_key is derived per demo row, so the same match
+# lands under two keys, and README is explicit that splits are by match
+# "because rows within a round are correlated and a random split leaks". A
+# match in the corpus twice can sit in train and in test at once.
+
+def test_the_guard_keys_on_content_not_on_path(tmp_path, monkeypatch):
+    """Two rows, same bytes, different source_url: the second must not parse."""
+    import importlib
+    import os
+    was = os.environ.get("COUNTERPLAY_DB")
+    os.environ["COUNTERPLAY_DB"] = str(tmp_path / "d.db")
+    from app import db as db_mod
+    importlib.reload(db_mod)
+    db_mod.init()
+    try:
+        sha = "f" * 64
+        first = db_mod.execute(
+            """INSERT INTO demos (team_id, uploaded_by, filename, size_bytes,
+                                  sha256, tier, status, created_at, source,
+                                  source_url)
+               VALUES (NULL,NULL,?,?,?,?,'parsed',?, 'upload', ?)""",
+            "a.dem", 10, sha, "league", db_mod.utcnow(), "file:///a.dem")
+        second = db_mod.execute(
+            """INSERT INTO demos (team_id, uploaded_by, filename, size_bytes,
+                                  sha256, tier, status, created_at, source,
+                                  source_url)
+               VALUES (NULL,NULL,?,?,?,?,'pending',?, 'local', ?)""",
+            "b.dem", 10, sha, "league", db_mod.utcnow(), "file:///elsewhere/b.dem")
+
+        # The query ingest.process runs once it knows the real hash.
+        twin = db_mod.one("""SELECT id FROM demos
+                              WHERE sha256 = ? AND id != ? AND status = 'parsed'
+                              LIMIT 1""", sha, second)
+        assert twin is not None and twin["id"] == first
+
+        # And the first row does not find itself.
+        alone = db_mod.one("""SELECT id FROM demos
+                               WHERE sha256 = ? AND id != ? AND status = 'parsed'
+                               LIMIT 1""", sha, first)
+        assert alone is None
+    finally:
+        if was is None:
+            os.environ.pop("COUNTERPLAY_DB", None)
+        else:
+            os.environ["COUNTERPLAY_DB"] = was
+        importlib.reload(db_mod)

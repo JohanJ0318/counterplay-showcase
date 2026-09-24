@@ -44,6 +44,11 @@ ROOT = pathlib.Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 MATCHES_CSV = ROOT / "outreach" / "fall-2026-matches.csv"
+
+# Where the downloads land. Everything in here is treated as tier=league, so
+# keep professional demos out of it: pull.py is blunt that mislabelling one
+# teaches the model that college players retake like professionals.
+DEFAULT_FOLDER = pathlib.Path.home() / "Downloads" / "Collegiate demos"
 MATCH_ID = re.compile(r"/room/(1-[0-9a-f-]+)", re.I)
 
 
@@ -84,8 +89,9 @@ def main() -> int:
     ap.add_argument("--todo", action="store_true")
     ap.add_argument("--open", type=int, default=0,
                     help="open the next N room links in your browser")
-    ap.add_argument("--ingest", metavar="FOLDER",
-                    help="queue and parse every demo in a folder at tier=league")
+    ap.add_argument("--ingest", metavar="FOLDER", nargs="?", const=str(DEFAULT_FOLDER),
+                    help="queue and parse every demo in a folder at tier=league "
+                         "(defaults to %s)" % DEFAULT_FOLDER)
     args = ap.parse_args()
 
     import os
@@ -98,6 +104,7 @@ def main() -> int:
         folder = pathlib.Path(args.ingest)
         if not folder.is_dir():
             return print("no such folder: %s" % folder) or 2
+        print("ingesting from %s" % folder)
         # tier=league is the whole point. A pro demo in this folder would
         # teach the model that college players retake like professionals.
         res = pull.from_directory(folder, tier="league")

@@ -498,6 +498,19 @@ def process(demo_row) -> tuple[bool, str]:
                 db.execute("UPDATE demos SET sha256=? WHERE id=?", real, demo_id)
                 sha = real
 
+        # The bytes are known now, so this is the first moment the real
+        # question can be asked: have we already parsed this exact demo,
+        # whatever it was called or wherever it came from?
+        twin = db.one("""SELECT id, tier FROM demos
+                          WHERE sha256 = ? AND id != ? AND status = 'parsed'
+                          LIMIT 1""", sha, demo_id)
+        if twin is not None:
+            db.execute("""UPDATE demos SET status='duplicate', status_note=?
+                           WHERE id = ?""",
+                       f"same bytes as demo {twin['id']} ({twin['tier']}), "
+                       f"not parsed again", demo_id)
+            return True, f"duplicate of demo {twin['id']}, skipped"
+
         source_file = archive if external is None else external
         if packing_of(source_file):
             playable = work / "demo.dem"
