@@ -4,16 +4,22 @@
     python tools/tonight.py --team "Fisher"      # just one
     python tools/tonight.py --ready              # only finished, with demos
 
-WHY THIS STOPS SHORT OF DOWNLOADING
------------------------------------
-It prints demo URLs. It does not fetch them, because it cannot: the demo
-host is behind Cloudflare bot protection and refuses every scripted client,
-from every address tried, browser headers included. Only a real browser gets
-through. So the last step is yours: click the link.
+HOW TO ACTUALLY GET THE FILE
+----------------------------
+Open the match ROOM link and download from FACEIT's own page. Not the raw
+CDN url underneath it.
 
-That is not a workaround waiting to be written. See "FACEIT is behind
-Cloudflare" in CLAUDE.md. Everything else here works from a home
-connection and nothing works from the Hetzner box.
+Confirmed 2026-09-23: the room page served a 110MB .dem.zst that parsed
+clean, while the CDN url printed beside it was, at that same moment,
+NXDOMAIN from four resolvers and from Chrome. FACEIT's UI evidently routes
+around its own published url. So treat the DEMO line as information about
+which host and format a match got, and click the room link.
+
+Downloading cannot be scripted either way: that host is behind Cloudflare
+bot protection and refuses every scripted client, from every address tried,
+browser headers included. See "FACEIT is behind Cloudflare" in CLAUDE.md.
+Everything else here works from a home connection and nothing works from
+the Hetzner box.
 
 No API key needed. These are the endpoints the website itself calls.
 """
@@ -157,8 +163,8 @@ def main() -> int:
                     print("    DEMO: %s" % u)
                 else:
                     print("    DEMO: %s" % u)
-                    print("          ^ host does not resolve yet (NXDOMAIN).")
-                    print("            FACEIT is still processing it. Try later.")
+                    print("          ^ NXDOMAIN right now. Ignore it and use")
+                    print("            the room link above, which works anyway.")
             print()
 
     if not found:
@@ -166,8 +172,9 @@ def main() -> int:
               if not args.ready else
               "No finished matches with demos yet. Try again after games end.")
     else:
-        print("Open a DEMO link in your browser to download it. curl will not\n"
-              "work: Cloudflare refuses scripted clients. Then:\n"
+        print("Open the ROOM link and download the demo from FACEIT's own\n"
+              "page. Do not bother with the raw DEMO url: it is sometimes\n"
+              "NXDOMAIN even while the room download works fine. Then:\n"
               "    python tools/parse1.py <the file you downloaded>")
     return 0
 
