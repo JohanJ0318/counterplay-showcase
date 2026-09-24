@@ -80,6 +80,23 @@ true on purpose.
       computed in `utility.space()` and still correct; only the sentence is
       gone.
 
+## The decision engine
+
+- [ ] **42 collegiate matches is not enough, and one seed said otherwise.**
+      2026-09-24. tier=league cleared the calibration gate at 2.25x against
+      a gate of 2.5x, on run.py default seed of 7. Refitting on eight seeds
+      with tools/seedsweep.py: passed 3 of 8, ratio min 1.65, median 3.46,
+      max 5.74. It fails. Seed 7 is one of the lucky three.
+
+      README is right that the answer is matches and not code. 823 rounds
+      and 7,202 state rows off 42 matches; run.py own summary says aim for
+      a few hundred matches before trusting a retrain. 121 of the fall
+      round robin are still undownloaded, in outreach/fall-2026-matches.csv.
+
+      Do not quote a single-seed pass again. The margin at this corpus size
+      is smaller than the spread between splits, which is what the seed
+      sweep exists to show.
+
 ## Product gaps a coach will notice
 
 - [ ] **Utility has no map or side split.** "67% of your flashes blind your own

@@ -32,7 +32,14 @@ def main():
     ap.add_argument("--db", action="store_true",
                     help="train on the corpus already parsed into the database "
                          "by the ingest worker")
-    ap.add_argument("--tier", type=str, default="premier",
+    # Two jobs, and they used to disagree. With --demos or --synth this
+    # LABELS what you are about to parse or generate. With --db it FILTERS
+    # the corpus you train on, which it did not do at all until 2026-09-24:
+    # the flag was accepted, printed in the help, and never read.
+    #
+    # Default is None so a bare --db still loads every tier, exactly as
+    # before. Labelling falls back to premier where a label is required.
+    ap.add_argument("--tier", type=str, default=None,
                     choices=["pro", "collegiate", "league", "premier"],
                     help="which population these demos came from")
     ap.add_argument("--matches", type=int, default=120)
@@ -45,21 +52,31 @@ def main():
                          "is plenty to score.")
     args = ap.parse_args()
 
+    # A label is required when parsing or generating; a filter is optional.
+    label_tier = args.tier or "premier"
+
     if args.synth:
         from counterplay.synth import generate
-        rounds, events = generate(n_matches=args.matches, tier=args.tier)
+        rounds, events = generate(n_matches=args.matches, tier=label_tier)
         print(f"synthetic: {len(rounds)} rounds, {len(events)} events")
     elif args.db:
         from app import corpus, db as appdb
         appdb.init()
         corpus.print_summary()
-        rounds, events = corpus.load_frames(tier=None)
+        if args.tier:
+            print(f"\n  training on tier={args.tier} ONLY.\n")
+        else:
+            print("\n  training on EVERY tier. If most of that is pro, the model\n"
+                  "  learns how professionals play, which is the one thing the\n"
+                  "  product promises it never measures a college roster against.\n"
+                  "  Pass --tier league for the collegiate model.\n")
+        rounds, events = corpus.load_frames(tier=args.tier)
         if rounds.empty:
             ap.error("nothing parsed yet — run: python -m app.worker --once")
         print(f"\nloaded: {len(rounds)} rounds, {len(events)} events")
     elif args.demos:
         from counterplay.parse import parse_directory
-        rounds, events, _players = parse_directory(args.demos, tier=args.tier)
+        rounds, events, _players = parse_directory(args.demos, tier=label_tier)
         print(f"parsed: {len(rounds)} rounds, {len(events)} events")
     else:
         ap.error("pass --synth, --demos or --db")
@@ -84,7 +101,7 @@ def main():
     synthetic_gate = args.train_on_synth
     if args.train_on_synth:
         from counterplay.synth import generate
-        cr, ce = generate(n_matches=200, tier=args.tier)
+        cr, ce = generate(n_matches=200, tier=label_tier)
         model, report, _ = train(build_states(cr, ce))
         print("  trained on synthetic corpus, scoring your demos")
         print("  (probabilities are structurally right but not yet true to real "
