@@ -90,9 +90,14 @@ def from_directory(directory: Path, tier: str, limit: int | None = None) -> dict
     the parse has succeeded.
     """
     queued = skipped = 0
+    # Every packing ingest can actually read. FACEIT serves gzip today and
+    # zstd historically, Valve matchmaking serves bzip2, and this list used to
+    # stop at zstd, so a folder of real downloads was silently half ignored.
+    # ingest.packing_of() detects by magic number, but this filter runs first.
     files = sorted(p for p in directory.iterdir()
-                   if p.suffix.lower() == ".dem"
-                   or p.name.lower().endswith(".dem.zst"))
+                   if p.is_file() and (p.suffix.lower() == ".dem"
+                       or any(p.name.lower().endswith(ext) for ext in
+                              (".dem.zst", ".dem.gz", ".dem.bz2"))))
     for f in files:
         if limit is not None and queued >= limit:
             break
