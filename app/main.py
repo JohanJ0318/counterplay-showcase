@@ -1178,10 +1178,11 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
             f'<td class="num">{count(you_open["converted"], you_open["taken"])}</td>'
             f'<td class="den">{esc(rounds_lost)}</td></tr>')
         open_head = "Rounds you lost it"
-        open_lede = ("Your rounds, not both sides\u2019. Who lost the first "
-                     "player and what happened next, counted from the demo. "
-                     "The round numbers are listed so you can open the match "
-                     "and watch them.")
+        open_lede = ""
+        open_line = (
+            f'<p class="note">After losing the first duel you won '
+            f'{you_open["saved"]} of {you_open["lost"]}. After winning it, '
+            f'{you_open["converted"]} of {you_open["taken"]}.</p>')
     else:
         for side in ("ct", "t"):
             o = r["opening"][side]
@@ -1192,6 +1193,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
                 f'<td class="num">{count(o["converted"], o["taken"])}</td>'
                 f'<td class="den">{esc(rounds_lost)}</td></tr>')
         open_head = "Rounds they lost it"
+        open_line = ""
         open_lede = ("By side, because there is no way yet to tell which of "
                      "these two teams is yours. Sides swap at the half, so "
                      "neither row is one team. Upload a second match and this "
@@ -1279,12 +1281,10 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   <section>
     <div class="sec-head"><span class="label">Both rosters, counted from the demo</span>
       <h2>Scoreboard</h2></div>
-    <p class="lede">{"Yours first." if r["scoreboard"] and
+    <p class="lede">{"Your team first." if r["scoreboard"] and
       r["scoreboard"][0]["label"] == "Your team" else
-      "Teams are the side each player started on."} A demo carries no team
-      names, but players do not swap teams while sides swap every half, so the
-      two rosters are the two starting sides. Roles come from what a player
-      actually did; hover one to see the number behind it.</p>
+      "Teams are the side each player started on."} Roles come from what
+      each player did.</p>
     {"".join(sb_blocks)}
   </section>""" if sb_blocks else "")
 
@@ -1300,9 +1300,22 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         team["id"], report_mod.team_anchors(team["id"]).get("anchors", {}))
         if team else {})
     _us_ct = (lambda rn: _sides.get((match_key, rn)) == "ct") if _sides else None
+    match_notes = advice.for_match(match_key, team["id"]) if team else []
+    # Only the first card's rounds are shaded. Every card's together covered
+    # most of a match and shaded nearly every column, which marks nothing.
+    named_rounds = set(match_notes[0]["rounds"]) if match_notes else set()
     timeline_chart = charts.both(
-        charts.round_timeline(r["rows"], _us_ct),
-        charts.round_timeline(r["rows"], _us_ct, width=320, compact=True))
+        charts.round_timeline(r["rows"], _us_ct, marks=named_rounds),
+        charts.round_timeline(r["rows"], _us_ct, width=320, compact=True,
+                              marks=named_rounds))
+
+    # Your record by side, for the tiles. "7-17, rounds won CT to T" counted
+    # both teams' rounds by side and read like a score that was not one.
+    by_side = {"ct": [0, 0], "t": [0, 0]}
+    if _us_ct:
+        for x in rows:
+            sd = "ct" if _us_ct(x["round_num"]) else "t"
+            by_side[sd][0 if bool(x["ct_won"]) == (sd == "ct") else 1] += 1
 
     # ---- where you went tonight
     #
@@ -1366,10 +1379,9 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         where_block = f"""
   <section>
     <div class="sec-head"><span class="label">From position data, this match</span>
-      <h2>Where you went tonight</h2></div>
-    <p class="lede">The season page's reading, asked of this match alone:
-      where three of you got to together, where the first of you died, and
-      whether a teammate got him back.</p>
+      <h2>Where you went this match</h2></div>
+    <p class="lede">Your season's position readings, for this match
+      only.</p>
     <div class="grid2">{"".join(blocks)}</div>
     <div class="zonerow">{figs}</div>
     <details><summary>Round by round</summary>
@@ -1384,7 +1396,6 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     # Every card names its rounds. A section called "worth pulling up at
     # practice" whose findings do not say WHICH rounds to pull up is asking a
     # coach to go and find them, which is the work the page exists to do.
-    match_notes = advice.for_match(match_key, team["id"]) if team else []
     notes_block = ""
     if match_notes:
         cards = []
@@ -1402,8 +1413,8 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         notes_block = (
             '<section class="lead"><div class="sec-head"><span class="label">'
             'Worth pulling up at practice</span><h2>From this match</h2></div>'
-            '<p class="lede">One match is too small to draw conclusions '
-            'from. These are the rounds worth watching back, and why.</p>'
+            '<p class="lede">Rounds worth watching back, and why. The first '
+            'card&rsquo;s rounds are shaded on the timeline above.</p>'
             f'<div class="grid2">{"".join(cards)}</div></section>')
 
     # THE SCORE.
@@ -1454,11 +1465,52 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
                             f'{esc(o["map"])} {o["us"]}{DASH}{o["them"]} &rarr;</a>')
     back = (f'<a class="den" href="/r/{esc(share)}">Back to the season</a>'
             if share else '<a class="den" href="/matches">All matches</a>')
+
+    if _us_ct:
+        tiles_by_side = "".join(
+            f'<div class="stat"><span class="stat-n">{w}&ndash;{l}</span>'
+            f'<span class="label">as {sd.upper()}</span></div>'
+            for sd, (w, l) in (("t", by_side["t"]), ("ct", by_side["ct"]))
+            if w + l)
+    else:
+        tiles_by_side = (
+            f'<div class="stat"><span class="stat-n">{r["score_ct"]}&ndash;'
+            f'{r["score_t"]}</span><span class="label">rounds won by the CT '
+            f'side, then the T side</span></div>')
+    # With your side known, the opening duels are the strip on the timeline
+    # and the line under it. Without it, the by-side table stays.
+    open_block = "" if open_line else f"""
+  <section>
+    <div class="sec-head"><span class="label">The first duel of the round</span>
+      <h2>Opening duels</h2></div>
+    <p class="lede">{esc(open_lede)}</p>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Side</th>
+        <th class="num">Won after losing it</th>
+        <th class="num">Won after winning it</th><th>{open_head}</th></tr></thead>
+      <tbody>{"".join(od)}</tbody></table></div>
+  </section>"""
     match_nav = (f'<nav class="pager"><span>{nav_prev}</span>'
                  f'{back}<span>{nav_next}</span></nav>')
 
     body = f"""
   {match_nav}
+
+  <section>
+    <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
+    <p class="lede">One bar per round: above the line you won it, below you
+      lost it. Height is what you spent, and the tick is what they spent.
+      The line on top is the score gap.</p>
+    <div class="chart">{timeline_chart}</div>
+    {open_line}
+    <details><summary>Every round as a table</summary>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th class="num">#</th><th>Won</th><th>Buy</th>
+          <th class="num">CT $</th><th class="num">T $</th>
+          <th class="num">Deaths</th><th>Opening duel</th><th>Plant</th></tr></thead>
+        <tbody>{"".join(trs)}</tbody></table></div>
+    </details>
+  </section>
 
   {notes_block}
 
@@ -1466,8 +1518,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{r["n_rounds"]}</span>
         <span class="label">rounds</span></div>
-      <div class="stat"><span class="stat-n">{r["score_ct"]}&ndash;{r["score_t"]}</span>
-        <span class="label">rounds won, CT to T</span></div>
+      {tiles_by_side}
       <div class="stat"><span class="stat-n">{r["plants"]}</span>
         <span class="label">bombs planted</span>
         <span class="den">of {r["n_rounds"]} rounds</span></div>
@@ -1476,16 +1527,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
 
   {scoreboard_section}
 
-  <section>
-    <div class="sec-head"><span class="label">The first duel of the round</span>
-      <h2>Opening duels</h2></div>
-    <p class="lede">{esc(open_lede)}</p>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>{"Team" if r.get("you_opening") else "Side"}</th>
-        <th class="num">Won after losing it</th>
-        <th class="num">Won after winning it</th><th>{open_head}</th></tr></thead>
-      <tbody>{"".join(od)}</tbody></table></div>
-  </section>
+  {open_block}
 
   <section>
     <div class="sec-head"><span class="label">By what they could afford</span>
@@ -1500,28 +1542,11 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
       <tbody>{"".join(br)}</tbody></table></div>
   </section>
 
-  <section>
-    <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
-    <p class="lede">One bar per round: above the line if you won it, as tall as
-      the equipment you brought. The band above is how many rounds ahead or
-      behind you were, and the strip below says which side you were on.</p>
-    <div class="chart">{timeline_chart}</div>
-    <details><summary>Every round as a table</summary>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th class="num">#</th><th>Won</th><th>Buy</th>
-          <th class="num">CT $</th><th class="num">T $</th>
-          <th class="num">Deaths</th><th>Opening duel</th><th>Plant</th></tr></thead>
-        <tbody>{"".join(trs)}</tbody></table></div>
-    </details>
-  </section>
-
   {where_block}
 
   <section>
-    <p class="note"><strong>Counted, not modelled.</strong> A match shows counts
-      rather than percentages: one night's denominators are too small for a
-      rate to mean anything. Where a season rate exists, it sits beside
-      them.</p>
+    <p class="note">One match is small, so this page shows counts, with your
+      season rate beside them.</p>
   </section>"""
     return html_page("Match report", head, body, user, noindex=bool(share))
 

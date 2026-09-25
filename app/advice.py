@@ -593,8 +593,7 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
     if len(thrown) >= MIN_THROWN:
         add(f"{len(thrown)} rounds lost from a man up",
             f"You were a player up for {int(HELD_UP_SECONDS)} seconds or "
-            f"more, or up by two, and lost anyway. The most expensive shape a "
-            f"round can take.",
+            f"more, or two up, and lost anyway.",
             f"{len(thrown)} of the {lost_total} rounds you lost", thrown)
 
     # ---- the run that decided it
@@ -607,9 +606,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
         before = sum(1 for x in ours if x["n"] < best_run[0] and x["won"])
         DASH = "\u2013"
         add(f"{len(best_run)} rounds lost in a row",
-            "Rarely that many separate problems. Watched back to back, the "
-            "same read or the same economy hole usually turns up in all of "
-            "them.",
+            "That many losses rarely have that many causes. Watch them back "
+            "to back and find the one they share.",
             f"rounds {best_run[0]} to {best_run[-1]}, and the score went from "
             f"{before}{DASH}{best_run[0] - 1 - before} to "
             f"{before}{DASH}{best_run[-1] - before}", best_run)
@@ -623,9 +621,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
     gave_back = [n for n in gave_back if n not in set(thrown)]
     if len(gave_back) >= MIN_THROWN and took:
         add(f"First blood taken and the round lost {len(gave_back)} times",
-            "The advantage was made and given back in the same round. "
-            "These are the clips that show what you do after an opening "
-            "kill.",
+            "You got the first kill and still lost. Watch what happened "
+            "next.",
             f"{took - len(gave_back)} of {took} converted", gave_back)
 
     # ---- the same place, over and over
@@ -641,8 +638,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
             if len(lost) < MOSTLY_LOST * len(rounds):
                 continue
             add(f"First death in {place} {len(rounds)} times as {side.upper()}",
-                "The same spot, taken the same way. One is a duel; this "
-                "many in a game is a default they had read.",
+                "One death there is a duel. This many is a default the "
+                "other team has read.",
                 f"{len(lost)} of those {len(rounds)} rounds lost", rounds)
             break
 
@@ -651,8 +648,8 @@ def for_match(match_key: str, team_id: int) -> list[dict]:
     cheap = sum(1 for x in ours if x["buy"] in ("eco", "force"))
     if len(stolen) >= MIN_THROWN:
         add(f"{len(stolen)} rounds won on an eco or a force",
-            "You were not expected to win these. Whatever you did is "
-            "worth naming out loud and doing on purpose.",
+            "You weren't expected to win these. Name what worked and do it "
+            "on purpose.",
             f"{len(stolen)} of {cheap} eco and force rounds", stolen, good=True)
 
     # Most rounds at stake first, and the good news last whatever its size.
