@@ -82,20 +82,89 @@ true on purpose.
 
 ## The decision engine
 
-- [ ] **42 collegiate matches is not enough, and one seed said otherwise.**
-      2026-09-24. tier=league cleared the calibration gate at 2.25x against
-      a gate of 2.5x, on run.py default seed of 7. Refitting on eight seeds
-      with tools/seedsweep.py: passed 3 of 8, ratio min 1.65, median 3.46,
-      max 5.74. It fails. Seed 7 is one of the lucky three.
+- [ ] **More matches is NOT the lever. Retracted, 2026-09-24.**
+      Three corpus sizes now, same eight seeds each time so the rows compare:
 
-      README is right that the answer is matches and not code. 823 rounds
-      and 7,202 state rows off 42 matches; run.py own summary says aim for
-      a few hundred matches before trusting a retrain. 121 of the fall
-      round robin are still undownloaded, in outreach/fall-2026-matches.csv.
+      | same 8 seeds | 42 maps | 88 maps | 138 maps |
+      |---|---|---|---|
+      | passing | 3 of 8 | 6 of 8 | 4 of 8 |
+      | ratio median | 3.46 | 1.79 | 2.53 |
+      | ECE median | 0.0293* | 0.0293 | 0.0310 |
+      | floor median | 0.0164* | 0.0164 | 0.0126 |
+      | AUC median | ~0.84 | ~0.844 | 0.8615 |
 
-      Do not quote a single-seed pass again. The margin at this corpus size
-      is smaller than the spread between splits, which is what the seed
-      sweep exists to show.
+      88 to 138 maps changed the model's actual calibration error by nothing:
+      0.0293 to 0.0310, against a per-seed spread of 0.012 to 0.041. The whole
+      move in the ratio is the denominator. Test rows went 3,897 to 6,198,
+      ratio 1.59, and the floor shrinks as 1/sqrt(n): sqrt(1.59) = 1.26,
+      observed floor ratio 1.30. That accounts for all of it.
+
+      What 50 more maps DID buy is discrimination: AUC median 0.844 to 0.8615,
+      top end 0.8820. The booster is learning real signal. The calibration is
+      standing still.
+
+      **The 88-map entry said the data was the lever. That was drawn from one
+      comparison where ECE and the floor happened to move together. They have
+      now moved apart, which is the case that separates the explanations, and
+      it went the other way.**
+
+      Structural consequence: the gate is ECE / floor, the floor goes to zero
+      as the test set grows, and real miscalibration does not. Any residual
+      bias makes the ratio climb forever as matches are added. The comment on
+      ECE_FLOOR_MULTIPLE claims 2.5x "separates them cleanly at any size";
+      that claim is now falsified by our own runs. It fixed small corpora
+      failing for being small and created the mirror problem.
+
+      Downloads are close to exhausted anyway: 138 maps off roughly 159 links
+      across rounds 1 to 3.
+
+      \* 42-map ECE and floor were not recorded at the time. The 88-map
+      figures are repeated in that column as a placeholder and must not be
+      read as a measurement.
+
+- [ ] **Check the noise floor is the right reference. tools/calibcheck.py.**
+      null_calibration_floor draws its null from rng.uniform(0, 1, n), and the
+      model's predictions are not uniform: a round win-probability model puts
+      early-round states near 50/50 and late-round states near 0 or 1. The
+      floor depends on that shape. Measured on 6,000 rows:
+
+          uniform, what the gate assumes                  1.00x
+          beta(5,5), bunched near the middle              1.23x
+          beta(2,2), mild centre mass                     1.15x
+          beta(.6,.6), mass out at the ends               0.91x
+
+      So the gate could be up to 23% too strict or about 9% too lenient
+      depending on where the predictions actually sit, and at a median of 2.53
+      against a gate of 2.5 that decides the verdict either way.
+
+      calibcheck.py prints, per seed, the uniform floor and a matched floor
+      built by parametric bootstrap off the model's own predictions, plus both
+      ratios. RUN IT BEFORE trusting any ratio above, including the ones in
+      the table.
+
+      Ties were the other suspect and are NOT the problem: isotonic output
+      repeats values, but at 41, 21 and 11 distinct values the floor moves
+      0.97x to 1.02x. Bins only collapse below about ten distinct values.
+
+      If the nulls agree, the miscalibration is real and the fix is the
+      calibrator or the features, not the corpus. Candidates, cheapest first:
+      raise the calibration fraction above 18.75%, try Platt against isotonic,
+      or calibrate cross-validated so the calibrator sees all of training
+      rather than one held-out slice.
+
+      Do NOT hand-tune ECE_FLOOR_MULTIPLE to compensate. The bias depends on
+      the prediction distribution and moves every refit, so the fix belongs in
+      null_calibration_floor.
+
+- [ ] **Do not quote a single-seed pass.** run.py defaults to seed 7, which
+      was one of three lucky splits at 42 maps and passed at 2.25x while the
+      median was 3.46x. At 138 maps seed 7 FAILS at 2.71 while the median is
+      2.06 across twenty. The sweep exists because that number was reported
+      once already. tools/seedsweep.py, 20 seeds.
+
+      NOT TRUE ANYWHERE PUBLIC YET: the sample report still says in its own
+      third line that its numbers are invented, and that stays until a sweep
+      is clean against a floor we trust.
 
 ## Product gaps a coach will notice
 
