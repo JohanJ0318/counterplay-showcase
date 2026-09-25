@@ -27,6 +27,7 @@ from . import db, memo
 from .report import (MIN_PATTERN_CHANCES, _side_by_round, _team_match_keys,
                      team_anchors)
 from counterplay import zonemodel as ZM
+from counterplay.schema import classify_round
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
 from counterplay.zones import Z_WEIGHT
 
@@ -139,7 +140,7 @@ def _rounds_with_positions(team_id):
         return []
     marks = ",".join("?" * len(keys))
     return db.query(f"""SELECT rp.match_key, rp.round_num, rp.data,
-                               m.map_name, r.ct_won
+                               m.map_name, r.ct_won, r.equip_ct, r.equip_t
                           FROM round_positions rp
                           JOIN matches m ON m.match_key = rp.match_key
                           JOIN rounds  r ON r.match_key = rp.match_key
@@ -151,6 +152,24 @@ def _rounds_with_positions(team_id):
 def _is_spawn(name: str) -> bool:
     """Standing in spawn is not a commitment, however many of you do it."""
     return "spawn" in name.lower()
+
+
+def _plant_lookup(keys) -> dict:
+    """(match_key, round_num) -> seconds into the round the bomb went down.
+
+    Absent means no plant, which makes every death in that round pre-plant.
+    events.seconds shares its origin with positions.sample_seconds: both are
+    measured from the round's freeze-end.
+    """
+    if not keys:
+        return {}
+    marks = ",".join("?" * len(keys))
+    return {(r["match_key"], r["round_num"]): float(r["s"])
+            for r in db.query(f"""SELECT match_key, round_num, MIN(seconds) s
+                                    FROM events
+                                   WHERE match_key IN ({marks})
+                                     AND type = 'plant'
+                                GROUP BY match_key, round_num""", *keys)}
 
 
 def _traded_lookup(keys) -> dict:
@@ -182,10 +201,13 @@ def scan(team_id: int) -> dict:
     sides = _side_by_round(team_id, anchors.get("anchors", {}))
     rows = _rounds_with_positions(team_id)
     traded = _traded_lookup(_team_match_keys(team_id))
+    plants = _plant_lookup(_team_match_keys(team_id))
     opening: dict = {}
 
     commit: dict = {}
     setup: dict = {}
+    # map -> zone -> (side, phase, buy) -> [kills, deaths]
+    duels: dict = {}
     death: dict = {}
     seen: dict = {}
     # Rounds WON per map and side, so a row can be read against the rest of
@@ -295,6 +317,23 @@ def scan(team_id: int) -> dict:
                 d["won"] += won
                 d["players"] += int(occ[at, z_i])
 
+        # ---- every kill and death, bucketed for the filters
+        #
+        # Same walk as the opening duel below, without stopping at the first
+        # transition. Ours are deaths, theirs are kills.
+        plant_at = plants.get((r["match_key"], r["round_num"]))
+        buy = classify_round(
+            r["equip_ct"] if side == "ct" else r["equip_t"], r["round_num"])
+        for t_i, p_i in np.argwhere(alive[:-1] & ~alive[1:]):
+            z_d = int(gid[t_i + 1, p_i]) or int(gid[t_i, p_i])
+            if not z_d:
+                continue
+            phase = ("post" if plant_at is not None
+                     and secs[t_i + 1] >= plant_at else "pre")
+            rec = duels.setdefault(mp, {}).setdefault(z_d, {}).setdefault(
+                (side, phase, buy), [0, 0])
+            rec[1 if bool(theirs[t_i, p_i]) else 0] += 1
+
         # ---- the opening duel: the first death on EITHER side
         #
         # `fell` is every alive-to-dead transition regardless of side, so the
@@ -342,7 +381,7 @@ def scan(team_id: int) -> dict:
                     (r["match_key"], r["round_num"], sid), False))
 
     return {"commit": commit, "setup": setup, "death": death,
-            "opening": opening, "seen": seen,
+            "opening": opening, "duels": duels, "seen": seen,
             "seen_won": seen_won, "answered": answered,
             "names": {m: (cache[m][2] if cache.get(m) else {}) for m in cache}}
 
