@@ -533,8 +533,11 @@ def trend(points: list[tuple[str, float, str]], width: int = 680,
                          f'font-family="{MONO}" transform="rotate(-45 '
                          f'{lx:.1f} {ly_:.1f})">{esc(label)}</text>')
         else:
+            # The first and last lean inward, or a centred label at either
+            # end of the axis hangs off the drawing ("2 dust" for "2 dust2").
+            end = "start" if i == 0 else ("end" if last else "middle")
             parts.append(_text(px(i), base + lab_size + 6, label,
-                               size=lab_size, anchor="middle"))
+                               size=lab_size, anchor=end))
         if res:
             parts.append(_text(px(i), base + drop + 14 * fs, res,
                                size=10 * fs, fill=col, anchor="middle",
