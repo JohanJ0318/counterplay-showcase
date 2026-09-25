@@ -6,6 +6,10 @@
       "env": {
         "GRAPHIFY_GRAPH": "C:\\Users\\Johan\\counterplay\\graphify-out\\graph.json"
       }
+    },
+    "context7": {
+      "type": "http",
+      "url": "https://mcp.context7.com/mcp"
     }
   }
 }
