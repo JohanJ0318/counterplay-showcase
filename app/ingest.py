@@ -46,6 +46,8 @@ import urllib.parse
 import urllib.request
 from pathlib import Path
 
+from counterplay import positions as _positions
+
 from . import alert, db, faceit
 
 # A demo that fails this many times is left alone. Almost always a genuinely
@@ -411,6 +413,7 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                 """INSERT INTO round_positions (match_key, round_num, tick_start,
                        tick_step, n_samples, n_players, data)
                    VALUES (?,?,?,?,?,?,?)""", rows)
+        fill_plant_sites(conn, match_key)
         conn.commit()
     return n_rounds
 
@@ -702,3 +705,31 @@ def forget_team(team_id: int, actor_id: int | None = None) -> dict:
     db.execute("DELETE FROM demos WHERE team_id = ?", team_id)
     db.audit(actor_id, "forget_team", f"team={team_id} demos={len(demos)}")
     return {"demos": len(demos), "files_removed": removed}
+
+
+def fill_plant_sites(conn, match_key: str) -> int:
+    """Derive plant_site for every planted round of one match.
+
+    Shared by ingest and tools/backfill.py so there is exactly one definition
+    of how a site is decided. Returns how many rounds were filled.
+
+    Joins events to round_positions, so a round with a plant but no stored
+    positions is skipped and stays 0. MIN(seconds) because a round has one
+    plant and taking the minimum is cheaper than asserting that.
+    """
+    rows = conn.execute(
+        """SELECT e.round_num, MIN(e.seconds), p.data
+             FROM events e
+             JOIN round_positions p ON p.match_key = e.match_key
+                                   AND p.round_num = e.round_num
+            WHERE e.match_key = ? AND e.type = 'plant'
+            GROUP BY e.round_num""", (match_key,)).fetchall()
+    filled = 0
+    for round_num, seconds, blob in rows:
+        site = _positions.site_at(blob, seconds)
+        if site:
+            conn.execute("""UPDATE rounds SET plant_site = ?
+                             WHERE match_key = ? AND round_num = ?""",
+                         (site, match_key, round_num))
+            filled += 1
+    return filled

@@ -159,6 +159,51 @@ def sample_seconds(meta: dict) -> np.ndarray:
     return (np.arange(meta["n_samples"]) * meta["tick_step"]) / TICK_RATE
 
 
+# Two seconds either side of the plant. The grid is 8 Hz and a plant takes
+# 3.2 seconds with the planter stationary throughout, so this window always
+# contains them, and it is far too short for a rotate to muddy the vote.
+SITE_WINDOW_SECONDS = 2.0
+
+
+def site_at(blob: bytes, seconds: float,
+            window: float = SITE_WINDOW_SECONDS) -> int:
+    """Which bombsite a plant at `seconds` happened in: 1 or 2, else 0.
+
+    Reads the bombsite bits CS2 sets itself, so no map geometry is involved
+    and this is correct on any map in the pool, including ones nobody has
+    authored zones for.
+
+    Votes over living T-side players instead of trusting one sample. The
+    planter has to be standing in the site to finish a plant, but a lurker
+    holding the OTHER site is also a T inside a bombsite, and a single badly
+    timed sample would hand them the round. Across a window the planter and
+    whoever is covering them outweigh one player elsewhere on the map.
+
+    Returns 0 for "unknown", which is a real case and not a failure:
+    round_positions is written per round and a round can be missing one.
+    Callers must treat 0 as unknown and never as a site.
+    """
+    got = unpack_round(blob)
+    if got is None:
+        return 0
+    meta, _steamids, samples = got
+    if not meta["n_samples"] or not meta["n_players"]:
+        return 0
+
+    secs = sample_seconds(meta)
+    i = int(np.argmin(np.abs(secs - float(seconds))))
+    span = max(1, int(round(window * TICK_RATE / meta["tick_step"])))
+    flags = samples["flags"][max(0, i - span):min(meta["n_samples"], i + span + 1)]
+
+    zone = zone_of(flags)
+    alive = (flags & FLAG_ALIVE) != 0
+    is_t = (flags & FLAG_CT) == 0
+    votes = zone[(zone > 0) & alive & is_t]
+    if votes.size == 0:
+        return 0
+    return int(np.argmax(np.bincount(votes, minlength=3)[1:3]) + 1)
+
+
 def extract(parser, bounds, sample_step: int = SAMPLE_STEP) -> dict[int, bytes]:
     """round number -> packed positions, for every round with samples.
 

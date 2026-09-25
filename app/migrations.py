@@ -478,6 +478,19 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE UNIQUE INDEX IF NOT EXISTS idx_teams_claim
             ON teams(claim_token) WHERE claim_token IS NOT NULL;
     """),
+
+    (19, "where the bomb went, not just that it went", """
+        -- 0 means no plant OR not derivable; 1 and 2 are the sites as CS2
+        -- numbers them. Which of the two a human calls A is a naming
+        -- question and not a data one, so it is not recorded here.
+        --
+        -- Backfilled rather than re-parsed: round_positions already holds
+        -- the bombsite bits the game sets, so every round already in this
+        -- database can answer. tools/backfill.py fills it; new demos get it
+        -- during ingest. A round that stays 0 is honestly unknown and the
+        -- model reads it as its own category.
+        ALTER TABLE rounds ADD COLUMN plant_site INTEGER NOT NULL DEFAULT 0;
+    """),
 ]
 
 

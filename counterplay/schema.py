@@ -8,6 +8,10 @@ in one place and the whole pipeline picks it up.
 # Win probability moves when someone dies, and a lost duel *is* the death.
 FEATURES = [
     "tier_id",
+    # WHERE the bomb went, not just that it went. 0 until the plant fires,
+    # then 1 or 2 as CS2 numbers the sites. It is 0 before the plant on
+    # purpose: the round knows its site all along, the model must not.
+    "plant_site",
     "alive_ct",
     "alive_t",
     "equip_ct",
@@ -19,7 +23,7 @@ FEATURES = [
     "round_type_id",
 ]
 
-CATEGORICAL = ["map_id", "round_type_id", "tier_id"]
+CATEGORICAL = ["map_id", "round_type_id", "tier_id", "plant_site"]
 
 # Label: did the CT side win this round. T-side WP is 1 - p.
 LABEL = "ct_won"
@@ -27,9 +31,21 @@ LABEL = "ct_won"
 ROUND_SECONDS = 115.0      # competitive round timer
 PLANT_SECONDS = 40.0       # post-plant timer
 
+# APPEND to this list, never insert. MAP_IDS is positional, so inserting
+# renumbers every map after it and silently relabels existing rounds.
+#
+# de_cache was missing until 2026-09-24, and MAP_IDS.get(name, 0) returns 0,
+# which is de_mirage. 133 collegiate rounds across 6 maps trained as Mirage
+# next to 819 real Mirage rounds. A default that happens to be a valid id is
+# worse than no default, because nothing can tell the two apart afterwards.
 MAPS = ["de_mirage", "de_inferno", "de_nuke", "de_ancient",
-        "de_dust2", "de_anubis", "de_train", "de_overpass"]
+        "de_dust2", "de_anubis", "de_train", "de_overpass", "de_cache"]
 MAP_IDS = {m: i for i, m in enumerate(MAPS)}
+
+# Anything not on the list above. Do NOT default a lookup to 0: that is
+# de_mirage, and a map defaulting to a real map is indistinguishable from the
+# real thing afterwards. This is what cost 133 de_cache rounds.
+UNKNOWN_MAP_ID = len(MAPS)
 
 ROUND_TYPES = ["pistol", "eco", "force", "full"]
 ROUND_TYPE_IDS = {r: i for i, r in enumerate(ROUND_TYPES)}

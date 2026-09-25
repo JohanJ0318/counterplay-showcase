@@ -10,7 +10,8 @@ from __future__ import annotations
 import pandas as pd
 
 from .schema import (DEFAULT_TIER, MAP_IDS, PLANT_SECONDS, ROUND_SECONDS,
-                     ROUND_TYPE_IDS, TIER_IDS, classify_round)
+                     ROUND_TYPE_IDS, TIER_IDS, UNKNOWN_MAP_ID,
+                     classify_round)
 
 
 def build_states(rounds: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
@@ -37,8 +38,12 @@ def build_states(rounds: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
 
         alive_ct, alive_t = 5, 5
         planted, plant_at = 0, None
+        # Known for the whole round here, and deliberately NOT emitted until
+        # the plant fires. See the note on plant_site in schema.py: the round
+        # knows where the bomb went, a model at 90 seconds does not.
+        site = int(getattr(r, "plant_site", 0) or 0)
 
-        map_id = MAP_IDS.get(r.map_name, 0)
+        map_id = MAP_IDS.get(r.map_name, UNKNOWN_MAP_ID)
         tier_id = TIER_IDS.get(getattr(r, "tier", DEFAULT_TIER), TIER_IDS[DEFAULT_TIER])
         rt_ct = ROUND_TYPE_IDS[classify_round(r.equip_ct, r.round_num)]
 
@@ -66,6 +71,7 @@ def build_states(rounds: pd.DataFrame, events: pd.DataFrame) -> pd.DataFrame:
                 "time_left": time_left,
                 "bomb_planted": planted,
                 "time_since_plant": since,
+                "plant_site": site if planted else 0,
                 "map_id": map_id,
                 "tier_id": tier_id,
                 "round_type_id": rt_ct,

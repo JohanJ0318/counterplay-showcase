@@ -156,24 +156,61 @@ true on purpose.
       it lands 6-10x, shifted up as expected. Note those five seeds are the
       harsher half: the 20-seed calibrated median is 2.33, not 2.92.
 
-- [ ] **So it is a FEATURES problem.** Not the corpus, not the calibrator,
-      not the gate. Ranked by what they should buy:
+- [x] **Plant site added. It did not help.** 2026-09-24. Shipped because
+      it is correct, not because it worked. 138 maps, 20 seeds, matched floor:
 
-      1. **Plant site.** FEATURES has bomb_planted and time_since_plant but
-         not WHERE. A and B play differently on every map in the pool, and
-         this is one of the strongest predictors in any CS win-probability
-         model. Cheap: positions.py already encodes which bombsite a sample
-         sits in, bits 2-3, from CS2's own bombsite definitions, so no map
-         geometry has to be authored.
-      2. **Defuse kits alive on CT.** Decides whether a 40-second post-plant
-         is a 5-second or a 10-second defuse, which is the whole retake.
-      3. **Round number or score.** A 5-round team and a 20-round team play
-         the same alive/equip state differently, and nothing in FEATURES
-         knows which round it is.
+      | | before | with plant_site |
+      |---|---|---|
+      | passing | 10 of 20 | 11 of 20 |
+      | ratio median | 2.33 | 2.39 |
+      | ECE median | 0.0259 | 0.0264 |
+      | AUC median | 0.8615 | 0.8599 |
+      | ratio min / max | 1.05 / 4.03 | 1.40 / 3.48 |
 
-      This does NOT mean adding player positions. The comment on FEATURES is
-      right that a lost duel is the death and the count already carries it.
-      All three above are round-level facts, not positions.
+      AUC is the clean read on whether a feature carries signal and it moved
+      DOWN 0.0016. If plant site predicted round outcome the booster would
+      have found it there first. Post-plant win probability is dominated by
+      alive counts, time and equipment; which site is second-order next to
+      those. Both tails pulled in, 1.05 to 1.40 and 4.03 to 3.48, which may be
+      real and is one run.
+
+      Kept, because it is right: the site IS part of the state and 2,956
+      rounds now record it at 100% of planted rounds, split 1571 / 1385.
+      tools/backfill.py fills it from round_positions with no re-parse.
+
+- [x] **de_cache was training as de_mirage.** Found on the way. MAPS had no
+      de_cache and MAP_IDS.get(name, 0) returns 0, which IS de_mirage, so 133
+      collegiate rounds across 6 maps sat inside Mirage's 819: 14% of the
+      largest map category was the wrong map. An unknown map now gets
+      UNKNOWN_MAP_ID = len(MAPS) instead of defaulting to a real one, so the
+      class of bug cannot recur silently. Append to MAPS, never insert.
+
+- [ ] **Stop chasing features on this evidence. The measurement is the limit.**
+      ECE ranges 0.0156 to 0.0387 across 20 seeds on the SAME 138 maps, a 2.5x
+      spread. Any feature worth less than that is invisible here, and plant
+      site was.
+
+      The seeds are not independent samples. They are 20 re-splits of one
+      corpus, so the spread measures SPLIT SENSITIVITY and is a lower bound on
+      the uncertainty about new data, not an estimate of it. Adding seeds
+      narrows the median's standard error and tells you nothing more about
+      whether the model is calibrated on a match it has never seen.
+
+      So before any more feature work, decide which question is being asked:
+
+      1. **Ship it or not.** Then hold out whole matches once, never touch
+         them, and read the answer once. Everything else is re-splitting.
+      2. **Is 0.026 ECE even bad?** Nobody has asked. rate() prints a
+         percentage at MIN_CHANCES = 8, where the sampling error on the
+         displayed number is about 17 points. The site already shows coaches
+         numbers an order of magnitude noisier than this model's bias, and
+         this gate is what is stopping it shipping. That is a product
+         question and it has never been put.
+
+      Candidates if feature work resumes anyway, cheapest first: defuse kits
+      alive on CT, which decides a 5-second defuse against a 10-second one and
+      so decides the retake; and round number, since a 5-round team and a
+      20-round team play the same alive/equip state differently.
 
 - [ ] **Do not quote a single-seed pass.** run.py defaults to seed 7, which
       was one of three lucky splits at 42 maps and passed at 2.25x while the

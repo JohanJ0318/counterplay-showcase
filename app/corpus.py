@@ -44,11 +44,11 @@ def load_frames(tier: str | None = None, team_id: int | None = None,
     rounds = pd.DataFrame(
         [dict(x) for x in db.query(
             f"""SELECT r.match_key AS match_id, r.round_num, r.map_name,
-                       r.equip_ct, r.equip_t, r.ct_won, r.tier
+                       r.equip_ct, r.equip_t, r.ct_won, r.tier, r.plant_site
                   FROM rounds r{clause}
               ORDER BY r.match_key, r.round_num""", *args)],
         columns=["match_id", "round_num", "map_name", "equip_ct", "equip_t",
-                 "ct_won", "tier"])
+                 "ct_won", "tier", "plant_site"])
 
     if rounds.empty:
         return rounds, pd.DataFrame(
