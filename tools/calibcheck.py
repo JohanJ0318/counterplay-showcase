@@ -142,7 +142,7 @@ def main() -> int:
     print(head)
     print("-" * (len(head) + 2))
 
-    uni, mat, lift, mids, raw = [], [], [], [], []
+    uni, mat, lift, mids, raw, eces = [], [], [], [], [], []
     for seed in seeds:
         try:
             model, res, _curve = model_mod.train(states, seed=seed)
@@ -165,6 +165,7 @@ def main() -> int:
         r_u, r_m = ece / uf, ece / mf
         uni.append(r_u)
         mat.append(r_m)
+        eces.append(ece)
         lift.append(mf / uf)
         mids.append(float(np.mean((p > 0.35) & (p < 0.65))))
         line = ("%-5d %6d %5d %5d %8.4f | %8.4f %6.2f | %8.4f %6.2f %-4s"
@@ -236,8 +237,24 @@ def main() -> int:
         print("WIDE, and the control fails while the calibrated model is at")
         print("%.2f. The calibrator is doing real work and %.1f is defensible."
               % (med_mat, gate))
-        print("That makes this a features problem, not a calibration one, and")
-        print("not a corpus one: 88 to 138 maps moved ECE from 0.029 to 0.031.")
+        print()
+        print("So the gate is not the problem and neither is the calibrator.")
+        print("Nor is the corpus: 88 to 138 maps left ECE at 0.029 and 0.031.")
+        print("Nor was the first feature tried: plant site went in on")
+        print("2026-09-24 and AUC moved DOWN 0.0016.")
+        print()
+        print("What binds is the MEASUREMENT. ECE ranges %.4f to %.4f across"
+              % (min(e for e in eces), max(e for e in eces)))
+        print("these seeds on ONE corpus, so anything worth less than that")
+        print("spread cannot be seen from here, and the model sits on the line")
+        print("rather than clearly either side of it. These seeds are")
+        print("re-splits, not samples: more of them sharpen the median and say")
+        print("nothing new about a match the model has never seen.")
+        print()
+        print("Untried and cheap, in the order worth trying: the calibration")
+        print("fraction, fixed at 18.75%, then Platt against isotonic, then")
+        print("cross-validated calibration. Expect the same problem reading")
+        print("the result.")
     return 0
 
 
