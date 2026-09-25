@@ -4,8 +4,8 @@
 
 This is the page a coach opens from "See a real report" before they trust
 anything, so it has one job: look exactly like what they will get. It is built
-from `theme.CSS` and the same helpers every real page uses - `report.rate` for
-every figure, `theme.map_chip` for every map, `charts.bars` for the chart, the
+from `theme.CSS` and the same helpers every real page uses - `report.pct` for
+every figure, `theme.map_chip` for every map, `charts` for every picture, the
 `info`/`tip` disclosure for every explanation - so changing the product's look
 changes this with it.
 
@@ -29,7 +29,8 @@ from __future__ import annotations
 
 from . import charts
 from .movement import COMMIT_TO, SETUP_AT
-from .report import MIN_CHANCES, MIN_PATTERN_CHANCES, PATTERNS, buy_pattern, rate
+from .report import (MIN_CHANCES, MIN_PATTERN_CHANCES, PATTERNS, buy_pattern,
+                     pct)
 from .theme import banner, esc, map_chip, page
 from .utility import FLASH_ROUND_PATTERN, MIN_BLIND_SECONDS
 
@@ -54,39 +55,41 @@ COVERAGE = [
 # ------------------------------------------------------------ what to work on
 #
 # The shape `advice.monday` produces: a conclusion, the reasoning, the counted
-# facts it was drawn from, and a closing line putting it against the team's own
-# average. Grouped by map, because practice is planned one map at a time.
+# facts it was drawn from, and the comparison the card draws as two bars.
+# Grouped by map, because practice is planned one map at a time.
 #
-# (good, side, do, because, evidence, closing line)
+# (good, side, do, because, evidence, footer, versus, rounds at stake)
+SEASON = ("All your rounds", 71, ROUNDS)
 ADVICE = [
     ("", [
         (False, None, "Practice trading the opening duel",
-         "Losing the first duel is normal; losing the round nearly every "
-         "time is not. Your second man is too far away to trade the kill. "
-         "That is spacing, and you can drill it.",
-         ["You win 19 of 71 rounds after losing the opening duel (27%), "
-          "against 48% overall"], None),
+         "Losing the first duel is normal. Losing the round almost every "
+         "time is not: your second player is too far back to trade. Drill "
+         "the spacing.",
+         ["You win 19 of 71 rounds after losing the opening duel"], None,
+         (("After losing the opening duel", 19, 71), SEASON), 15.0),
         (False, None, "Fix who your flashes land on",
-         "63% of your flashes blind your own side. The 24 that blind a "
-         "teammate and no opponent are the ones to drill: the site is still "
-         "held and your entry cannot see it.",
+         "63% of your flashes blind your own side. Drill the 24 that blinded "
+         "a teammate and nobody else: your entry walks in blind to a site "
+         "still held.",
          ["91 of 144 flashes blinded your own side: 48 also blinded an "
           "opponent, 24 a teammate only, 19 only the thrower"],
-         "You win 27 of the 58 rounds it happens in (47%), against 48% overall"),
+         f"Happens in 58 of your {ROUNDS} rounds", None, 5.0),
     ]),
     ("mirage", [
         (True, "ct", "Keep the A default setup",
-         "Only 8 of 32 CT rounds start this way and they convert 34 points "
-         "better. Small sample, clear direction.",
-         ["Held in 8 of 32 CT rounds; you win 7 of those 8"],
-         "88% in those 8 rounds against 54% in your other 24 CT rounds "
-         "on mirage"),
+         "You start only 8 of 32 CT rounds this way, and they win 34 points "
+         "more often. A small sample, but a clear one.",
+         ["Held in 8 of 32 CT rounds; you win 7 of those 8"], None,
+         (("Held A default", 7, 8), ("Other CT rounds on mirage", 13, 24)),
+         2.7),
         (False, "t", "Change how you take top mid",
          "When your first death is in top mid, the round is usually gone. "
-         "This often, it is the same duel taken the same way, not bad luck.",
+         "This often, it is the same duel taken the same way.",
          ["First death in top mid in 8 of 31 T rounds; you win 2 of those 8"],
-         "25% in those 8 rounds against 43% in your other 23 T rounds "
-         "on mirage"),
+         None,
+         (("First death in top mid", 2, 8), ("Other T rounds on mirage", 10, 23)),
+         1.4),
     ]),
 ]
 
@@ -117,26 +120,18 @@ PATTERN_COUNTS = [
 # coach cannot act on "you threw 144 flashes".
 UTILITY = [
     ("61%", "of your flashes blind an opponent", "88 of 144 thrown",
-     "Counted per flash, not per player blinded: one flashbang blinds everyone "
-     "who can see it. Those 88 flashes took 383 seconds of sight off the "
-     "opposition. 91 of your flashes also blinded your own side, for 249 "
-     f"seconds. Blinded means held for at least {MIN_BLIND_SECONDS} seconds: "
-     "the game reports the quarter second somebody catches while turning away, "
-     "and that is a flinch rather than a flash."),
+     "Counted per flash, not per player blinded. A blind counts if it lasts "
+     f"{MIN_BLIND_SECONDS} seconds or more."),
     ("9%", "of your flashes get somebody killed", "13 of 144 thrown",
-     "An opponent this flash blinded, who then died to one of you before it "
-     "wore off. 14 opponents in all. This is the only reason to throw one, and "
-     "it is a long way below the share that merely land."),
+     "An opponent it blinded died to one of you before the flash wore off. "
+     "14 opponents in all."),
     ("26%", "of your molotovs deny space", "34 of 131 thrown",
-     "A molotov an opponent had to stand in, walk out of, or go round, read "
-     "from the position samples. Between them they took 71 seconds of ground "
-     "away, and 17 pushed somebody back out of it. The other 97 burned with "
-     "nobody near them at any point."),
-    ("$780", "of utility wasted per round", "$115,400 of $402,000 bought",
-     "Grenades still in a hand at the moment its owner died, priced at what "
-     "they cost. Grenades a survivor kept are not counted: carrying a smoke "
-     "into the next round is not waste. Across 148 rounds that is 402 grenades "
-     "that bought nothing."),
+     "An opponent had to stand in it, walk out of it or go round it. 97 "
+     "burned with nobody near them."),
+    ("$780", "of utility a round, unused at death",
+     "$115,400 of $402,000 bought",
+     "Still in a player's hand when they died, priced at what it cost. "
+     "Utility a survivor kept is not counted."),
 ]
 # ---------------------------------------------------------------- positions
 #
@@ -193,9 +188,9 @@ EARLY_HIDDEN = 6
 
 POS_SECTIONS = (
     ("death", "Where your first death happens",
-     "The first of you to die, where, and whether anybody got him back. The "
-     "same death traded leaves a 4v4 and untraded leaves a 4v5, which is the "
-     "difference between a place you lose men and a place you lose rounds.", 6),
+     "Where the first of you dies, and whether it was traded. Untraded means "
+     "playing 4 against 5. The bar is how often it happens, out of your rounds "
+     "on that map and side.", 6),
 )
 
 # --------------------------------------------------------- map pool and buys
@@ -205,21 +200,19 @@ MAP_POOL = [
     ("de_inferno", 2, 24, 51, 13, 26, 11, 25),
     ("de_nuke", 1, 13, 34, 8, 18, 5, 16),
 ]
-SIDES = [("ct", 41, 76), ("t", 30, 72)]
-BUYS = [("full", 45, 79), ("force", 14, 41), ("pistol", 5, 12), ("eco", 1, 8)]
+# The place each positional card is about, for its label in the ranking,
+# which names a place the way /stats does: "top mid, T on mirage".
+PLACE_OF = {"Keep the A default setup": "A default",
+            "Change how you take top mid": "top mid"}
 
-# (name, role, opening duels won, of, rounds with an AWP, of, spots)
+# (name, role, opening duels won, of, rounds with an AWP, of)
+# No "where they stood at freeze-end" table: the product does not show one,
+# and a preview must not promise what the real report lacks.
 PLAYERS = [
-    ("Player A", "IGL", 21, 62, 2, 148,
-     [("mirage &middot; CT", "B bench", "19 / 32"),
-      ("mirage &middot; T", "Second through palace", "16 / 31")]),
-    ("Player B", "AWP", 34, 61, 96, 148,
-     [("mirage &middot; CT", "A ramp angle from CT", "22 / 32"),
-      ("inferno &middot; CT", "Banana from car", "17 / 26")]),
-    ("Player C", "Entry", 29, 66, 1, 148,
-     [("mirage &middot; T", "First through palace", "20 / 31")]),
-    ("Player D", "Rifle", 4, 12, 0, 148,
-     [("nuke &middot; CT", "Heaven", "6 / 18")]),
+    ("Player A", "IGL", 21, 62, 2, 148),
+    ("Player B", "AWP", 34, 61, 96, 148),
+    ("Player C", "Entry", 29, 66, 1, 148),
+    ("Player D", "Rifle", 4, 12, 0, 148),
 ]
 ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
 
@@ -256,13 +249,15 @@ def render(user=None, pictures=None) -> str:
     has named that map's zones.
     """
     # ---- what to work on
-    groups = []
+    groups, ranked = [], []
     for mp, items in ADVICE:
         cards = []
-        for good, side, do, because, evidence, foot in items:
+        for good, side, do, because, evidence, foot, vs, stake in items:
             tag = "keep doing this" if good else "worth changing"
             ev = "".join(f"<li>{esc(e)}</li>" for e in evidence)
             pill = f'<span class="pill {side}">{side.upper()}</span>' if side else ""
+            fig = charts.versus([(lab, pct(won, of), f"{won} of {of}")
+                                 for lab, won, of in vs]) if vs else ""
             cards.append(
                 f'<div class="card advice{" good" if good else ""}">'
                 f'<div style="display:flex;gap:9px;align-items:center;'
@@ -270,13 +265,19 @@ def render(user=None, pictures=None) -> str:
                 f'{tag}</span>{pill}</div><h3>{esc(do)}</h3>'
                 f'<p class="lede">{esc(because)}</p>'
                 f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
+                + fig
                 + (f'<p class="den">{esc(foot)}</p>' if foot else "")
                 + '</div>')
-        head = (f'<div class="sec-head"><span class="label">'
-                f'{"On " + esc(mp) if mp else "Across every map"}</span>'
-                f'<h3>{len(items)} things to work on</h3></div>')
+            label = (do if not side else
+                     f"{PLACE_OF[do]}, {side.upper()} on {mp}")
+            ranked.append((label, stake if good else -stake,
+                           f"{stake:.0f} rounds"))
+        head = (f'<div class="sec-head"><h3>'
+                f'{"On " + esc(mp) if mp else "Across every map"}</h3></div>')
         groups.append(f'<div style="margin-bottom:22px">{head}'
                       f'<div class="grid2">{"".join(cards)}</div></div>')
+    ranked.sort(key=lambda r: -abs(r[1]))
+    ranking = charts.diverging(ranked)
 
     # ---- recent form
     #
@@ -291,12 +292,8 @@ def render(user=None, pictures=None) -> str:
         for r, sc, mp in FORM)
 
     # ---- recurring patterns
-    prows = "".join(
-        f'<tr><td class="name">{esc(name)}{_info(f"pt{i}", detail)}</td>'
-        f'<td class="num">{rate(hit, of)}</td></tr>'
-        for i, ((name, detail), hit, of) in enumerate(PATTERN_COUNTS))
     chart = charts.bars([(n, hit, of) for (n, _detail), hit, of in PATTERN_COUNTS],
-                        width=600)
+                        notes=[d for (_n, d), _h, _o in PATTERN_COUNTS])
 
     # ---- utility
     ucards = "".join(
@@ -333,95 +330,63 @@ def render(user=None, pictures=None) -> str:
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>The maps you play</h2></div>'
-            f'<p class="lede">Every place named in the two tables below it, '
-            f'drawn from your own rounds. A map whose sites sit on top of each '
-            f'other, like nuke, gets both floors.</p>'
+            f'<p class="lede">The places named below, drawn from your own '
+            f'rounds.</p>'
             f'<div class="zonerow">{"".join(figs)}</div></section>')
 
-    # The merged early table. The fourth column is the same map and side in
-    # the rounds it did not happen; under MIN_CHANCES it declines to answer
-    # rather than printing a percentage off five rounds.
+    # One block per place, went there against didn't, as /stats draws it.
+    # Under MIN_CHANCES the second bar declines to answer rather than drawing
+    # a percentage off five rounds.
     erows = ""
-    for side, mp, zone, hit, of, won, other, other_won, extra in EARLY:
-        against = (rate(other_won, other) if other >= MIN_CHANCES else
-                   '<span class="rt nil"><b class="den">&ndash;</b></span>')
-        erows += (f'<tr><td class="name"><span class="pill {side}">'
-                  f'{side.upper()}</span> {esc(zone)}'
-                  f'<span class="den" style="font-weight:400;margin-left:7px">'
-                  f'{esc(mp.replace("de_", ""))} &middot; {extra}</span></td>'
-                  f'<td class="num">{rate(hit, of)}</td>'
-                  f'<td class="num">{rate(won, hit)}</td>'
-                  f'<td class="num">{against}</td></tr>')
+    for side, mp, zone, hit, of, won, other, other_won, _extra in EARLY:
+        erows += (
+            f'<div class="op"><p class="op-head"><span class="pill {side}">'
+            f'{side.upper()}</span> <strong>{esc(zone)}</strong> '
+            f'<span class="den" title="{hit} of {of}">'
+            f'{esc(mp.replace("de_", ""))} &middot; {pct(hit, of):.0f}% of your '
+            f'{side.upper()} rounds there</span></p>'
+            + charts.versus([
+                ("Went there", pct(won, hit), f"won {won} of {hit}"),
+                ("Didn't", pct(other_won, other) if other >= MIN_CHANCES
+                 else None, f"won {other_won} of {other}")])
+            + '</div>')
     # Held back: it renders after the first-death table, the way /stats
     # orders them. Where rounds are lost comes before where the group stands.
     early_block = (
         f'<section><div class="sec-head"><span class="label">From position '
         f'data</span><h2>Where you are in the opening</h2></div>'
         f'<p class="lede">Where two or more of you stand {int(SETUP_AT)} '
-        f'seconds in, once the round has shape and before contact decides it. '
-        f'The last column is the same map and the same side in the rounds it '
-        f'did not happen, which is the only comparison worth making: read '
-        f'against your season average, most of these numbers are reading the '
-        f'map rather than the habit.</p>'
-        f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-        f'<th class="num">Rounds</th><th class="num">Of those, won</th>'
-        f'<th class="num" title="The same map and side, in the rounds this '
-        f'did not happen">When you do not</th></tr></thead>'
-        f'<tbody>{erows}</tbody></table></div>'
-        f'<p class="note">{EARLY_HIDDEN} more places showed the same pattern '
-        f'less often; the top {len(EARLY)} are the ones worth practice '
-        f'time.</p></section>')
+        f'seconds in, and how often you win from there. Each place is '
+        f'compared with your other rounds on the same map and side.</p>'
+        f'<div class="chart op-list">{erows}</div>'
+        f'<p class="note">The {len(EARLY)} of {len(EARLY) + EARLY_HIDDEN} '
+        f'places with the widest gap.</p></section>')
 
     for kind, title, lede, hidden in POS_SECTIONS:
         rows = POSITIONS[kind]
-        # Only a first death can be traded, so the column exists in that one
-        # section rather than sitting empty in the other two.
-        trades = kind == "death"
-        rws = ""
-        for side, mp, zone, hit, of, traded, won, extra in rows:
-            sub = f' &middot; {esc(extra)}' if extra and not trades else ""
-            traded_cell = (f'<td class="num">{rate(traded, hit)}</td>'
-                           if trades else "")
-            rws += (f'<tr><td class="name"><span class="pill {side}">'
-                    f'{side.upper()}</span> {esc(zone)}'
-                    f'<span class="den" style="font-weight:400;margin-left:7px">'
-                    f'{esc(mp.replace("de_", ""))}{sub}</span></td>'
-                    f'<td class="num">{rate(hit, of)}</td>{traded_cell}'
-                    f'<td class="num">{rate(won, hit)}</td></tr>')
-
+        fig = charts.first_deaths([{
+            "side": side, "place": zone, "map": mp.replace("de_", ""),
+            "share": pct(hit, of), "traded": pct(traded, hit),
+            "won": pct(won, hit), "title": f"{hit} of {of} {side.upper()} rounds",
+            "traded_title": f"{traded} of {hit}", "won_title": f"{won} of {hit}"}
+            for side, mp, zone, hit, of, traded, won, _extra in rows])
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'From position data</span><h2>{esc(title)}</h2></div>'
             f'<p class="lede">{esc(lede)}</p>'
-            f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-            f'<th class="num">Rounds</th>'
-            + ('<th class="num" title="First deaths here that a teammate '
-               'traded back">Traded</th>' if trades else "")
-            + f'<th class="num">Of those, won</th></tr></thead>'
-            f'<tbody>{rws}</tbody></table></div>'
-            f'<p class="note">{hidden} more places showed the same pattern less '
-            f'often; the top {len(rows)} are the ones worth practice '
-            f'time.</p></section>')
+            f'<div class="chart">{fig}</div>'
+            f'<p class="note">The top {len(rows)} of {len(rows) + hidden} '
+            f'places.</p></section>')
 
     pos_blocks.append(early_block)
 
-    # ---- map pool, sides, buys
-    map_rows = "".join(
-        f'<tr><td class="name">{map_chip(mp)}</td>'
-        f'<td class="num mono">{n}</td>'
-        f'<td class="num">{rate(won, of)}</td>'
-        f'<td class="num">{rate(cw, cof)}</td>'
-        f'<td class="num">{rate(tw, tof)}</td></tr>'
-        for mp, n, won, of, cw, cof, tw, tof in MAP_POOL)
-    side_rows = "".join(
-        f'<tr><td class="name"><span class="pill {sd}">{sd.upper()}</span></td>'
-        f'<td class="num mono">{of}</td>'
-        f'<td class="num">{rate(won, of)}</td></tr>'
-        for sd, won, of in SIDES)
-    buy_rows = "".join(
-        f'<tr><td class="name">{esc(kind)}</td><td class="num mono">{of}</td>'
-        f'<td class="num">{rate(won, of)}</td></tr>'
-        for kind, won, of in BUYS)
+    # ---- map pool, as /stats draws it. Sides and buys are in the patterns.
+    pool = charts.sides([{
+        "chip": map_chip(mp), "matches": n,
+        "all": pct(won, of), "all_title": f"{won} of {of}",
+        "ct": pct(cw, cof), "ct_title": f"{cw} of {cof}",
+        "t": pct(tw, tof), "t_title": f"{tw} of {tof}"}
+        for mp, n, won, of, cw, cof, tw, tof in MAP_POOL])
 
     # ---- players
     ply = "".join(
@@ -430,21 +395,13 @@ def render(user=None, pictures=None) -> str:
         f'<h3>{esc(name)}</h3>'
         f'<span class="{ROLE_CLASS.get(role, "role")}">{esc(role)}</span></div>'
         f'<div class="stat-row">'
-        f'<div class="stat"><span class="stat-n">{100 * ow // od}%</span>'
+        f'<div class="stat"><span class="stat-n">{pct(ow, od):.0f}%</span>'
         f'<span class="label">opening duels won</span>'
         f'<span class="den">{ow} / {od}</span></div>'
-        f'<div class="stat"><span class="stat-n">{100 * aw // ad}%</span>'
+        f'<div class="stat"><span class="stat-n">{pct(aw, ad):.0f}%</span>'
         f'<span class="label">rounds with an AWP</span>'
-        f'<span class="den">{aw} / {ad}</span></div></div>'
-        f'<div class="tbl-wrap"><table><thead><tr>'
-        f'<th>Map and side</th><th>Where they stood at freeze-end</th>'
-        f'<th class="num">Rounds</th></tr></thead><tbody>'
-        + "".join(f'<tr><td class="den">{where}</td>'
-                  f'<td class="name">{esc(spot)}</td>'
-                  f'<td class="num den">{esc(n)}</td></tr>'
-                  for where, spot, n in spots)
-        + "</tbody></table></div></div>"
-        for name, role, ow, od, aw, ad, spots in PLAYERS)
+        f'<span class="den">{aw} / {ad}</span></div></div></div>'
+        for name, role, ow, od, aw, ad in PLAYERS)
 
     cov_rows = "".join(
         f'<tr><td class="mono">{esc(d)}</td><td class="name">{map_chip(m)}</td>'
@@ -456,7 +413,7 @@ def render(user=None, pictures=None) -> str:
         f'<h3>{esc(h)}</h3><p class="lede" style="margin-top:3px">{esc(b)}</p>'
         f'</div>' for h, b in NOT_CLAIMED)
 
-    n_patterns = len(PATTERN_COUNTS) + sum(len(v) for v in POSITIONS.values())
+    n_items = sum(len(items) for _mp, items in ADVICE)
 
     body = f"""
   <section>
@@ -476,26 +433,26 @@ def render(user=None, pictures=None) -> str:
         <span class="den">71 / {ROUNDS}</span></div>
       <div class="stat"><span class="stat-n">{MAPS}</span>
         <span class="label">maps played</span></div>
-      <div class="stat"><span class="stat-n">{n_patterns}</span>
-        <span class="label">patterns found</span></div>
+      <div class="stat"><span class="stat-n">{n_items}</span>
+        <span class="label">to work on</span></div>
     </div>
   </section>
 
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
       <h2>What to work on</h2></div>
-    <p class="lede">Ranked by how many rounds each one covers and how far it
-      sits from your usual: your own {BASELINE}% across the season, or the
-      same map and side without it for a line about one place. The count
-      behind every line is printed under it.</p>
+    <p class="lede">Biggest first: how far each one sits from your usual,
+      times the rounds it covers.</p>
+    <div class="chart">{ranking}<p class="den" style="margin:12px 0 0">Longer
+      bar, more rounds at stake. Left costs you rounds, right wins them.</p></div>
     {"".join(groups)}
   </section>
 
   <section>
     <div class="sec-head"><span class="label">Newest first</span>
       <h2>Recent form</h2></div>
-    <p class="lede">Your last {len(FORM)} matches, with the real result. In your
-      own report each of these opens that match.</p>
+    <p class="lede">Your last {len(FORM)}. In your own report each one opens
+      that match.</p>
     <div class="formrow">{form}</div>
   </section>
 
@@ -506,18 +463,12 @@ def render(user=None, pictures=None) -> str:
       {MIN_PATTERN_CHANCES} chances to appear. The full bar is the chances and
       the fill is what came of them.</p>
     <div class="chart">{chart}</div>
-    <details class="drop"><summary>See the numbers</summary>
-      <div class="tbl-plain"><table>
-        <thead><tr><th>Pattern</th>
-          <th class="num">Observed / chances</th></tr></thead>
-        <tbody>{prows}</tbody></table></div></details>
   </section>
 
   <section>
-    <div class="sec-head"><span class="label">What your grenades did</span>
+    <div class="sec-head"><span class="label">What your utility did</span>
       <h2>Utility</h2></div>
-    <p class="lede">What the utility achieved, counted per grenade from the demo,
-      not how much of it was thrown.</p>
+    <p class="lede">What your utility achieved, counted per throw.</p>
     <div class="stat-row">{ucards}</div>
   </section>
 
@@ -526,36 +477,15 @@ def render(user=None, pictures=None) -> str:
   <section>
     <div class="sec-head"><span class="label">Where the rounds went</span>
       <h2>Map pool</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Map</th><th class="num">Matches</th>
-        <th class="num">Rounds won</th><th class="num">As CT</th>
-        <th class="num">As T</th></tr></thead>
-      <tbody>{map_rows}</tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><span class="label">Side by side</span><h2>Sides</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Your side</th><th class="num">Rounds</th>
-        <th class="num">Rounds won</th></tr></thead>
-      <tbody>{side_rows}</tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><span class="label">By what they could afford</span>
-      <h2>Buys</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Your buy</th><th class="num">Rounds</th>
-        <th class="num">Rounds won</th></tr></thead>
-      <tbody>{buy_rows}</tbody></table></div>
+    <p class="lede">Rounds won on each map, by side. The mark is 50%.</p>
+    <div class="chart">{pool}</div>
   </section>
 
   <section>
     <div class="sec-head"><span class="label">Who does what</span>
       <h2>Players</h2></div>
-    <p class="lede">Roles as observed, not as labeled. Positions are the spots
-      each player actually occupied at freeze-end, with the rounds counted. Every
-      player also gets a page of their own, match by match.</p>
+    <p class="lede">Roles as observed, not as labeled. Every player also gets a
+      page of their own, match by match.</p>
     <div class="grid2">{ply}</div>
   </section>
 

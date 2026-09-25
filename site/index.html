@@ -194,6 +194,12 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   padding:11px 0;border-bottom:1px solid var(--border)}
 .rline:last-of-type{border-bottom:none}
 .rline .what{font-size:.88rem;line-height:1.35}
+/* Each rate as a bar under its line, drawn the way the product's own
+   patterns chart draws one. */
+.rbar{display:block;height:4px;margin-top:7px;border-radius:2px;
+  background:var(--border);position:relative;overflow:hidden}
+.rbar::before{content:"";position:absolute;left:0;top:0;bottom:0;
+  width:var(--f);background:var(--purple);border-radius:2px}
 /* The figure over its denominator, which is how every rate inside the product
    is drawn. Side by side they read as one long string and the denominator
    competes with the number it is supporting; stacked, the eye takes the
@@ -646,10 +652,9 @@ footer a{color:var(--muted)}
   <div class="hero-copy">
     <span class="eyebrow"><span class="pip"></span><span class="label">For NECC, NACE, ECAC, Playfly &amp; ESEA teams</span></span>
     <h1>Your matches, actually read.</h1>
-    <p class="sub">Drop in your match demos and get back player stats, team stats, a report
-      per match, and the patterns your team repeats without noticing. Each one is counted,
-      with the rounds it came from printed beside it. Built for league teams and
-      measured against your own rounds, never against professionals.</p>
+    <p class="sub">Upload your match demos. Get player stats, team stats, a report for
+      every match, and the habits your team repeats without noticing. Measured against
+      your own rounds, never against pros.</p>
     <div class="hero-cta">
       <a class="btn" href="/signup">Add your team, free this season</a>
       <a class="btn btn-ghost" href="sample-report">See a real report</a>
@@ -663,19 +668,19 @@ footer a{color:var(--muted)}
       <span class="label">observed / chances</span>
     </div>
     <div class="rline fade" style="animation-delay:.05s">
-      <span class="what">Flashes that got somebody killed</span>
+      <span class="what">Flashes that got somebody killed<span class="rbar" style="--f:10%"></span></span>
       <span class="fig"><span class="pct">10%</span><span class="den">38 / 374</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.13s">
-      <span class="what">Rounds won after winning the opening duel</span>
+      <span class="what">Rounds won after winning the opening duel<span class="rbar" style="--f:65%"></span></span>
       <span class="fig"><span class="pct">65%</span><span class="den">84 / 130</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.21s">
-      <span class="what">Rounds won after losing the opening duel</span>
+      <span class="what">Rounds won after losing the opening duel<span class="rbar" style="--f:32%"></span></span>
       <span class="fig"><span class="pct">32%</span><span class="den">39 / 120</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.29s">
-      <span class="what">Your first death is in A main, T-side Mirage</span>
+      <span class="what">Your first death is in A main, T-side Mirage<span class="rbar" style="--f:29%"></span></span>
       <span class="fig"><span class="pct">29%</span><span class="den">10 / 34</span></span>
     </div>
     <div class="receipt-foot">From one team's real season.</div>
@@ -694,7 +699,6 @@ footer a{color:var(--muted)}
          poster="/media/loop-poster.jpg" aria-hidden="true" tabindex="-1"></video>
   <div class="scrim" aria-hidden="true"></div>
   <div class="wrap film-copy">
-    <span class="label">Level up your Counter-Strike skills with Counterplay.</span>
     <h2>The rounds you played, not the ones you remember.</h2>
     <p class="under">Your own demos, read round by round, with every number
       printed beside the rounds it came from.</p>
@@ -707,8 +711,7 @@ footer a{color:var(--muted)}
     <div class="sec-head">
       <span class="label">What you get</span>
       <h2>Four things, off one folder of demos.</h2>
-      <p>Upload a season's matches once. Everything below comes out of the same parse, so
-        there is nothing else to set up and nothing to keep in sync.</p>
+      <p>Upload a season once. Everything below comes from the same files.</p>
     </div>
     <div class="pgrid">
       <div class="pcard">
@@ -742,9 +745,7 @@ footer a{color:var(--muted)}
       <p>One address opens your season read-only: the stats, the patterns, every match
         report. Send it to five players and a graduate assistant and none of them sign
         up, install anything, or ask you for a seat. Revoke it whenever you like.</p>
-      <p class="den">Every other team tool in this game sells seats, with a minimum of
-        five. A seat minimum is a purchase order and a conversation with whoever holds
-        the budget. This is a link.</p>
+      <p class="den">Other team tools sell seats, five at a time. This is a link.</p>
     </div>
 
     <div class="notyet" style="margin-top:26px">
@@ -793,7 +794,7 @@ footer a{color:var(--muted)}
   <section id="how" style="border-top:1px solid var(--border)">
     <div class="sec-head">
       <span class="label">How it works</span>
-      <h2>Three things, none of which are your job.</h2>
+      <h2>Three steps, about a minute of yours.</h2>
     </div>
     <ol class="steps">
       <li><span class="n">01</span><div class="body">
@@ -820,8 +821,7 @@ footer a{color:var(--muted)}
     <div class="sec-head">
       <span class="label">Your demos</span>
       <h2>What we do with them, in plain language.</h2>
-      <p>If your athletics department or IT office asks, this section is the answer, and you
-        are welcome to forward it. The full version is the
+      <p>If your athletics department asks, forward them this. The full version is the
         <a href="/privacy">privacy policy</a>.</p>
     </div>
     <ul>

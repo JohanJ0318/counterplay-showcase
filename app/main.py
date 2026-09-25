@@ -164,8 +164,7 @@ def csrf_input(user) -> str:
 # ---------------------------------------------------------------- signup
 
 SIGNUP_INTRO = (
-    "Free for the season. You get a link before your next match, and one person "
-    "reads every one of these, so you will get a reply from a human.")
+    "Free this season. One person reads every sign-up, so a human will reply.")
 
 
 def signup_form(values: dict | None = None, error: str = "") -> str:
@@ -333,9 +332,9 @@ def _forgot_form(email: str = "", error: str = "") -> str:
   <section>
     <div class="card">
       {warn}
-      <p class="lede">Give us the address on the account and we will send a
-        link that lets you set a new password. The link works once and lasts
-        {resets.TOKEN_HOURS} hour.</p>
+      <p class="lede">Enter your account email and we&rsquo;ll send a link to
+        set a new password. It works once, for {resets.TOKEN_HOURS}
+        hour{"s" if resets.TOKEN_HOURS != 1 else ""}.</p>
       <form class="stack" method="post" action="/forgot">
         {form_field("email", "Email", "email", email, autocomplete="email")}
         <button type="submit">Send the link</button>
