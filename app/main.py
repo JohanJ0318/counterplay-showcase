@@ -690,6 +690,15 @@ def dashboard(request: Request):
     done = [q for q in all_matches if q["result"]]
     wins = sum(1 for q in done if q["result"] == "W")
     record = f"{wins}&ndash;{len(done) - wins}" if done else "&ndash;"
+    # Rounds won is the fourth tile. It used to say "Free, this season",
+    # which is a price, not a number about the team.
+    _st = report_mod.team_stats(team["id"]) if team else None
+    _you = (_st["you"] if _st and _st["anchors"]["confident"] else None)
+    won_pct = report_mod.pct(_you["won"], _you["rounds"]) if _you else None
+    won_tile = (f'<div class="stat" title="{_you["won"]} of {_you["rounds"]}">'
+                f'<span class="stat-n">{won_pct:.0f}%</span>'
+                f'<span class="label">rounds won</span></div>'
+                if won_pct is not None else "")
     pending = sum(1 for q in all_matches if q["status"] != "parsed")
     pending_note = (f'<span class="den" style="font-size:.5em"> +{pending}</span>'
                     if pending else "")
@@ -722,8 +731,7 @@ def dashboard(request: Request):
         <span class="label">matches analyzed</span></div>
       <div class="stat"><span class="stat-n">{counts["rounds"]}</span>
         <span class="label">rounds</span></div>
-      <div class="stat"><span class="stat-n">Free</span>
-        <span class="label">this season</span></div>
+      {won_tile}
     </div>
     {status}
   </section>
@@ -791,10 +799,6 @@ DEMO_HELP = """
             <code>game/csgo/replays</code> and is named like
             <code>003837857386282877221_1976594227.dem</code>. Upload it as it
             is.</p>
-          <p class="den"><strong>Both platforms delete demos after a few
-            weeks</strong>, FACEIT after about thirty days. Anything older than
-            that is gone for good, so pull a whole season down in one
-            sitting.</p>
         </div>
       </details>"""
 
@@ -2068,24 +2072,20 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
 
         if abs(d) >= need:
             word = "better" if d > 0 else "worse"
-            tail = (f'That is further apart than this team\u2019s matches '
-                    f'usually land from each other, so it is worth asking what '
-                    f'changed.')
+            tail = (f'That is {word}, and further apart than your matches '
+                    f'usually land. Worth asking what changed.')
         else:
             word = "about the same"
             # Saying WHY is the whole value of the line. Without it a reader
             # takes it as the page having found nothing worth looking for,
             # rather than having looked and found the difference inside the
             # noise.
-            tail = (f'Matches vary by more than this on their own, so there is '
-                    f'nothing to read into it yet. It would take about '
-                    f'{need:.0f}{unit} to call it either way.')
+            tail = (f'Too close to call: it would take a gap of about '
+                    f'{need:.0f}{" points" if unit == "%" else " " + label.lower()}.')
         verdict = (
-            f'<div class="note"><strong>Last {RECENT} matches against '
-            f'everything before them:</strong> {r_avg:.0f}{unit} versus '
-            f'{b_avg:.0f}{unit}, which is {word}. {tail} '
-            f'<span class="den">{n_recent} rounds against '
-            f'{n_before}.</span></div>')
+            f'<div class="note"><strong>Last {RECENT} matches:</strong> '
+            f'{r_avg:.0f}{unit} over {n_recent} rounds. Before that, '
+            f'{b_avg:.0f}{unit} over {n_before}. {tail}</div>')
 
     chart = charts.both(
         charts.trend(pts, unit=unit, is_pct=bool(unit), avg=avg),
@@ -2144,20 +2144,17 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
   </section>
 
   <section>
-    <div class="sec-head"><span class="label">Newest first</span>
-      <h2>Every match{" on " + esc(map.replace("de_", "")) if map else ""}</h2></div>
+    <details><summary>See every match{" on " + esc(map.replace("de_", "")) if map else ""}</summary>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Map</th><th>Result</th><th class="num">Score</th>
         <th class="num">Rounds won</th><th class="num">ADR</th>
         <th class="num">Traded</th><th class="num">Opening</th></tr></thead>
       <tbody>{rows}</tbody></table></div>
+    </details>
   </section>
 
   <section>
-    <p class="note"><strong>Still counted, not modeled.</strong> Every point is one
-      match's arithmetic. No line is fitted through them and no direction is
-      predicted. A trend you can see is a trend; a trend that needs a
-      regression to see is not one yet.</p>
+    <p class="note">No line is fitted and nothing is predicted.</p>
   </section>"""
     return html_page("Trends", banner("Trends", crumb=esc(team["name"]),
                                       label="Is it holding?"), body, user)
@@ -2179,7 +2176,14 @@ def matches_page(request: Request):
                          empty_state("matches", team["name"]), user)
 
     rows = []
+    last_day = None
     for m in items:
+        # The upload date heads its group of rows. Eleven rows that each said
+        # "uploaded 2026-08-29" said it ten times too often.
+        if m["uploaded"] != last_day:
+            last_day = m["uploaded"]
+            rows.append(f'<tr class="grp"><td colspan="3" class="den">'
+                        f'Uploaded {esc(last_day)}</td></tr>')
         if m["match_key"] and m["result"]:
             cls = "win" if m["result"] == "W" else "loss" if m["result"] == "L" else ""
             score = (f'<span class="res {cls}">{m["result"]}</span> '
@@ -2204,7 +2208,7 @@ def matches_page(request: Request):
         rows.append(
             f'<tr><td class="name">{name}{cut}{status}'
             f'<div class="den" style="font-weight:400" title="{esc(m["filename"])}">'
-            f'{esc(m["tier"] or "")} &middot; uploaded {esc(m["uploaded"])}</div></td>'
+            f'{esc(m["tier"] or "")}</div></td>'
             f'<td class="num">{score}</td>'
             f'<td class="num mono">{m["rounds"] or "&ndash;"}</td></tr>')
 
@@ -2224,9 +2228,8 @@ def matches_page(request: Request):
   <section>
     <div class="sec-head"><span class="label">Newest first</span>
       <h2>Every match you have sent in</h2></div>
-    <p class="lede">Scores follow the real result through the side swap, not
-      summed by side. A CS2 demo carries no match date, so the date is when you
-      uploaded the file; the order is the true one.</p>
+    <p class="lede">A demo has no match date, so the date shown is when you
+      uploaded it. The order is the real one.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Match</th><th class="num">Score</th>
         <th class="num">Rounds</th></tr></thead>
@@ -3397,13 +3400,12 @@ def account(request: Request):
   <section>
     <div class="card">
       <h3>Your roster&rsquo;s link</h3>
-      <p class="lede">Anyone with this address can read your season and your
-        match reports. They cannot change anything, upload anything, or see
-        any other team, and they do not need an account.</p>
+      <p class="lede">Anyone with this link can read your season and match
+        reports, no account needed. They can&rsquo;t change anything or see
+        other teams.</p>
       <p><a href="{link}" class="mono">{link}</a></p>
-      <p class="den">Send it to your players. If it ends up somewhere it
-        should not, revoke it: the address below stops working immediately and
-        you get a new one.</p>
+      <p class="den">Send it to your players. Revoke it any time: the old
+        link stops working at once.</p>
       <form method="post" action="/share/revoke">{csrf_input(user)}
         <button class="btn ghost" type="submit">Revoke and make a new one</button>
       </form>
@@ -3478,9 +3480,8 @@ def account(request: Request):
   <section>
     <div class="card">
       <h3>Give this team to somebody</h3>
-      <p class="lede">If you built {esc(team["name"])} for the coach who
-        actually runs it, this makes a one-time link that hands it over:
-        demos, reports, season and all.</p>
+      <p class="lede">Built {esc(team["name"])} for another coach? Make a
+        one-time link that hands it over, demos and all.</p>
       <p class="den">You lose access when they accept it.</p>
       <form method="post" action="/claim/new">{csrf_input(user)}
         <button class="btn ghost" type="submit">Make a handover link</button>

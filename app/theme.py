@@ -620,6 +620,9 @@ details.drop>.tbl-plain{margin-top:10px}
 .vs-val{font-family:var(--f-mono);font-size:.8rem;font-weight:600;
   color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
 .vs-row.base .vs-val{font-weight:400;color:var(--muted)}
+/* A date heading a group of rows (the matches list). */
+tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
+  padding-bottom:6px}
 /* One place per block in "Where you are in the opening". */
 .op-list{display:grid;gap:18px}
 .op-head{margin:0;font-size:.92rem}
