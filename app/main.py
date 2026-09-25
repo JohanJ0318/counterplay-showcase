@@ -30,7 +30,7 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import (advice, alert, auth, charts, db, ingest, legal, mail,
+from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
                utility)
@@ -1247,6 +1247,74 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
                   f'{season}'
                   f'<td class="den">{esc(which)}</td></tr>')
 
+    # ---- buy calls
+    #
+    # The two halves of what the first real coach asked for: was the team's
+    # call right (judged, see app/buys.py and counterplay/economy.py), and
+    # where did each player's buy go against it (read, no model). Only with
+    # your side known, because both are about YOUR buys, and only on a demo
+    # parsed with money in it (migration 23).
+    calls_block = ""
+    sides_here = (report_mod.our_sides(team["id"]) if team else {})
+    sides_here = {rn: sd for (mk, rn), sd in sides_here.items()
+                  if mk == match_key}
+    if sides_here:
+        mine = [c for c in buys.match_calls(match_key)
+                if sides_here.get(c["round"]) == c["side"]]
+        CALL = {"eco": "saved", "force": "forced", "full": "full bought"}
+        OTHER = {"eco": "Saving", "force": "Forcing", "full": "A full buy"}
+        cards = []
+        for c in sorted((c for c in mine if c["flag"]),
+                        key=lambda c: -c["gain"]):
+            alt = c["options"][c["best"]]
+            left = c["money"] - c["spent"]
+            if c["made"] == "force" and alt["kind"] == "full":
+                what = (f'You bought ${c["equip"]:,.0f} of equipment and kept '
+                        f'${left:,.0f}. A full buy was in reach.')
+            else:
+                what = (f'You {CALL[c["made"]]} with ${c["money"]:,.0f} between '
+                        f'you, holding ${c["equip"]:,.0f} of equipment.')
+            fig = charts.versus([
+                (f'What you did ({CALL[c["made"]]})', c["v"] / 2 * 100,
+                 "Rounds you could expect to win out of this one and the next",
+                 f'{c["v"]:.2f} of 2'),
+                (OTHER[alt["kind"]], alt["v"] / 2 * 100,
+                 "Rounds you could expect to win out of this one and the next",
+                 f'{alt["v"]:.2f} of 2')], muted_second=False)
+            cards.append(
+                f'<div class="card"><p><strong>Round {c["round"]}</strong> '
+                f'<span class="pill {c["side"]}">{c["side"].upper()}</span> '
+                f'<span class="den">{"won" if c["won"] else "lost"}</span></p>'
+                f'<p>{what} {OTHER[alt["kind"]]} '
+                f'was worth about {c["gain"]:.2f} more rounds over this round '
+                f'and the next.</p>{fig}</div>')
+        per_player: dict = {}
+        for c in mine:
+            for n in c["notes"]:
+                per_player.setdefault((n["steamid"], n["name"]), []).append(
+                    f'round {c["round"]}, {n["text"]}')
+        notes_list = "".join(
+            f'<li><a href="{player_href(sid, share)}">{esc(name)}</a>: '
+            f'{esc("; ".join(lines))}.</li>'
+            for (sid, name), lines in sorted(per_player.items(),
+                                             key=lambda kv: -len(kv[1])))
+        if mine:
+            calls_block = '<div class="buycalls">' + (
+                (f'<h3>Calls worth a second look</h3>'
+                 f'<p class="lede">Judged on what each side held and could '
+                 f'afford, over this round and the next. Only calls where the '
+                 f'other choice was worth a tenth of a round or more. The '
+                 f'round after a pistol round is left out: college matches '
+                 f'do not settle whether to force it.</p>'
+                 f'<div class="grid2">{"".join(cards)}</div>'
+                 if cards else
+                 '<p class="note">No buy call this match where the other '
+                 'choice was worth a tenth of a round more. The round after '
+                 'a pistol round is not judged.</p>') +
+                (f'<h3>Player buys against the team&rsquo;s call</h3>'
+                 f'<ul class="buynotes">{notes_list}</ul>' if notes_list else '')
+            ) + '</div>'
+
     # ---- scoreboard
     ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
     sb_blocks = []
@@ -1547,6 +1615,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   <section>
     <div class="sec-head"><span class="label">By what they could afford</span>
       <h2>Buys</h2></div>
+    {calls_block}
     <div class="tbl-wrap"><table>
       <thead><tr><th>{buy_head}</th><th class="num">This match</th>
         {'<th class="num" title="Your record on this buy across every match you '

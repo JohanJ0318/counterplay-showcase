@@ -153,6 +153,11 @@ h1{font-size:clamp(2.1rem,4.6vw,3rem);line-height:1.04;letter-spacing:-.034em;
    keeps the voice. */
 h2{font-size:1.2rem;letter-spacing:-.014em;font-weight:700;line-height:1.22}
 h3{font-size:1.02rem;font-weight:600}
+.buycalls{margin-bottom:18px}
+.buycalls h3{margin:18px 0 6px}
+.buycalls .card p{margin:0 0 8px}
+.buynotes{list-style:none;padding:0;margin:0;display:grid;gap:8px;max-width:72ch}
+.buynotes a{font-weight:600}
 p{margin:0}
 a{color:var(--purple);text-decoration:none}
 a:hover{color:var(--purple-deep);text-decoration:underline}
@@ -604,11 +609,11 @@ details.drop>.tbl-plain{margin-top:10px}
 .vs{display:grid;gap:6px;margin:12px 0 2px;container-type:inline-size}
 /* Label above its bar by default, beside it only when the box is wide
    enough: inside a three-up card the label column left the bar no room. */
-.vs-row{display:grid;grid-template-columns:minmax(0,1fr) 2.8rem;
+.vs-row{display:grid;grid-template-columns:minmax(0,1fr) minmax(2.8rem,max-content);
   column-gap:10px;row-gap:3px;align-items:center}
 .vs-row .vs-lab{grid-column:1/-1}
 @container (min-width:420px){
-  .vs-row{grid-template-columns:minmax(0,11rem) minmax(0,1fr) 2.8rem}
+  .vs-row{grid-template-columns:minmax(0,11rem) minmax(0,1fr) minmax(2.8rem,max-content)}
   .vs-row .vs-lab{grid-column:auto}
 }
 .vs-lab{font-size:.8rem;color:var(--ink);line-height:1.25}
@@ -618,7 +623,8 @@ details.drop>.tbl-plain{margin-top:10px}
 .vs-row.base .vs-lab{color:var(--muted)}
 .vs-row.base .vs-fill{background:var(--faint)}
 .vs-val{font-family:var(--f-mono);font-size:.8rem;font-weight:600;
-  color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+  color:var(--ink);text-align:right;font-variant-numeric:tabular-nums;
+  white-space:nowrap}
 .vs-row.base .vs-val{font-weight:400;color:var(--muted)}
 /* A date heading a group of rows (the matches list). */
 tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;

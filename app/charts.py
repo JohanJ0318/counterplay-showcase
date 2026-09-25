@@ -672,23 +672,27 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
 # one themselves. The count behind each bar is in its title, one hover away,
 # like every rate() on the site.
 
-def versus(rows: list[tuple[str, float | None, str]], muted_second=True) -> str:
+def versus(rows: list[tuple], muted_second=True) -> str:
     """Two (or more) rates as bars on one 0-100 scale: this against that.
 
-    Each row is (label, percentage or None, title). The first row is the
+    Each row is (label, percentage or None, title), or with a fourth item,
+    the value to print in place of the percentage, for a bar whose number is
+    not a rate (the buy calls print "0.62 of 2"). The first row is the
     finding and draws in the accent; the rest are what it is read against and
     draw neutral, so the eye goes to the gap.
     """
     if not rows:
         return ""
     out = []
-    for i, (label, pct, title) in enumerate(rows):
+    for i, row in enumerate(rows):
+        label, pct, title = row[:3]
+        shown = row[3] if len(row) > 3 else None
         cls = "vs-row" + (" base" if i and muted_second else "")
         if pct is None:
             bar, val = "", "&ndash;"
         else:
             bar = f'<span class="vs-fill" style="width:{pct:.1f}%"></span>'
-            val = f"{pct:.0f}%"
+            val = esc(shown) if shown is not None else f"{pct:.0f}%"
         out.append(f'<div class="{cls}" title="{esc(title)}">'
                    f'<span class="vs-lab">{esc(label)}</span>'
                    f'<span class="vs-track">{bar}</span>'
