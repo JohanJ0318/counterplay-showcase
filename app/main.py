@@ -2403,17 +2403,17 @@ def _stats_body(team, user=None, share: str = ""):
         if uu and uu["spent"]:
             ucard(f'${uu["per_round"]:.0f}', "of utility wasted per round",
                   f'${uu["wasted"]:,} of ${uu["spent"]:,} bought',
-                  f'Grenades still in a player\'s hand at the moment they '
-                  f'died, priced at what they cost. Grenades a survivor kept '
-                  f'are not counted: carrying a smoke into the next round is '
+                  f'Utility still in a player\'s hand at the moment they '
+                  f'died, priced at what it cost. Utility a survivor kept is '
+                  f'not counted: carrying a smoke into the next round is '
                   f'not waste. Across {uu["rounds"]} rounds that is '
-                  f'{uu["unused"]} grenades that bought nothing.')
+                  f'{uu["unused"]} pieces that bought nothing.')
 
         utility_block = f"""
   <section>
-    <div class="sec-head"><span class="label">What your grenades did</span>
+    <div class="sec-head"><span class="label">What your utility did</span>
       <h2>Utility</h2></div>
-    <p class="lede">What the utility achieved, counted per grenade from the
+    <p class="lede">What the utility achieved, counted per throw from the
       demo, not how much of it was thrown.</p>
     <div class="stat-row">{"".join(cards)}</div>
   </section>"""

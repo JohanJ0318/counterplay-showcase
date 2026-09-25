@@ -300,3 +300,70 @@ def test_a_team_with_no_rounds_produces_no_advice(monkeypatch):
     monkeypatch.setattr(advice, "team_stats",
                         lambda _tid: _stats(baseline_won=0, baseline_rounds=0))
     assert advice.monday(1)["items"] == []
+
+
+# ----------------------------------------------------------- the utility copy
+#
+# The `engine` fixture stubs utility out entirely, so nothing above this line
+# ever sees a utility finding. These build one.
+
+
+def _utility_engine(monkeypatch, splits, unused=None, flashes=None,
+                    won=23, rounds=42):
+    monkeypatch.setattr(advice, "team_stats",
+                        lambda _tid: _stats(baseline_won=won,
+                                            baseline_rounds=rounds))
+    monkeypatch.setattr(advice.movement, "positional_patterns", lambda _tid: [])
+    from app import utility
+    monkeypatch.setattr(utility, "round_splits", lambda _tid: splits)
+    monkeypatch.setattr(utility, "flashes", lambda _tid: flashes)
+    monkeypatch.setattr(utility, "unused", lambda _tid: unused)
+    return advice.monday(1)
+
+
+UNUSED = {"bought": 100, "thrown": 60, "unused": 40, "rounds": 42,
+          "rounds_holding": 31, "spent": 10000, "wasted": 2900,
+          "per_round": 1171.0}
+
+
+def _only_item(out):
+    assert len(out["items"]) == 1, [i["do"] for i in out["items"]]
+    return out["items"][0]
+
+
+def test_the_footer_says_how_often_not_how_often_you_won(monkeypatch):
+    """The old footer invited a causal reading its sample could not support.
+
+    "You win 15 of the 31 rounds it happens in (48%), against 55% overall" is
+    a seven point gap on thirty-one rounds, where the standard error is near
+    nine. MIN_CHANCES refuses rates on thinner evidence than that.
+
+    And the arrow plausibly points the other way: you die holding utility
+    BECAUSE you died, so the win rate beside the habit reads as cause when it
+    is closer to consequence.
+    """
+    out = _utility_engine(monkeypatch, {"died_holding": (15, 31)},
+                          unused=UNUSED)
+    foot = _only_item(out)["foot"]
+    assert foot == "Happens in 31 of your 42 rounds"
+    assert "against" not in foot and "overall" not in foot
+    assert "48" not in foot and "%" not in foot
+
+
+def test_utility_findings_never_call_it_grenades(monkeypatch):
+    """The numbers were never only grenades.
+
+    unused() reads nades_value and nades_wasted, and utility.py prices a
+    flashbang at $200 and a CT incendiary at $600, so flashes, smokes,
+    mollies and decoys are all in the figure. In CS a "nade" usually means an
+    HE, so "of grenades a round" claims something narrower than the data, and
+    a coach checking it against their HE spend would find it wrong.
+    """
+    out = _utility_engine(monkeypatch, {"died_holding": (15, 31)},
+                          unused=UNUSED)
+    item = _only_item(out)
+    text = " ".join([item["do"], item["because"]] + list(item["evidence"]))
+    assert "grenade" not in text.lower(), text
+    assert "utility" in item["because"].lower()
+    # Priced in dollars, and formatted the way the evidence line beneath it is.
+    assert "$1,171" in item["because"]

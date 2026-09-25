@@ -66,10 +66,10 @@ OWN_FLASH_LIMIT = 40.0
 # the wrong place, not thrown badly.
 LANDED_FLASH_FLOOR = 33.0
 
-# A fifth of a season's grenades never leaving anyone's hand.
+# A fifth of a season's utility never leaving anyone's hand.
 UNUSED_LIMIT = 20.0
 
-# Below this many grenades, a percentage of them is noise. Same reasoning as
+# Below this many pieces of utility, a percentage of them is noise. Same as
 # MIN_ROUNDS, applied to a different denominator.
 MIN_UTILITY = 30
 
@@ -156,7 +156,7 @@ def monday(team_id: int) -> dict:
             # both real; this weighs them the way a coach would.
             #
             # `of` is rounds for every finding EXCEPT the utility ones, where
-            # it is grenades. Those pass their own stake, measured in the
+            # it is pieces of utility. Those pass their own stake, in the
             # rounds the habit actually appeared in, so a season of 374
             # flashes cannot outrank a season of 120 rounds by counting a
             # different thing.
@@ -285,7 +285,7 @@ def monday(team_id: int) -> dict:
     # positional finding, which is the correct outcome either way.
     #
     # These are the only three that are worth a Monday. "You threw 340
-    # grenades" is not advice, and a rate with no action attached is a
+    # pieces of utility" is not advice, and a rate with no action attached is a
     # statistic pretending to be one.
     from . import utility as _utility
     splits = _utility.round_splits(team_id)
@@ -300,14 +300,32 @@ def monday(team_id: int) -> dict:
     def _round_foot(name):
         """The footer for a finding counted in something other than rounds.
 
-        Says what happened in the rounds the habit turned up in, which is the
-        only claim about rounds these findings can honestly make.
+        How widespread the habit is, and deliberately nothing more.
+
+        It used to close with "you win 15 of the 31 rounds it happens in
+        (48%), against 55% overall". That line failed twice over.
+
+        It cannot clear its own noise. Fifteen of thirty-one carries a
+        standard error near nine points, so a seven point gap against the
+        baseline is indistinguishable from nothing. MIN_CHANCES refuses rates
+        on thinner evidence than that, and this was printing one anyway.
+
+        Worse, it reads as cause when the arrow plausibly points the other
+        way. You die holding utility BECAUSE you died: the unthrown flash did
+        not lose the round, losing the round is what left it unthrown. A win
+        rate printed beside the habit invites a coach to drill the wrong
+        thing, which is the one failure this product cannot afford.
+
+        The finding above already makes the argument. This just says how often
+        it comes up, so a coach can tell a habit worth a drill from one that
+        turned up three times.
         """
-        hit, of = splits.get(name, (0, 0))
+        _hit, of = splits.get(name, (0, 0))
         if not of:
             return None
-        return (f"You win {hit} of the {of} rounds it happens in "
-                f"({_pct(hit, of):.0f}%), against {baseline:.0f}% overall")
+        if you["rounds"]:
+            return f"Happens in {of} of your {you['rounds']} rounds"
+        return f"Happens in {of} rounds"
 
     uf = _utility.flashes(team_id)
     if uf and uf["thrown"] >= MIN_UTILITY:
@@ -347,10 +365,9 @@ def monday(team_id: int) -> dict:
         left = _pct(uu["wasted"], uu["spent"]) if uu["spent"] else 0.0
         if left >= UNUSED_LIMIT:
             add("You are dying with the utility still on you",
-                f"${uu['per_round']:.0f} of grenades a round die in "
-                f"somebody's hand, {left:.0f}% of what you spend on utility. "
-                f"Usually a grenade saved for a moment the round never "
-                f"reaches.",
+                f"${uu['per_round']:,.0f} of utility a round dies in "
+                f"somebody's hand, {left:.0f}% of what you buy. Usually it "
+                f"is being saved for a moment the round never reaches.",
                 f"${uu['wasted']:,} of ${uu['spent']:,} of utility died in "
                 f"its owner's hand, across {uu['rounds_holding']} rounds",
                 uu["wasted"], uu["spent"],

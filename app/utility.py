@@ -224,7 +224,11 @@ def flashes(team_id: int) -> dict | None:
 
 @memo.by_team
 def unused(team_id: int) -> dict | None:
-    """Grenades bought and never thrown, and the rounds people died holding them.
+    """Utility bought and never thrown, and the rounds people died holding it.
+
+    Every kind, not only HE: the nades_* columns are named for grenades but
+    carry flashes, smokes, mollies and decoys, which is why the dollar figure
+    below is the honest unit and a count of "nades" would not be.
 
     `nades_start` doubles as the honest denominator: a demo parsed before this
     existed reads zero everywhere, and zero grenades bought is indistinguishable
@@ -263,7 +267,7 @@ def unused(team_id: int) -> dict | None:
     return {"bought": bought, "thrown": thrown, "unused": left,
             "rounds": len(rounds), "rounds_holding": len(died_holding),
             # Dollars. A flashbang is $200 and a CT incendiary is $600, so
-            # counting grenades treats a third of a rifle as the same waste as
+            # counting pieces treats a third of a rifle as the same waste as
             # a tenth of one.
             "spent": spent, "wasted": wasted,
             "per_round": wasted / len(rounds) if rounds else 0.0}
