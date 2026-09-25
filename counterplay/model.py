@@ -29,12 +29,26 @@ from .schema import CATEGORICAL, FEATURES, LABEL
 # calibrated model measured on 7,700 rows scores ~0.034 on it from sampling
 # noise alone, so a 0.05 max-error gate is mostly measuring your test-set size.
 # ECE on the same data lands near 0.012. Run null_calibration_floor() below to
-# see the noise floor for your own row count before trusting either number.
+# see the noise floor for your own predictions before trusting either number.
 # The gate is RELATIVE to the noise floor, not absolute. A fixed threshold
 # silently becomes stricter as your test set shrinks, so a small dataset would
-# fail for having few rows rather than for being miscalibrated. Empirically an
-# uncalibrated booster lands 4-7x above the floor and a calibrated one lands
-# around 2x, so 2.5x separates them cleanly at any size.
+# fail for having few rows rather than for being miscalibrated.
+#
+# 2.5 IS NOT RE-DERIVED. It was set when "uncalibrated lands 4-7x and
+# calibrated lands around 2x" was measured against the OLD uniform null, and
+# that null has since been shown wrong by 0.88x on real predictions. Both
+# anchors shift by about 1.14x under the corrected floor and neither has been
+# re-measured, so the threshold is inherited, not justified. Run the negative
+# control before trusting it: tools/calibcheck.py --raw fits the same booster
+# with the isotonic layer removed and reports where an UNCALIBRATED model
+# actually lands now. If that gap is narrow, this number is wrong.
+#
+# The old comment here claimed 2.5x "separates them cleanly at any size".
+# That is false and our own runs falsified it. The ratio is ECE over a floor
+# that shrinks as 1/sqrt(test rows) while real miscalibration does not, so any
+# residual bias makes the ratio climb forever as matches are added: 88 maps
+# scored 1.79 and 138 maps scored 2.53 on the same eight seeds with ECE flat
+# at 0.029 and 0.031. Adding data makes this gate harder, not easier.
 ECE_FLOOR_MULTIPLE = 2.5
 
 
@@ -53,19 +67,43 @@ def expected_calibration_error(y_true, p, bins: int = 10) -> float:
     return float(total)
 
 
-def null_calibration_floor(n: int, bins: int = 10, trials: int = 40,
-                           seed: int = 0) -> float:
-    """ECE a perfectly calibrated model would score on n rows, from noise alone.
+# Any constant works as long as it cannot collide with whatever produced p.
+# Seeding this from the same stream as the predictions makes the first trial
+# draw that stream twice, so y = (p < p), all zeros, and one degenerate trial
+# drags the mean of forty up by about 2x. That is a plausible-looking wrong
+# answer rather than a crash, which is the kind worth naming.
+_FLOOR_SEED = 12345
+
+
+def null_calibration_floor(p, bins: int = 10, trials: int = 40,
+                           seed: int = _FLOOR_SEED) -> float:
+    """ECE a PERFECTLY calibrated model would score on THESE predictions.
 
     Compare your model's ECE against this, not against zero.
+
+    Takes the predictions and not a row count, because the floor depends on
+    the SHAPE of the prediction distribution and not only on how many there
+    are. This used to draw p from rng.uniform(0, 1, n), and a real model is
+    nothing like uniform: ours puts only 29% of its mass between .35 and .65.
+    Measured over 20 seeds on 138 maps, the uniform null sat 1.14x too high,
+    which quietly made the gate 13% too lenient.
+
+    Holding p fixed and drawing y ~ Bernoulli(p) keeps the shape, the ties and
+    the row count exactly as the model produced them, and removes the one
+    thing being measured. That is a parametric bootstrap, and it is the
+    question this function always meant to ask.
     """
+    if np.ndim(p) == 0:
+        raise TypeError(
+            "null_calibration_floor takes the model's predictions, not a row "
+            "count. Passing n compared against a uniform null, which measures "
+            "the wrong thing: see the note on ECE_FLOOR_MULTIPLE.")
+    p = np.asarray(p, dtype=float)
     rng = np.random.default_rng(seed)
-    vals = []
-    for _ in range(trials):
-        p = rng.uniform(0, 1, n)
-        y = (rng.random(n) < p).astype(int)
-        vals.append(expected_calibration_error(y, p, bins))
-    return float(np.mean(vals))
+    return float(np.mean([
+        expected_calibration_error((rng.random(len(p)) < p).astype(int), p, bins)
+        for _ in range(trials)
+    ]))
 
 
 @dataclass
@@ -153,7 +191,7 @@ def train(states: pd.DataFrame, seed: int = 7):
         brier=brier_score_loss(y.iloc[te], p),
         logloss=log_loss(y.iloc[te], np.clip(p, 1e-6, 1 - 1e-6)),
         ece=expected_calibration_error(y.iloc[te], p),
-        ece_floor=null_calibration_floor(len(te)),
+        ece_floor=null_calibration_floor(p),
         max_calib_error=float(np.max(np.abs(frac_pos - mean_pred))),
         n_train=len(tr), n_calib=len(cal), n_test=len(te),
     )

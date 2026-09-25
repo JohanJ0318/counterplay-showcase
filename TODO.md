@@ -122,39 +122,58 @@ true on purpose.
       figures are repeated in that column as a placeholder and must not be
       read as a measurement.
 
-- [ ] **Check the noise floor is the right reference. tools/calibcheck.py.**
-      null_calibration_floor draws its null from rng.uniform(0, 1, n), and the
-      model's predictions are not uniform: a round win-probability model puts
-      early-round states near 50/50 and late-round states near 0 or 1. The
-      floor depends on that shape. Measured on 6,000 rows:
+- [x] **The noise floor was wrong, and the gate was too LENIENT.** Fixed.
+      null_calibration_floor drew its null from rng.uniform(0, 1, n), and the
+      model's predictions are nothing like uniform: only 29% of them sit
+      between .35 and .65, because a round win-probability model spends most
+      of its time confident. Shape moves the floor, measured on 6,000 rows:
+      bunched mid-range 1.23x, mild centre mass 1.15x, mass at the ends 0.91x.
 
-          uniform, what the gate assumes                  1.00x
-          beta(5,5), bunched near the middle              1.23x
-          beta(2,2), mild centre mass                     1.15x
-          beta(.6,.6), mass out at the ends               0.91x
+      Measured over 20 seeds on 138 maps, the matched floor is 0.88x the
+      uniform one. Honest result is **10 of 20 seeds, median 2.33**, not 13 of
+      20 at 2.06. Every ratio recorded before 2026-09-24 is about 13% too low.
 
-      So the gate could be up to 23% too strict or about 9% too lenient
-      depending on where the predictions actually sit, and at a median of 2.53
-      against a gate of 2.5 that decides the verdict either way.
+      It now bootstraps off the model's own predictions: p held fixed,
+      y ~ Bernoulli(p), so shape, ties and row count are exactly what the
+      model produced and only the miscalibration is removed. Passing a row
+      count raises TypeError rather than silently doing the old thing.
 
-      calibcheck.py prints, per seed, the uniform floor and a matched floor
-      built by parametric bootstrap off the model's own predictions, plus both
-      ratios. RUN IT BEFORE trusting any ratio above, including the ones in
-      the table.
+      Ties were the other suspect and are NOT the problem: 72 to 108 distinct
+      predictions, ten filled bins on nineteen of twenty seeds, and the floor
+      moves 0.97x to 1.02x at 41, 21 and 11 distinct values.
 
-      Ties were the other suspect and are NOT the problem: isotonic output
-      repeats values, but at 41, 21 and 11 distinct values the floor moves
-      0.97x to 1.02x. Bins only collapse below about ten distinct values.
+- [x] **2.5 separates the arms. The negative control passed.**
+      tools/calibcheck.py --raw takes the same fitted booster, drops the
+      isotonic layer, and scores the raw probabilities against their own
+      matched floor. On 5 seeds:
 
-      If the nulls agree, the miscalibration is real and the fix is the
-      calibrator or the features, not the corpus. Candidates, cheapest first:
-      raise the calibration fraction above 18.75%, try Platt against isotonic,
-      or calibrate cross-validated so the calibrator sees all of training
-      rather than one held-out slice.
+          uncalibrated   median 7.34   (6.10 to 10.30)   0 of 5 pass
+          calibrated     median 2.92   (1.86 to  3.75)   1 of 5 pass
 
-      Do NOT hand-tune ECE_FLOOR_MULTIPLE to compensate. The bias depends on
-      the prediction distribution and moves every refit, so the fix belongs in
-      null_calibration_floor.
+      Calibrating divides the ratio by 2.51 and the two arms do not overlap,
+      so the threshold is measuring something real and is not the problem.
+      The old anchor said uncalibrated lands 4-7x; under the corrected floor
+      it lands 6-10x, shifted up as expected. Note those five seeds are the
+      harsher half: the 20-seed calibrated median is 2.33, not 2.92.
+
+- [ ] **So it is a FEATURES problem.** Not the corpus, not the calibrator,
+      not the gate. Ranked by what they should buy:
+
+      1. **Plant site.** FEATURES has bomb_planted and time_since_plant but
+         not WHERE. A and B play differently on every map in the pool, and
+         this is one of the strongest predictors in any CS win-probability
+         model. Cheap: positions.py already encodes which bombsite a sample
+         sits in, bits 2-3, from CS2's own bombsite definitions, so no map
+         geometry has to be authored.
+      2. **Defuse kits alive on CT.** Decides whether a 40-second post-plant
+         is a 5-second or a 10-second defuse, which is the whole retake.
+      3. **Round number or score.** A 5-round team and a 20-round team play
+         the same alive/equip state differently, and nothing in FEATURES
+         knows which round it is.
+
+      This does NOT mean adding player positions. The comment on FEATURES is
+      right that a lost duel is the death and the count already carries it.
+      All three above are round-level facts, not positions.
 
 - [ ] **Do not quote a single-seed pass.** run.py defaults to seed 7, which
       was one of three lucky splits at 42 maps and passed at 2.25x while the
