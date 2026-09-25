@@ -33,7 +33,7 @@ from collections import defaultdict
 
 from counterplay import economy as E
 
-from . import db
+from . import db, report
 
 # A player's buy, read against the team's. Team call is read off the MIDDLE
 # player's equipment, so one player's rifle cannot turn a save into a buy.
@@ -49,12 +49,26 @@ def _load(match_key: str):
     rounds = {r["round_num"]: r for r in db.query(
         "SELECT round_num, ct_won FROM rounds WHERE match_key = ? "
         "ORDER BY round_num", match_key)}
+    rows = db.query(
+        """SELECT round_num, steamid, name, side, money_start, spent,
+                  equip_value, loadout, kills, deaths, damage
+             FROM player_rounds WHERE match_key = ?""", match_key)
+    # A FACEIT coach sits in a sixth slot on one side, alive and holding a
+    # pistol all match. Counted as a player, every team total is off by one
+    # person and no round has five a side, so nothing got judged at all on
+    # the first real team's matches. report.is_coach() is the one definition,
+    # judged over every round of the match.
+    totals = defaultdict(lambda: {"kills": 0, "deaths": 0, "damage": 0.0})
+    for r in rows:
+        t = totals[r["steamid"]]
+        t["kills"] += r["kills"] or 0
+        t["deaths"] += r["deaths"] or 0
+        t["damage"] += r["damage"] or 0
+    coaches = {sid for sid, t in totals.items() if report.is_coach(t)}
     players = defaultdict(list)
-    for r in db.query(
-            """SELECT round_num, steamid, name, side, money_start, spent,
-                      equip_value, loadout
-                 FROM player_rounds WHERE match_key = ?""", match_key):
-        players[r["round_num"]].append(r)
+    for r in rows:
+        if r["steamid"] not in coaches:
+            players[r["round_num"]].append(r)
     return rounds, players
 
 

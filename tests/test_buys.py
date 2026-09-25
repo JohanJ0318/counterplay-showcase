@@ -76,3 +76,29 @@ def test_a_player_who_cannot_afford_anything_is_not_blamed():
     ps = [_p("a", 5000, 4700, 4900, "Glock-18, AK-47")] * 4 + \
          [_p("e", 1200, 0, 200)]
     assert not [n for n in buys.player_notes(ps) if n["steamid"] == "e"]
+
+
+def test_a_coach_in_the_server_does_not_stop_the_check(monkeypatch):
+    """The first real team's demos had a FACEIT coach as a sixth player on
+    one side, and every round was skipped for not having five."""
+    def fake_query(sql, *args):
+        if "FROM rounds" in sql:
+            return [{"round_num": n, "ct_won": n % 2} for n in range(1, 7)]
+        out = []
+        for n in range(1, 7):
+            for i in range(5):
+                for side in ("ct", "t"):
+                    out.append({"round_num": n, "steamid": f"{side}{i}",
+                                "name": f"{side}{i}", "side": side,
+                                "money_start": 4000, "spent": 3000,
+                                "equip_value": 3500, "loadout": "Glock-18",
+                                "kills": 1, "deaths": 1, "damage": 80.0})
+            out.append({"round_num": n, "steamid": "coach", "name": "coach",
+                        "side": "ct", "money_start": 800, "spent": 0,
+                        "equip_value": 200, "loadout": "USP-S",
+                        "kills": 0, "deaths": 0, "damage": 0.0})
+        return out
+    monkeypatch.setattr(buys.db, "query", fake_query)
+    calls = buys.match_calls("m")
+    assert calls, "rounds with a coach in the server must still be judged"
+    assert all(len(c["players"]) == 5 for c in calls)
