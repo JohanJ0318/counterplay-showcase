@@ -231,14 +231,30 @@ true on purpose.
       last time. The data is keyed by match and there is no way in.
 - [ ] **Nothing separates a scrim from an official match.** They average
       together, and they are different habits.
+- [ ] **Denominators are hover-only, and a phone has no hover.** Since
+      2026-09-24 every rate prints as a percentage with its rounds in the
+      `title`. What the first real coach was sold was "every number has the
+      rounds under it". See the `rate()` note in CLAUDE.md before changing it.
+- [ ] **Zone map: kills are filed where the victim fell.** "Your kills here"
+      is really "the enemy died here", so an AWP kill across the map lands at
+      the far end. Decide whether the map should answer "where you stood".
+      Needs the killer's position at the kill, which the events may carry.
+- [ ] **Zone map: open ground still splits in straight lines.** Walking
+      distance fixed every boundary that crossed a wall; in an open yard
+      (Nuke outside) walking and straight-line are the same thing, and the
+      callout boundary there is convention. Only hand-drawn areas fix that.
+- [ ] **Zone map: only bombsite names were measured.** Every other name was
+      checked by eye against the radar on 2026-09-25 and looked right. Two
+      were wrong and are fixed (migration 22).
 
 ## Engineering
 
 - [ ] **`main.py` is 2,243 lines**, a quarter of it embedded HTML.
-- [ ] **No tests for** `report.py`, `movement.py`, either `utility.py`,
-      `charts.py`, or page rendering. 101 tests cover the parser, the advice
-      engine, resets and imports. A rendering test would have caught the
-      "gap of 19 points across 745200 rounds" bug before it shipped.
+- [ ] **Thin tests for** `report.py` and `movement.py` (the coach filter,
+      walked zones and the kill/death direction only), and none for either
+      `utility.py`, `charts.py`, or page rendering. 191 tests in all. A
+      rendering test would have caught the "gap of 19 points across 745200
+      rounds" bug before it shipped, and the "be"/"b4" arrows.
 - [ ] **The server is not a git checkout.** Deploys are file copies and drift
       has already happened twice: a stale `build.py`, and the whole database
       still on the pre-collision-fix `match_key` scheme. Now that there is a
@@ -250,11 +266,15 @@ true on purpose.
       ages.
 - [ ] **The server holds two demo files**, so no schema change can be replayed
       there. Every one needs hand-shipped SQL. That has happened three times.
+- [ ] **`app/sample.py` says thin rates show raw counts** (lines near 234, 468
+      and 508), which stopped being true on 2026-09-24. The sample report is
+      the only public proof, so its copy is Johan's call.
+- [ ] **The walked-zone model is built from every position on a map at the
+      first request after a restart**, about a second per map. Fine today;
+      store it if maps or corpus grow a lot.
 
 ## Interface
 
-- [ ] **The Team stats page is 5.9 MB**, because every zone map ships on every
-      load.
 - [ ] **HEAD returns 405 everywhere.** FastAPI's `APIRoute` does not add HEAD
       to a GET route the way plain Starlette does. Link unfurlers use GET so
       nothing on the outreach path is affected; uptime monitors and link
@@ -267,6 +287,12 @@ Password reset and mail, zone naming locked to admins, privacy and terms,
 unsubscribe, verified nightly backups, dark mode across all three surfaces,
 utility measured by outcome, first deaths carrying whether they were traded,
 and no em dashes anywhere a coach can see.
+
+2026-09-25: the share page down from 5.9 MB to about 230 KB; dropdown arrows
+that printed "be" and "b4"; the patterns table behind "See the numbers" under
+its chart; the coach off the roster; the zone map painting each place with
+its own numbers, keyed by the counting, measured on foot so no zone crosses a
+wall, with borders; Ancient's B site and Dust2's Top mid named correctly.
 
 **Pushed to a private repo**, 2026-09-14: `JohanJ0318/counterplay`, 49 commits,
 checked for a stray database or key and carrying none. CI ran for the first
