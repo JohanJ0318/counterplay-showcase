@@ -182,6 +182,7 @@ def scan(team_id: int) -> dict:
     sides = _side_by_round(team_id, anchors.get("anchors", {}))
     rows = _rounds_with_positions(team_id)
     traded = _traded_lookup(_team_match_keys(team_id))
+    opening: dict = {}
 
     commit: dict = {}
     setup: dict = {}
@@ -294,6 +295,34 @@ def scan(team_id: int) -> dict:
                 d["won"] += won
                 d["players"] += int(occ[at, z_i])
 
+        # ---- the opening duel: the first death on EITHER side
+        #
+        # `fell` is every alive-to-dead transition regardless of side, so the
+        # first one is the round's opening kill. Whether the faller was ours
+        # decides whether we won it.
+        #
+        # Side is read at t_i, the last sample the player was ALIVE. A dead
+        # slot keeps its team flag in practice, but a player missing from a
+        # tick is written all-zero, which would read as T side; taking it
+        # while they are still standing cannot be wrong.
+        fell = alive[:-1] & ~alive[1:]
+        if fell.any():
+            t_i, p_i = np.argwhere(fell)[0]
+            z = int(gid[t_i + 1, p_i]) or int(gid[t_i, p_i])
+            if z:
+                d = opening.setdefault(mp, {}).setdefault(side, {}).setdefault(
+                    z, {"n": 0, "won_duel": 0, "lost": 0, "traded": 0,
+                        "round_won": 0})
+                d["n"] += 1
+                d["round_won"] += won
+                if bool(theirs[t_i, p_i]):
+                    d["lost"] += 1
+                    sid_o = str(int(_sids[p_i]))
+                    d["traded"] += int(traded.get(
+                        (r["match_key"], r["round_num"], sid_o), False))
+                else:
+                    d["won_duel"] += 1
+
         # ---- where the first of ours dies, and whether anyone got him back
         #
         # The place alone says where a round starts going wrong. Whether the
@@ -312,7 +341,8 @@ def scan(team_id: int) -> dict:
                 d["traded"] += int(traded.get(
                     (r["match_key"], r["round_num"], sid), False))
 
-    return {"commit": commit, "setup": setup, "death": death, "seen": seen,
+    return {"commit": commit, "setup": setup, "death": death,
+            "opening": opening, "seen": seen,
             "seen_won": seen_won, "answered": answered,
             "names": {m: (cache[m][2] if cache.get(m) else {}) for m in cache}}
 

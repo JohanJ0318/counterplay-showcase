@@ -2657,53 +2657,96 @@ def _stats_body(team, user=None, share: str = ""):
 
     # ---- where the rounds are decided
     #
-    # Three questions on ONE base drawing, switched by the pill row. Drawing
-    # one picture per kind would be three per map per side, and the expensive
-    # part is the base: loading a map's round_positions, clustering, sampling
-    # the radar mask. The readings on top are a few hundred bytes each.
+    # Four questions on ONE base drawing, switched by the pill row, in the
+    # order they decide a round. See the note in movement.scan on why the
+    # opening duel and its trade come first.
     #
-    # Flipping between them on a map that does not move is also the point: it
-    # is how you see that the place you set up is the place you die.
-    KINDS = [("death", "Where you die first",
-              "your first death is here"),
-             ("commit", "How far you get",
-              "this is as far as the group gets together"),
-             ("setup", "Where you set up",
-              "you are set up here twelve seconds in")]
+    # The base is expensive (a map's round_positions, clustered, plus the
+    # radar mask) and the readings on top are a few hundred bytes, so three
+    # extra layers cost almost nothing. Flipping between them on a map that
+    # does not move is also the point: it is how you see that the place you
+    # set up is the place you lose the opening.
+    MIN_OPENINGS, MIN_LOSSES = 4, 3
     decided = []
     try:
+        raw = movement.scan(team["id"])
         pats = movement.positional_patterns(team["id"])
-        by_ms = {}
+        pats_by = {}
         for p in pats:
-            if p.get("zone_index") is None:
-                continue
-            by_ms.setdefault((p["map"], p["side"]), []).append(p)
-        for (mp, side), group in sorted(
-                by_ms.items(), key=lambda kv: -sum(q["hit"] for q in kv[1])):
+            if p.get("zone_index") is not None:
+                pats_by.setdefault((p["map"], p["side"]), []).append(p)
+
+        keys = set(pats_by)
+        for mp, sides in raw.get("opening", {}).items():
+            for side in sides:
+                keys.add((mp, side))
+
+        def _rank(k):
+            op = raw.get("opening", {}).get(k[0], {}).get(k[1], {})
+            return -sum(d["n"] for d in op.values())
+
+        for (mp, side) in sorted(keys, key=_rank):
+            names = raw.get("names", {}).get(mp, {})
+            op = raw.get("opening", {}).get(mp, {}).get(side, {})
+            group = pats_by.get((mp, side), [])
             layers = []
-            for kind, _label, phrase in KINDS:
-                here = [q for q in group if q["kind"] == kind]
-                if not here:
-                    layers.append((kind, {}))
+
+            # 1. the opening duel, as a won-lost record
+            tot_n = sum(d["n"] for d in op.values())
+            tot_w = sum(d["won_duel"] for d in op.values())
+            bench = (100.0 * tot_w / tot_n) if tot_n else 50.0
+            zs = {}
+            for z, d in op.items():
+                if d["n"] < MIN_OPENINGS:
                     continue
-                # Intensity is scaled inside ONE layer, so the strongest disc
-                # on this question is the most intense and the rest are
-                # proportional to it. Scaling across layers would make a
-                # question with a narrow spread look like nothing happened.
+                pct = 100.0 * d["won_duel"] / d["n"]
+                fill, o = charts.diverge(pct, bench, 40.0)
+                zs[z] = {"top": f"{d['won_duel']}-{d['lost']}", "sub": "openings",
+                         "fill": fill, "op": o,
+                         "title": (f"{names.get(z, 'here')}: the round's first "
+                                   f"kill happened here {d['n']} times. You won "
+                                   f"{d['won_duel']} and lost {d['lost']}, "
+                                   f"against {bench:.0f}% won across this map "
+                                   f"and side")}
+            layers.append(("open", zs))
+
+            # 2. the trade on the ones you lost
+            tot_l = sum(d["lost"] for d in op.values())
+            tot_t = sum(d["traded"] for d in op.values())
+            tbench = (100.0 * tot_t / tot_l) if tot_l else 0.0
+            zs = {}
+            for z, d in op.items():
+                if d["lost"] < MIN_LOSSES:
+                    continue
+                pct = 100.0 * d["traded"] / d["lost"]
+                fill, o = charts.diverge(pct, tbench, 40.0)
+                zs[z] = {"top": f"{d['traded']}/{d['lost']}", "sub": "traded",
+                         "fill": fill, "op": o,
+                         "title": (f"{names.get(z, 'here')}: you lost the "
+                                   f"opening here {d['lost']} times and got the "
+                                   f"man back {d['traded']} of them, against "
+                                   f"{tbench:.0f}% traded across this map and "
+                                   f"side. Untraded is a 4v5")}
+            layers.append(("trade", zs))
+
+            # 3 and 4. what the space bought, and the default
+            for kind, phrase in (("commit", "this is as far as the group gets"),
+                                 ("setup", "you are set up here")):
+                here = [q for q in group if q["kind"] == kind]
                 spread = max((abs(q["gap"]) for q in here), default=0) or 1.0
-                zstats = {}
+                zs = {}
                 for q in here:
-                    fill, op = charts.diverge(q["win_pct"], q["other_pct"], spread)
-                    zstats[q["zone_index"]] = {
+                    fill, o = charts.diverge(q["win_pct"], q["other_pct"], spread)
+                    zs[q["zone_index"]] = {
                         "top": f"{q['win_pct']:.0f}%",
                         "sub": f"{q['hit']}/{q['of']}",
-                        "fill": fill, "op": op,
+                        "fill": fill, "op": o,
                         "title": (f"{q['zone']}: when {phrase}, in {q['hit']} of "
                                   f"{q['of']} {side.upper()} rounds, you win "
                                   f"{q['win_pct']:.0f}% against "
-                                  f"{q['other_pct']:.0f}% when it is not"),
-                    }
-                layers.append((kind, zstats))
+                                  f"{q['other_pct']:.0f}% when it is not")}
+                layers.append((kind, zs))
+
             if not any(st for _k, st in layers):
                 continue
             for pic in zone_pictures(mp, show=set(), width=420,
@@ -2720,19 +2763,22 @@ def _stats_body(team, user=None, share: str = ""):
         decided = []        # a missing picture must never break the page
 
     if decided:
+        PILLS = [("open", "Opening duel"), ("trade", "Traded back"),
+                 ("commit", "How far you get"), ("setup", "Where you set up")]
         pills = "".join(
             f'<button type="button" class="pill zpill{" on" if i == 0 else ""}" '
             f'data-layer="{k}">{esc(lab)}</button>'
-            for i, (k, lab, _p) in enumerate(KINDS))
+            for i, (k, lab) in enumerate(PILLS))
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
-            f'<p class="lede">One map, three questions. The big number is what '
-            f'you win in the rounds where it happens there; the small one is '
-            f'how many rounds out of that side\u2019s total. '
-            f'<strong>Red is worse than your own rate on the same map and side '
-            f'when it happens somewhere else</strong>, green is better, faint '
-            f'means the same. Hover a circle for the whole sentence.</p>'
+            f'<p class="lede">One map, four questions, in the order they decide '
+            f'a round. <strong>Opening duel</strong> is your won-lost record in '
+            f'the round\u2019s first fight; <strong>traded back</strong> is how '
+            f'often somebody got the man back when you lost it, which is the '
+            f'half you can actually coach. The other two are what the space '
+            f'bought you. Green beats your own rate on this map and side, red '
+            f'is worse, faint is the same. Hover a circle for the sentence.</p>'
             f'<div class="zpills">{pills}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<script>(function(){{'
