@@ -342,6 +342,11 @@ def positional_patterns(team_id: int) -> list[dict]:
         out.append({
             "kind": kind, "map": mp, "side": side,
             "zone": names.get(mp, {}).get(zone, f"zone {zone}"),
+            # The CLUSTER, carried alongside its name. Two clusters can share
+            # a name: Mirage has three called "A main" because A main is big
+            # enough to split three ways. Keying anything on the name alone
+            # silently treats them as one place.
+            "zone_index": zone,
             "hit": hit, "of": of, "pct": 100.0 * hit / of,
             "won": won, "win_pct": (100.0 * won / hit) if hit else 0.0,
             # What the same map and side did in the rounds without it.

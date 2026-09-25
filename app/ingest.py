@@ -271,7 +271,7 @@ def check(rounds, events) -> tuple[bool, str]:
 def store(demo_id: int, match_key: str, rounds, events, players=None,
           position_blobs=None, utility=None, *,
           faceit_match_id: str | None, competition: str, tier: str,
-          played_at: str | None) -> int:
+          ingested_at: str | None) -> int:
     """Write parsed frames. Replaces any previous parse of the same match_key."""
     map_name = str(rounds["map_name"].iloc[0])
     ct_wins = int(rounds["ct_won"].sum())
@@ -298,12 +298,12 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
 
         conn.execute(
             """INSERT INTO matches (demo_id, match_key, faceit_match_id, map_name,
-                                    tier, competition, played_at, rounds,
+                                    tier, competition, ingested_at, rounds,
                                     score_ct, score_t, final_ct, final_t,
                                     finished, end_reason, created_at)
                VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
             (demo_id, match_key, faceit_match_id, map_name, tier, competition,
-             played_at, n_rounds, ct_wins, n_rounds - ct_wins,
+             ingested_at, n_rounds, ct_wins, n_rounds - ct_wins,
              attrs.get("final_ct"), attrs.get("final_t"),
              None if attrs.get("finished") is None else int(attrs["finished"]),
              attrs.get("end_reason"), db.utcnow()))
@@ -546,7 +546,7 @@ def process(demo_row) -> tuple[bool, str]:
                   util,
                   faceit_match_id=demo_row["faceit_match_id"],
                   competition=demo_row["competition"] or "",
-                  tier=tier, played_at=demo_row["created_at"])
+                  tier=tier, ingested_at=demo_row["created_at"])
 
         note = summary
         if position_blobs:

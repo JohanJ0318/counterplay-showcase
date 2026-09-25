@@ -133,7 +133,7 @@ def monday(team_id: int) -> dict:
     raw: list[dict] = []
 
     def add(do, because, evidence, hit, of, *, mp=None, side=None, zone=None,
-            good=False, stake=None, foot=None, against=None):
+            zone_index=None, good=False, stake=None, foot=None, against=None):
         # `against` is the rate this finding should be read against when the
         # season baseline is the wrong thing: a place is compared with the
         # same map and side without it, not with a season that is mostly
@@ -150,6 +150,9 @@ def monday(team_id: int) -> dict:
             "do": do, "because": because, "evidence": [evidence],
             "hit": hit, "of": of, "rate": rate, "gap": gap,
             "map": (mp or "").replace("de_", ""), "side": side, "zone": zone,
+            # The cluster behind the name. Two clusters can share a name,
+            # so merging keys on this and never on `zone`.
+            "zone_index": zone_index,
             "good": good,
             # Rounds at stake: how far off normal, times how many rounds it
             # covers. A big gap over few rounds and a small gap over many are
@@ -191,6 +194,7 @@ def monday(team_id: int) -> dict:
                 f"First death in {p['zone']} in {p['hit']} of {p['of']} {side} "
                 f"rounds; you win {p['won']} of those {p['hit']}",
                 p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                zone_index=p.get("zone_index"),
                 stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "commit" and gap <= -MIN_GAP:
@@ -202,6 +206,7 @@ def monday(team_id: int) -> dict:
                 f"the {p['of']} {side} rounds where three of you grouped up "
                 f"at all; you win {p['won']}",
                 p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                zone_index=p.get("zone_index"),
                 stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "setup" and gap >= GOOD_GAP:
@@ -211,6 +216,7 @@ def monday(team_id: int) -> dict:
                 f"Held in {p['hit']} of {p['of']} {side} rounds; you win "
                 f"{p['won']} of those {p['hit']}",
                 p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                zone_index=p.get("zone_index"),
                 good=True, stake=pstake, foot=pfoot, against=p["other_pct"])
 
         elif p["kind"] == "setup" and gap <= -MIN_GAP:
@@ -220,6 +226,7 @@ def monday(team_id: int) -> dict:
                 f"Two or more of you here at twelve seconds in {p['hit']} of "
                 f"{p['of']} {side} rounds; you win {p['won']}",
                 p["won"], p["hit"], mp=p["map"], side=p["side"], zone=p["zone"],
+                zone_index=p.get("zone_index"),
                 stake=pstake, foot=pfoot, against=p["other_pct"])
 
     # ---------------------------------------------------------------- trades
@@ -403,8 +410,15 @@ def _merge_same_place(raw: list[dict]) -> list[dict]:
     loose: list[dict] = []
     for it in raw:
         if it["zone"]:
-            by_place.setdefault((it["map"], it["side"], it["zone"].lower()),
-                                []).append(it)
+            # Keyed on the cluster, not its name. de_mirage has three zones
+            # named "A main" and de_anubis three called "Mid", so keying on
+            # the name merged findings about genuinely different places into
+            # one recommendation and told a coach to drill the wrong spot.
+            # Falls back to the name where no index is carried.
+            place = it.get("zone_index")
+            if place is None:
+                place = it["zone"].lower()
+            by_place.setdefault((it["map"], it["side"], place), []).append(it)
         else:
             loose.append(it)
 

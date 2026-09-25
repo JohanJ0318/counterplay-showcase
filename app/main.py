@@ -1398,7 +1398,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     # 16-13, and a Mirage showed "22-6" for a 16-13. It is the first number a
     # coach reads and it was not the score.
     sc = report_mod.match_score(match_key, team["id"] if team else None)
-    played = (m["played_at"] or "")[:10]
+    played = (m["ingested_at"] or "")[:10]
     if sc.get("us") is not None:
         title = f'{sc["map"]} {sc["us"]}–{sc["them"]}'
         crumb_res = {"W": "you won", "L": "you lost"}.get(sc["result"], "drawn")
@@ -2835,7 +2835,7 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
             f'<tr><td class="name">'
             f'<a href="{match_href(m["match_key"], share)}">'
             f'{map_chip(m["map_name"])}</a>'
-            f'<div class="den" style="font-weight:400">{esc((m["played_at"] or "")[:10])}</div></td>'
+            f'<div class="den" style="font-weight:400">{esc((m["ingested_at"] or "")[:10])}</div></td>'
             f'<td>{res}</td>'
             f'<td class="num mono">{esc(m["score"])}</td>'
             f'<td class="num mono">{m["rounds"]}</td>'

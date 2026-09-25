@@ -30,7 +30,8 @@ from app import advice
 BASELINE = 0.49
 
 
-def _pattern(kind, zone, mp, side, hit, of, won, other=None, other_won=None):
+def _pattern(kind, zone, mp, side, hit, of, won, other=None, other_won=None,
+             zone_index=None):
     """One row shaped the way `movement.positional_patterns` returns them.
 
     `other` is the rest of that map and that side: the rounds where this did
@@ -48,6 +49,9 @@ def _pattern(kind, zone, mp, side, hit, of, won, other=None, other_won=None):
     win_pct = 100.0 * won / hit if hit else 0.0
     other_pct = 100.0 * other_won / other if other else 0.0
     return {"kind": kind, "zone": zone, "map": mp, "side": side,
+            # Distinct clusters get distinct indices unless a test deliberately
+            # reuses one, which is how "two zones share a name" is expressed.
+            "zone_index": zone_index if zone_index is not None else id(zone) % 9973,
             "hit": hit, "of": of, "won": won,
             "other": other, "other_won": other_won, "other_pct": other_pct,
             "gap": win_pct - other_pct,
@@ -367,3 +371,30 @@ def test_utility_findings_never_call_it_grenades(monkeypatch):
     assert "utility" in item["because"].lower()
     # Priced in dollars, and formatted the way the evidence line beneath it is.
     assert "$1,171" in item["because"]
+
+
+def test_two_clusters_sharing_a_name_stay_separate(engine):
+    """de_mirage has three zones called "A main"; they are different places.
+
+    Merging is keyed on the cluster and not on its name. Keyed on the name,
+    findings about genuinely different parts of the map collapsed into one
+    recommendation, and a coach was told to drill a spot that was really two.
+    """
+    out = engine([
+        _pattern("commit", "A main", "mirage", "t", 20, 40, 4, zone_index=8),
+        _pattern("death", "A main", "mirage", "t", 18, 40, 3, zone_index=14),
+    ])
+    assert len(out["items"]) == 2, [i["do"] for i in out["items"]]
+
+
+def test_one_cluster_seen_two_ways_still_merges(engine):
+    """The behaviour the merge exists for has to survive the fix.
+
+    The group stalling at a place and the first death happening there are one
+    recommendation, as long as it really is one place.
+    """
+    out = engine([
+        _pattern("commit", "A main", "mirage", "t", 20, 40, 4, zone_index=8),
+        _pattern("death", "A main", "mirage", "t", 18, 40, 3, zone_index=8),
+    ])
+    assert len(out["items"]) == 1, [i["do"] for i in out["items"]]

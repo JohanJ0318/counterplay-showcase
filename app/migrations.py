@@ -491,6 +491,20 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         -- model reads it as its own category.
         ALTER TABLE rounds ADD COLUMN plant_site INTEGER NOT NULL DEFAULT 0;
     """),
+
+    (20, "when it arrived is not when it was played", """
+        -- played_at was set from demos.created_at, so it recorded the moment
+        -- the file was ingested and nothing about the match. 253 matches
+        -- carried two distinct dates: the two evenings the corpus came down.
+        --
+        -- ingested_at now holds that, under its real name. played_at keeps
+        -- only a VERIFIED match time and is NULL until something can supply
+        -- one, because a column that is right for uploads and wrong for bulk
+        -- imports is worse than a column that is empty.
+        ALTER TABLE matches ADD COLUMN ingested_at TEXT;
+        UPDATE matches SET ingested_at = played_at WHERE ingested_at IS NULL;
+        UPDATE matches SET played_at = NULL;
+    """),
 ]
 
 

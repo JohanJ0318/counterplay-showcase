@@ -653,7 +653,7 @@ def team_matches(team_id: int) -> list[dict]:
     rows = db.query("""SELECT d.id AS demo_id, d.filename, d.status, d.status_note,
                               d.size_bytes, d.created_at, d.tier,
                               m.match_key, m.map_name, m.rounds, m.final_ct,
-                              m.final_t, m.finished, m.end_reason, m.played_at
+                              m.final_t, m.finished, m.end_reason, m.ingested_at
                          FROM demos d
                     LEFT JOIN matches m ON m.demo_id = d.id
                         WHERE d.team_id = ?
@@ -749,12 +749,12 @@ def recent_form(team_id: int, limit: int = 5) -> list[dict]:
     """
     anchors = team_anchors(team_id).get("anchors", {})
     sides = _side_by_round(team_id, anchors)
-    rows = db.query("""SELECT m.match_key, m.map_name, m.played_at, m.rounds,
+    rows = db.query("""SELECT m.match_key, m.map_name, m.ingested_at, m.rounds,
                               m.final_ct, m.final_t, m.finished, m.end_reason,
                               d.filename
                          FROM matches m JOIN demos d ON d.id = m.demo_id
                         WHERE d.team_id = ?
-                     ORDER BY m.played_at DESC, d.filename DESC LIMIT ?""",
+                     ORDER BY m.ingested_at DESC, d.filename DESC LIMIT ?""",
                     team_id, limit)
     out = []
     for m in rows:
@@ -768,7 +768,7 @@ def recent_form(team_id: int, limit: int = 5) -> list[dict]:
         out.append({
             "match_key": m["match_key"],
             "map": (m["map_name"] or "").replace("de_", ""),
-            "uploaded": (m["played_at"] or "")[:10],
+            "uploaded": (m["ingested_at"] or "")[:10],
             "rounds": m["rounds"], "us": us, "them": them,
             "finished": m["finished"], "end_reason": m["end_reason"],
             "result": None if us is None else ("W" if us > them else
@@ -786,14 +786,14 @@ def match_score(match_key: str, team_id: int | None = None) -> dict:
     belonging to whoever started on CT.
     """
     m = db.one("""SELECT map_name, rounds, score_ct, score_t, final_ct, final_t,
-                         finished, end_reason, played_at, tier, competition
+                         finished, end_reason, ingested_at, tier, competition
                     FROM matches WHERE match_key = ?""", match_key)
     if m is None:
         return {}
     out = {"map": (m["map_name"] or "").replace("de_", ""),
            "rounds": m["rounds"], "a": m["final_ct"], "b": m["final_t"],
            "finished": m["finished"], "end_reason": m["end_reason"],
-           "played_at": (m["played_at"] or "")[:10],
+           "added": (m["ingested_at"] or "")[:10],
            "by_side_ct": m["score_ct"], "by_side_t": m["score_t"],
            "us": None, "them": None, "result": None}
     if team_id is None or m["final_ct"] is None:
@@ -861,7 +861,7 @@ def buy_pattern(kind: str) -> tuple[str, str]:
 def _team_match_keys(team_id: int) -> list[str]:
     return [r["match_key"] for r in db.query(
         """SELECT m.match_key FROM matches m JOIN demos d ON d.id = m.demo_id
-            WHERE d.team_id = ? ORDER BY m.played_at""", team_id)]
+            WHERE d.team_id = ? ORDER BY m.ingested_at""", team_id)]
 
 
 @memo.by_team
@@ -1119,14 +1119,14 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
                pr.teammates_flashed, pr.flash_assists, pr.flash_kills,
                pr.nades_thrown, pr.nades_start, pr.nades_unused,
                pr.nades_value, pr.nades_wasted, r.ct_won,
-               m.map_name, m.played_at, m.rounds AS match_rounds
+               m.map_name, m.ingested_at, m.rounds AS match_rounds
           FROM player_rounds pr
           JOIN rounds  r ON r.match_key = pr.match_key
                         AND r.round_num = pr.round_num
           JOIN matches m ON m.match_key = pr.match_key
           JOIN demos   d ON d.id = m.demo_id
          WHERE d.team_id = ? AND pr.steamid = ?
-      ORDER BY m.played_at, pr.match_key, pr.round_num""", team_id, steamid)
+      ORDER BY m.ingested_at, pr.match_key, pr.round_num""", team_id, steamid)
     if not rows:
         return None
 
@@ -1135,7 +1135,7 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
     for r in rows:
         m = per.setdefault(r["match_key"], {
             "match_key": r["match_key"], "map_name": r["map_name"],
-            "played_at": r["played_at"], "match_rounds": r["match_rounds"],
+            "added": r["ingested_at"], "match_rounds": r["match_rounds"],
             "rounds": 0, "won_rounds": 0, "kills": 0, "deaths": 0, "assists": 0, "headshots": 0,
             "damage": 0.0, "opening_kills": 0, "opening_deaths": 0,
             "awp_kills": 0, "ct_rounds": 0, "t_rounds": 0,
@@ -1191,7 +1191,7 @@ def player_matches(team_id: int, steamid: str) -> dict | None:
 
     name = db.one("""SELECT name FROM player_rounds WHERE steamid = ?
                   ORDER BY rowid DESC LIMIT 1""", steamid)
-    matches = sorted(per.values(), key=lambda x: (x["played_at"] or "", x["match_key"]))
+    matches = sorted(per.values(), key=lambda x: (x["added"] or "", x["match_key"]))
 
     tot = {k: sum(m[k] for m in matches) for k in
            ("rounds", "kills", "deaths", "assists", "headshots",
@@ -1247,10 +1247,10 @@ def match_series(team_id: int, map_name: str | None = None,
         args.append(map_name)
 
     rows = db.query(f"""SELECT m.match_key, m.map_name, m.rounds, m.final_ct,
-                               m.final_t, m.played_at, d.filename
+                               m.final_t, m.ingested_at, d.filename
                           FROM matches m JOIN demos d ON d.id = m.demo_id
                          WHERE {where}
-                      ORDER BY m.played_at ASC, d.filename ASC""", *args)
+                      ORDER BY m.ingested_at ASC, d.filename ASC""", *args)
 
     out = []
     for m in rows:
