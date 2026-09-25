@@ -19,6 +19,7 @@ import numpy as np
 import pandas as pd
 from sklearn.calibration import calibration_curve
 from sklearn.isotonic import IsotonicRegression
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
 
@@ -152,21 +153,73 @@ class WinProbabilityModel:
         return self.calibrator.predict(raw)
 
 
-def _split3(states, seed):
-    """Three disjoint match-level splits: train / calibrate / test."""
+class _Platt:
+    """Platt scaling: a sigmoid fitted to the booster's raw probabilities.
+
+    Offered against isotonic because the two fail differently. Isotonic is
+    non-parametric and can fit any monotone shape, which is why it is the
+    default, but it is a step function fitted on one held-out slice and it
+    has nothing to say between the steps. Platt has two parameters and cannot
+    fit a shape the booster did not already roughly have, which makes it much
+    steadier on a small calibration set.
+
+    Matches the fit/predict surface IsotonicRegression exposes, so
+    WinProbabilityModel does not care which one it is holding.
+    """
+
+    def __init__(self):
+        self.lr = LogisticRegression(solver="lbfgs", C=1e10)
+
+    @staticmethod
+    def _logit(p):
+        p = np.clip(np.asarray(p, dtype=float), 1e-6, 1 - 1e-6)
+        return np.log(p / (1 - p)).reshape(-1, 1)
+
+    def fit(self, p, y):
+        self.lr.fit(self._logit(p), np.asarray(y))
+        return self
+
+    def predict(self, p):
+        return self.lr.predict_proba(self._logit(p))[:, 1]
+
+
+CALIBRATORS = ("isotonic", "sigmoid")
+
+
+def _make_calibrator(kind: str):
+    if kind == "isotonic":
+        return IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
+    if kind == "sigmoid":
+        return _Platt()
+    raise ValueError(f"calibrator must be one of {CALIBRATORS}, got {kind!r}")
+
+
+def _split3(states, seed, cal_frac: float = 0.25):
+    """Three disjoint match-level splits: train / calibrate / test.
+
+    `cal_frac` is the share of the NON-TEST data given to the calibrator, so
+    the default 0.25 leaves 56.25% training, 18.75% calibrating, 25% testing.
+    """
     groups = states["match_id"]
     outer = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=seed)
     rest, test = next(outer.split(states, groups=groups))
 
     rest_states = states.iloc[rest]
-    inner = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=seed + 1)
+    inner = GroupShuffleSplit(n_splits=1, test_size=cal_frac, random_state=seed + 1)
     tr_rel, cal_rel = next(inner.split(rest_states, groups=rest_states["match_id"]))
     return rest[tr_rel], rest[cal_rel], test
 
 
-def train(states: pd.DataFrame, seed: int = 7):
+def train(states: pd.DataFrame, seed: int = 7, cal_frac: float = 0.25,
+          calibrator: str = "isotonic"):
+    """Fit booster + calibrator and score on a held-out third of the matches.
+
+    The defaults are the shipped model. Vary them through tools/compare.py,
+    which holds the seed fixed across both arms so the change is not buried
+    under which matches happened to land in test.
+    """
     X, y = states[FEATURES], states[LABEL].astype(int)
-    tr, cal, te = _split3(states, seed)
+    tr, cal, te = _split3(states, seed, cal_frac)
 
     booster = lgb.LGBMClassifier(
         n_estimators=400, learning_rate=0.05, num_leaves=31,
@@ -178,10 +231,10 @@ def train(states: pd.DataFrame, seed: int = 7):
 
     # fit the calibrator on data the booster has never seen
     raw_cal = booster.predict_proba(X.iloc[cal])[:, 1]
-    calibrator = IsotonicRegression(out_of_bounds="clip", y_min=0.0, y_max=1.0)
-    calibrator.fit(raw_cal, y.iloc[cal])
+    cal_model = _make_calibrator(calibrator)
+    cal_model.fit(raw_cal, y.iloc[cal])
 
-    model = WinProbabilityModel(booster, calibrator)
+    model = WinProbabilityModel(booster, cal_model)
 
     p = model.predict(states.iloc[te])
     frac_pos, mean_pred = calibration_curve(y.iloc[te], p, n_bins=10, strategy="quantile")
