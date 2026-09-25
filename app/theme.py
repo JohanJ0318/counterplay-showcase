@@ -391,7 +391,7 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
   border-radius:var(--r);box-shadow:var(--shadow);overflow:visible}
 
 /* ---- stat cards ---- */
-.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(152px,1fr));gap:12px}
+.stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(128px,1fr));gap:12px}
 .stat{padding:13px 16px;display:flex;flex-direction:column;gap:1px;
   background:var(--surface-2)}
 /* Numbers are ink. Purple was on every figure on the page, which made none
@@ -564,18 +564,54 @@ details.drop>.tbl-plain{margin-top:10px}
   border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;
   overflow-x:auto}
 .chart svg{color:var(--ink)}
-/* Each chart sets its own min-width inline, at its natural size, so the
-   container scrolls rather than the picture shrinking. See charts._open. */
-.chart{-webkit-overflow-scrolling:touch}
+/* No chart scrolls sideways any more. The two SVG charts are drawn twice,
+   wide and narrow, and this picks one (charts.both); the bar charts are HTML
+   rows that wrap. A phone used to see 8 of 24 rounds and one bar of eight. */
+.fig-narrow{display:none}
 @media(max-width:620px){
   .chart{padding:12px}
-  /* Says out loud that the picture is wider than the screen, because a chart
-     that scrolls with no hint looks like a chart that is cut off. */
-  /* "the whole match" was written for the round timeline and then inherited by
-     every other chart, where there is no match to see. */
-  .chart::after{content:"scroll sideways to see the whole chart";
-    display:block;font-family:var(--f-mono);font-size:.62rem;color:var(--faint);
-    padding-top:8px}
+  .fig-wide{display:none}
+  .fig-narrow{display:block}
+}
+
+/* Rates with their chances (charts.bars). The label sits above its bar so
+   it is never cut; the value has its own column so it is always on screen. */
+.hb{list-style:none;margin:0;padding:0;display:grid;gap:12px}
+.hb li{display:grid;grid-template-columns:minmax(0,1fr) auto;
+  column-gap:12px;row-gap:4px;align-items:center}
+.hb-label{grid-column:1/-1;font-size:.9rem;color:var(--ink);line-height:1.3}
+.hb-track{display:block;height:10px}
+.hb-full{display:block;height:100%;background:var(--border);border-radius:2px}
+.hb-got{display:block;height:100%;background:var(--purple);border-radius:2px;
+  opacity:.9}
+.hb-val{font-family:var(--f-mono);font-size:.8rem;font-weight:600;
+  color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;
+  min-width:6.5rem}
+.hb-den{font-weight:400;color:var(--muted)}
+
+/* Gaining and costing on one axis (charts.diverging). */
+.dv ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}
+.dv li,.dv-head{display:grid;grid-template-columns:minmax(0,13rem) minmax(0,1fr) 5.5rem;
+  column-gap:12px;align-items:center}
+.dv-head{margin-bottom:8px}
+.dv-label{font-size:.9rem;color:var(--ink);line-height:1.3;text-align:right}
+.dv-axis{display:grid;grid-template-columns:1fr 1fr;font-size:.75rem;
+  color:var(--muted)}
+.dv-axis span:first-child{text-align:right;padding-right:8px;
+  border-right:1px solid var(--border)}
+.dv-axis span:last-child{padding-left:8px}
+.dv-track{display:flex;height:14px;position:relative}
+.dv-track::before{content:"";position:absolute;left:50%;top:-5px;bottom:-5px;
+  border-left:1px solid var(--border)}
+.dv-track.cost{justify-content:flex-end;padding-right:50%}
+.dv-track.gain{justify-content:flex-start;padding-left:50%}
+.dv-bar{display:block;height:100%;border-radius:2px}
+.dv-note{font-family:var(--f-mono);font-size:.78rem;color:var(--muted);
+  font-variant-numeric:tabular-nums;white-space:nowrap}
+@media(max-width:620px){
+  .dv li,.dv-head{grid-template-columns:minmax(0,1fr) 4.8rem;row-gap:4px}
+  .dv-label{grid-column:1/-1;text-align:left}
+  .dv-head>span:first-child{display:none}
 }
 /* The long page's own table of contents. Sticky, because a list that
    scrolls away is a list you have to scroll back for. */

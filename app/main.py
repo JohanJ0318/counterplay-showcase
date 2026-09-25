@@ -1291,7 +1291,9 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         team["id"], report_mod.team_anchors(team["id"]).get("anchors", {}))
         if team else {})
     _us_ct = (lambda rn: _sides.get((match_key, rn)) == "ct") if _sides else None
-    timeline_chart = charts.round_timeline(r["rows"], _us_ct)
+    timeline_chart = charts.both(
+        charts.round_timeline(r["rows"], _us_ct),
+        charts.round_timeline(r["rows"], _us_ct, width=320, compact=True))
 
     # ---- where you went tonight
     #
@@ -1959,15 +1961,9 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
 
     label, unit, blurb = METRICS[metric]
     # A label that distinguishes three Mirages from each other: the map plus
-    # where the match sits in the season. Truncating to three characters made
-    # every Mirage read "mir".
-    # Eleven labels in a row cannot each carry "inferno". The chart is drawn
-    # at 760px and scaled to fit its column, so on a narrow window every
-    # label shrinks with it and "mirage 10 L" becomes a smudge. Three letters
-    # keeps the map identifiable at a third of the width, and the number is
-    # what tells three Mirages apart. The full name is in the table below.
-    room = len(series) <= 6
-    pts = [(f'{i + 1} {m["map"][:6 if room else 3]}',
+    # where the match sits in the season. Never truncated: the chart slants
+    # its labels when they do not fit flat, and "mir" named no map at all.
+    pts = [(f'{i + 1} {m["map"]}',
             m[metric], m["result"] or "")
            for i, m in enumerate(series) if m.get(metric) is not None]
     vals = [v for _, v, _ in pts]
@@ -2063,7 +2059,10 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
             f'<span class="den">{n_recent} rounds against '
             f'{n_before}.</span></div>')
 
-    chart = charts.trend(pts, unit=unit, is_pct=bool(unit), avg=avg)
+    chart = charts.both(
+        charts.trend(pts, unit=unit, is_pct=bool(unit), avg=avg),
+        charts.trend(pts, width=320, unit=unit, is_pct=bool(unit), avg=avg,
+                     compact=True))
 
     tabs = "".join(
         f'<a class="btn ghost{" on" if metric == k else ""}" '
@@ -2296,10 +2295,10 @@ def _stats_body(team, user=None, share: str = ""):
         for it in plan["items"]:
             # A season-wide finding has no place, and labelling three of them
             # "across every map" says nothing three times. Its own headline is
-            # the only thing that identifies it, trimmed to the label column.
+            # the only thing that identifies it.
             side = (it["side"] or "").upper()
             if not it["zone"]:
-                label = it["do"][:30] + ("..." if len(it["do"]) > 30 else "")
+                label = it["do"]
                 ranked.append((label, _sign(it) * it["stake"],
                                f"{it['stake']:.0f} rds"))
                 continue
