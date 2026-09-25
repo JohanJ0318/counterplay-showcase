@@ -133,6 +133,31 @@ def _assign(centres, sx, sy, sz):
     return np.where(near, best + 1, 0).reshape(shape)
 
 
+def groups_of_samples(map_name, x, y, z, chunk: int = 200_000):
+    """The name-group every sample is counted under, by the rule scan() uses.
+
+    For the zone drawing, so a region is painted where its kills and deaths
+    were actually counted. It used to be painted by its own rule, nearest
+    centre in the plane over one floor, and numbered by zone index while the
+    counts were numbered by group, so from the first repeated name onward every
+    shape carried another place's numbers and another place's name.
+
+    Returns (groups per sample, group_of) or None when the map has no names.
+    Chunked, because a map's samples times its centres in float64 is most of
+    a gigabyte on Mirage.
+    """
+    got = _centres(map_name)
+    if got is None:
+        return None
+    centres, group_of, _names, _gc = got
+    x, y, z = np.asarray(x), np.asarray(y), np.asarray(z)
+    out = np.zeros(len(x), dtype=np.int32)
+    for s in range(0, len(x), chunk):
+        e = s + chunk
+        out[s:e] = group_of[_assign(centres, x[s:e], y[s:e], z[s:e])]
+    return out, group_of
+
+
 def _rounds_with_positions(team_id):
     """Every round of this team's that has position samples, with its outcome."""
     keys = _team_match_keys(team_id)

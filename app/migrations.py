@@ -542,6 +542,26 @@ MIGRATIONS: list[tuple[int, str, str]] = [
            SET name = UPPER(SUBSTR(name, 1, 1)) || SUBSTR(name, 2)
          WHERE name <> '' AND SUBSTR(name, 1, 1) <> UPPER(SUBSTR(name, 1, 1));
     """),
+
+    (22, "the last wrong bombsite label, and dust2's mid", """
+        -- Both found by drawing every map over its radar with each counted
+        -- place labelled, then measured before being changed.
+
+        -- de_ancient: of the game's own bombsite 2 samples, zone 2 "Cave"
+        -- holds 80% and zone 12 "B site" 18%. Zone 1, the other "Cave",
+        -- holds none of it and sits south-west toward mid, which is the real
+        -- cave. So 2 is the site, and renaming it merges it with 12 into one
+        -- "B site" group, which is what the ground is.
+        UPDATE zone_names SET name = 'B site'
+         WHERE map_name = 'de_ancient' AND zone_index = 2 AND name = 'Cave';
+
+        -- de_dust2: zones 1 and 15 were both "Cat", so the drawing painted
+        -- catwalk and the whole T side of mid as one place and dust2 had no
+        -- mid at all. Zone 1 (138, 1489) is catwalk; zone 15 (-243, 534) is
+        -- the top of mid, between suicide and X box.
+        UPDATE zone_names SET name = 'Top mid'
+         WHERE map_name = 'de_dust2' AND zone_index = 15 AND name = 'Cat';
+    """),
 ]
 
 

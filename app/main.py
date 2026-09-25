@@ -1758,6 +1758,10 @@ def _draw_zones(map_name: str, show, width: int, key,
                                  JOIN matches m ON m.match_key = rp.match_key
                                 WHERE m.map_name = ?""", map_name)
             x, y, z = Z.collect([r["data"] for r in rows], thin=2, alive_only=False)
+            # In stat mode every shape is a place the kills and deaths were
+            # counted under, so it is keyed by the counting rule itself.
+            grouped = (movement.groups_of_samples(map_name, x, y, z)
+                       if stat_zones and len(x) else None)
             if len(x):
                 geom_all = MW.load(map_name)
                 split = ZM.SPLIT_LEVELS.get(map_name)
@@ -1826,7 +1830,13 @@ def _draw_zones(map_name: str, show, width: int, key,
                                              radar=rad, anchors=anchors,
                                              title=_zone_title(map_name, level),
                                              mask=msk,
-                                             stat_zones=stat_zones)})
+                                             stat_zones=stat_zones,
+                                             sample_key=(grouped[0][sel]
+                                                         if grouped else None),
+                                             centre_key=(
+                                                 [int(grouped[1][i + 1])
+                                                  for i in idx]
+                                                 if grouped else None))})
     except Exception:
         out = []            # a missing picture must never break the page
     if len(_ZONE_PIC) >= ZONE_PIC_MAX:
@@ -2375,10 +2385,16 @@ def _stats_body(team, user=None, share: str = ""):
             prows.append(
                 f'<tr><td class="name">{side}{esc(p_["name"])}{info}</td>'
                 f'<td class="num">{rate(p_["hit"], p_["of"])}</td></tr>')
+        # The chart is the reading and the table is the same list as figures,
+        # so the table waits under the chart behind the arrow. Same control
+        # as the ranking chart above, the other way round: there the picture
+        # is the extra, here the numbers are.
         patterns_block = (
+            f'<div class="chart">{patterns_chart}</div>'
+            f'<details class="drop"><summary>See the numbers</summary>'
             f'<div class="tbl-plain"><table><thead><tr><th>Pattern</th>'
             f'<th class="num">Observed / chances</th></tr></thead>'
-            f'<tbody>{"".join(prows)}</tbody></table></div>')
+            f'<tbody>{"".join(prows)}</tbody></table></div></details>')
     else:
         patterns_block = (
             f'<p class="note">Nothing has happened often enough to call a pattern '
@@ -2745,13 +2761,13 @@ def _stats_body(team, user=None, share: str = ""):
             f'var v=per[z]||[0,0],k=v[0],x=v[1],tot=k+x;'
             f'var ttl=el.querySelector("title"),nm=n[z]||"this place";'
             f'if(tot<MIN){{el.setAttribute("fill","var(--faint)");'
-            f'el.setAttribute("opacity","0.28");'
+            f'el.setAttribute("opacity","0");'
             f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+" here. '
             f'Too few to read anything into.";continue;}}'
             f'var kd=x>0?k/x:k,rel=(kd-base)/(base||1);'
             f'var good=rel>0.12,bad=rel<-0.12;'
             f'el.setAttribute("fill",good?"var(--good)":bad?"var(--bad)":"var(--faint)");'
-            f'el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0.28");'
+            f'el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0");'
             f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+", K/D "+kd.toFixed(2)'
             f'+" against "+base.toFixed(2)+" everywhere else";}}}}}}'
             f'var rows=document.querySelectorAll(".zfilters .zrow");'
@@ -2862,13 +2878,25 @@ def _stats_body(team, user=None, share: str = ""):
         buy_head = '<th>Side and buy</th>'
 
     if known:
-        who = ", ".join(v["name"] for v in st["anchors"]["anchors"].values())
+        # A coach is a perfectly good anchor, since they sit on your side
+        # every match, but naming one here as a player is the same mistake
+        # the roster made. Only people team_players() keeps are named.
+        players = {a["steamid"] for a in report_mod.team_players(team["id"])}
+        named = [v["name"] for sid, v in st["anchors"]["anchors"].items()
+                 if sid in players]
+        who = ", ".join(named)
         n = st["anchors"]["matches"]
+        # The same floor team_anchors() applies, so the sentence is true.
+        least = max(2, int(n * report_mod.ANCHOR_SHARE))
+        how = (f"all {n} of your matches" if least >= n
+               else f"at least {least} of your {n} matches")
         roster_note = (
             f'<section><p class="note"><strong>These are your rounds, not both '
-            f'sides\'.</strong> {esc(who)} appears in all {n} of your matches '
-            f'while opponents appear in one each, so whichever side they were '
-            f'on is yours for that round.</p></section>')
+            f'sides\'.</strong> {esc(who)} '
+            f'{"appears" if len(named) == 1 else "appear"} in {how} '
+            f'while opponents appear in one each, so whichever side '
+            f'they were on is yours for that round.</p></section>'
+            if named else "")
     else:
         roster_note = (
             '<section><p class="warn"><strong>These are both sides, not just '
@@ -2902,10 +2930,7 @@ def _stats_body(team, user=None, share: str = ""):
     <p class="lede">Counted, never predicted. A line appears once it has
       {report_mod.MIN_PATTERN_CHANCES} chances behind it. Hover any figure for
       the rounds it came from.</p>
-    <div class="grid-chart">
-      <div>{patterns_block}</div>
-      <div class="chart">{patterns_chart}</div>
-    </div>
+    {patterns_block}
   </section>
 
   {utility_block}

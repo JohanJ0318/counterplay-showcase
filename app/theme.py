@@ -280,7 +280,7 @@ section{background:var(--surface);border:1px solid var(--border);
    not draw a second border inside the first one. */
 section>.tbl-wrap,section>.tbl-plain,section>.card,section>.note{
   background:transparent;border:0;border-radius:0;box-shadow:none;padding:0}
-section>.grid2>div>.tbl-wrap,section>.grid-chart>div>.tbl-plain{
+section>.grid2>div>.tbl-wrap,section>details.drop>.tbl-plain{
   background:transparent;border:0;box-shadow:none}
 .sec-head{display:flex;flex-direction:column;gap:2px}
 .lede{color:var(--muted);font-size:.875rem;max-width:70ch}
@@ -447,8 +447,8 @@ details.drop>summary{cursor:pointer;font-size:.8rem;font-weight:600;
   padding:7px 12px;border:1px solid var(--purple-line);border-radius:var(--r);
   background:var(--purple-soft);display:inline-block}
 details.drop>summary::-webkit-details-marker{display:none}
-details.drop>summary::after{content:" \25be";font-size:.7rem}
-details.drop[open]>summary::after{content:" \25b4"}
+details.drop>summary::after{content:" \\25be";font-size:.7rem}
+details.drop[open]>summary::after{content:" \\25b4"}
 details.drop>.note{margin:10px 0 2px}
 .rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
   height:3px;border-radius:2px}
@@ -610,7 +610,7 @@ details.drop>.note{margin:10px 0 2px}
 .zonefig svg:hover .zfill{cursor:help}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
-.zonefig.reading svg{height:340px}
+.zonefig.reading svg{height:460px}
 .zonefig svg{display:block;height:250px;width:auto;max-width:100%;
   border:1px solid var(--border);
   border-radius:var(--r);background:var(--card)}
@@ -689,21 +689,6 @@ button:hover,.btn:hover{background:var(--purple-deep);border-color:var(--purple-
 .btn.ghost{font-size:.84rem;padding:7px 13px}
 
 .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px}
-/* A table of short labels beside a chart.
-
-   An even split gave the table more room than its two columns of text needed
-   and left the chart 510px of a 540px picture, so the one thing on the page
-   that is meant to be seen at a glance arrived with a scrollbar. The chart now
-   takes the larger share.
-
-   Two columns only above 1160px, which is where `.wrap` stops growing. Between
-   the two the split would squeeze the chart again, so below that width the
-   chart simply goes full width underneath, where it has more room than it
-   ever had beside the table. */
-.grid-chart{display:grid;grid-template-columns:1fr;gap:16px;align-items:start}
-@media(min-width:1160px){
-  .grid-chart{grid-template-columns:minmax(0,1fr) minmax(0,1.45fr)}
-}
 .maps{display:flex;flex-direction:column;gap:20px}
 
 footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);

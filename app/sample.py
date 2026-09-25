@@ -509,13 +509,12 @@ def render(user=None, pictures=None) -> str:
       counts rather than a percentage. In the chart the bar's full length is the
       chances and the fill is what came of them, so a 5-of-12 and a 45-of-79 read
       as different weights of evidence even where the percentages are close.</p>
-    <div class="grid-chart">
-      <div><div class="tbl-plain"><table>
+    <div class="chart">{chart}</div>
+    <details class="drop"><summary>See the numbers</summary>
+      <div class="tbl-plain"><table>
         <thead><tr><th>Pattern</th>
           <th class="num">Observed / chances</th></tr></thead>
-        <tbody>{prows}</tbody></table></div></div>
-      <div class="chart">{chart}</div>
-    </div>
+        <tbody>{prows}</tbody></table></div></details>
   </section>
 
   <section>

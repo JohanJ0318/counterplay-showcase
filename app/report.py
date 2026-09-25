@@ -51,6 +51,26 @@ def role_of(a: dict) -> tuple[str, str]:
     return "Rifle", f"{a['damage'] / rounds:.0f} ADR over {rounds} rounds"
 
 
+def is_coach(a: dict) -> bool:
+    """A FACEIT coach: present for the rounds, and never shot, died or hurt anyone.
+
+    A coach occupies a slot in the demo and is alive all round without ever
+    shooting, so they arrive like a player and every number computed for them
+    is an artifact: role_of() calls them a Rifle because their ADR is zero, and
+    the clutch counter calls them the last man alive in every long round, which
+    reads as "0 of 22" against a man who cannot hold a gun.
+
+    Filtering the "Coach|" name prefix would be trusting a convention anybody
+    can type into their profile. This tests what a coach is. A real player
+    does not go a whole match without dying once.
+
+    `a` is any totals dict with kills, deaths and damage. Judge it over all of
+    a person's rounds, never over a subset, or a real player's two quiet
+    rounds on the other side would read as a coach.
+    """
+    return not (a["kills"] or a["deaths"] or a["damage"])
+
+
 # A player has to appear in this share of a team's matches to be treated as one
 # of theirs. Opponents change every match; the team does not.
 ANCHOR_SHARE = 0.6
@@ -397,19 +417,7 @@ def scoreboard(match_key: str, rows: list,
                                  if a["rounds"] else 0.0)
         a["role"], a["role_why"] = role_of(a)
 
-    # Coaches out. A FACEIT coach occupies a slot in the demo and is alive
-    # all round without ever shooting, so they arrive here like a player and
-    # every number computed for them is an artifact: role_of() calls them a
-    # Rifle because their ADR is zero, and the clutch counter calls them the
-    # last man alive in every long round, which reads as "0 of 22" against a
-    # man who cannot hold a gun.
-    #
-    # Filtering the "Coach|" name prefix would be trusting a convention that
-    # anybody can type into their profile. This filters on what a coach is:
-    # there for the rounds, and no kills, no deaths and no damage in any of
-    # them. A real player does not go a whole match without dying once.
-    agg = {sid: a for sid, a in agg.items()
-           if a["kills"] or a["deaths"] or a["damage"]}
+    agg = {sid: a for sid, a in agg.items() if not is_coach(a)}
     if not agg:
         return []
 
@@ -547,6 +555,17 @@ def team_players(team_id: int, ours_only: bool | None = None) -> list[dict]:
     if not rows:
         return []
 
+    # Coaches out, judged on every round they were in before `ours_only`
+    # narrows anything. Without this the season roster listed the coach as
+    # a Rifle on 0 ADR, which team_stats() had stopped doing a long time ago.
+    whole: dict = defaultdict(lambda: {"kills": 0, "deaths": 0, "damage": 0.0})
+    for r in rows:
+        t = whole[r["steamid"]]
+        t["kills"] += r["kills"]
+        t["deaths"] += r["deaths"]
+        t["damage"] += r["damage"]
+    coaches = {sid for sid, t in whole.items() if is_coach(t)}
+
     keep = None
     if ours_only is not None:
         mine = ours_by_round(team_id)
@@ -557,7 +576,7 @@ def team_players(team_id: int, ours_only: bool | None = None) -> list[dict]:
 
     agg: dict[str, dict] = {}
     for r in rows:
-        if keep and not keep(r):
+        if r["steamid"] in coaches or (keep and not keep(r)):
             continue
         a = agg.setdefault(r["steamid"], {
             "steamid": r["steamid"], "name": r["name"], "rounds": 0, "kills": 0,

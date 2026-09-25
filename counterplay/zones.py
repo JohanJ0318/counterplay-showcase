@@ -179,10 +179,143 @@ def picture_extent(x, y, radar):
 GROW_PASSES = 6
 
 
+VOID_TITLE = "Not counted: a spawn, or a place with no name yet."
+
+# Of a cell's eight neighbours, how many must agree on one other place before
+# the cell is taken to be speckle and joins them.
+SPECKLE_VOTES = 6
+
+
+def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
+                   x0, x1, y0, y1, bins, px, cw, ch) -> list[str]:
+    """Stat-mode regions, one path per counted place, plus the borders.
+
+    A cell belongs to whichever place most of the samples standing in it were
+    COUNTED under (`sample_key`, the name-group movement.scan files a death
+    under). Nearest centre in the plane, the old rule, disagreed with the
+    counting wherever height mattered or a centre sat across a wall, so a
+    region could be painted over ground whose deaths were filed elsewhere.
+    Cells nobody stood in, filled by the pinhole and radar-mask passes, have
+    no samples to vote and take their nearest centre's place (`centre_key`).
+
+    Key 0 is a spawn or an unnamed place, which scan() never reports. It is
+    drawn as its own region so the borders are true, but it is not a `zfill`
+    and the filters never paint it.
+    """
+    sample_key = np.asarray(sample_key, dtype=np.int64)
+    ix = ((x - x0) / (x1 - x0) * bins).astype(np.int64)
+    iy = ((y - y0) / (y1 - y0) * bins).astype(np.int64)
+    ok = (ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
+    k_n = int(sample_key.max()) + 1 if len(sample_key) else 1
+    tally = np.bincount((ix[ok] * bins + iy[ok]) * k_n + sample_key[ok],
+                        minlength=bins * bins * k_n).reshape(bins * bins, k_n)
+    key = np.where(tally.sum(1) > 0, tally.argmax(1), -1).reshape(bins, bins)
+    empty = occupied & (key < 0)
+    key[empty] = np.asarray(centre_key, dtype=np.int64)[grid_owner[empty]]
+    key[~occupied] = -1
+
+    # Speckle out. Where two places meet, single cells vote the other way
+    # from every neighbour they have, and with borders drawn each one became
+    # its own outlined island. A cell that at least SPECKLE_VOTES of its eight
+    # neighbours disagree with, in favour of one place, joins that place. It
+    # moves nothing wider than a cell, so no real boundary shifts.
+    for _ in range(2):
+        padk = np.full((bins + 2, bins + 2), -1, dtype=np.int64)
+        padk[1:-1, 1:-1] = key
+        best_n = np.zeros(key.shape, dtype=np.int8)
+        best_k = key.copy()
+        for k in np.unique(key[key >= 0]):
+            n = np.zeros(key.shape, dtype=np.int8)
+            for di in (-1, 0, 1):
+                for dj in (-1, 0, 1):
+                    if di or dj:
+                        n += padk[1 + di:bins + 1 + di, 1 + dj:bins + 1 + dj] == k
+            better = n > best_n
+            best_n[better] = n[better]
+            best_k[better] = k
+        flip = (key >= 0) & (best_k != key) & (best_n >= SPECKLE_VOTES)
+        if not flip.any():
+            break
+        key[flip] = best_k[flip]
+
+    xe = np.linspace(x0, x1, bins + 1)
+    ye = np.linspace(y0, y1, bins + 1)
+    by_key: dict = {}
+    for j in range(bins):
+        i = 0
+        while i < bins:
+            k = key[i, j]
+            if k < 0:
+                i += 1
+                continue
+            run = i + 1
+            while run < bins and key[run, j] == k:
+                run += 1
+            bx, by = px(xe[i], ye[j])
+            w = cw * (run - i) + .6
+            by_key.setdefault(int(k), []).append(
+                "M%.1f %.1fh%.1fv%.1fh%.1fz" % (bx, by - ch, w, ch + .6, -w))
+            i = run
+
+    # BORDERS, one path. A flat fill with no edge made two neighbouring
+    # places of the same colour into one blob; the edge is what makes each
+    # region read as a place. Drawn wherever two cells disagree, including
+    # the edge of the played area, and merged along runs so a straight wall
+    # is one segment rather than thirty.
+    edges = []
+    pad = np.full((bins + 2, bins + 2), -1, dtype=np.int64)
+    pad[1:-1, 1:-1] = key
+    vert = pad[:-1, 1:-1] != pad[1:, 1:-1]          # edge left of cell i
+    for i in range(bins + 1):
+        j = 0
+        while j < bins:
+            if not vert[i, j]:
+                j += 1
+                continue
+            run = j + 1
+            while run < bins and vert[i, run]:
+                run += 1
+            ax, ay = px(xe[i], ye[run])
+            edges.append("M%.1f %.1fv%.1f" % (ax, ay, ch * (run - j)))
+            j = run
+    horiz = pad[1:-1, :-1] != pad[1:-1, 1:]         # edge below cell j
+    for j in range(bins + 1):
+        i = 0
+        while i < bins:
+            if not horiz[i, j]:
+                i += 1
+                continue
+            run = i + 1
+            while run < bins and horiz[run, j]:
+                run += 1
+            ax, ay = px(xe[i], ye[j])
+            edges.append("M%.1f %.1fh%.1f" % (ax, ay, cw * (run - i)))
+            i = run
+
+    out = []
+    for k, segs in sorted(by_key.items()):
+        if k == 0:
+            out.append(f'<path class="zvoid" d="{"".join(segs)}" '
+                       f'fill="var(--faint)" opacity="0">'
+                       f'<title>{_esc(VOID_TITLE)}</title></path>')
+        else:
+            # Clear until the page colours it, so the map reads through
+            # everywhere nothing stands out. Still hoverable: an element
+            # with a fill takes the pointer at any opacity.
+            out.append(f'<path class="zfill" data-z="{k}" '
+                       f'd="{"".join(segs)}" fill="var(--faint)" opacity="0">'
+                       f'<title></title></path>')
+    out.append(f'<path class="zedge" d="{"".join(edges)}" fill="none" '
+               f'stroke="var(--surface)" stroke-width="1.3" opacity=".9" '
+               f'pointer-events="none"/>')
+    return out
+
+
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None, mask=None, title: str = "", stat_zones: bool = False) -> str:
+        anchors=None, mask=None, title: str = "", stat_zones: bool = False,
+        sample_key=None, centre_key=None) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -326,7 +459,11 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     cy_mid = (ye[:-1] + ye[1:]) / 2.0
     ii, jj = np.nonzero(occupied)
     dots = []
+    # A cell is not square unless the picture is. Rows used to be drawn one
+    # x-cell tall, which on Nuke's lower floor (1860 by 3341 world units) left
+    # a white stripe between every row, and on a wide map overlapped them.
     cw = (xe[1] - xe[0]) * scale
+    ch = (ye[1] - ye[0]) * scale
     if len(ii):
         px_mid = cx_mid[ii]
         py_mid = cy_mid[jj]
@@ -383,20 +520,29 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                        and grid_step[run, j] == step):
                     run += 1
                 bx, by = px(xe[i], ye[j])
-                w, hh = cw * (run - i) + .6, cw + .6
+                w, hh = cw * (run - i) + .6, ch + .6
                 if stat_zones:
                     by_zone.setdefault(int(own), []).append(
                         "M%.1f %.1fh%.1fv%.1fh%.1fz"
-                        % (bx, by - cw, w, hh, -w))
+                        % (bx, by - ch, w, hh, -w))
                 else:
                     dots.append(
-                        f'<rect x="{bx:.1f}" y="{by - cw:.1f}" '
+                        f'<rect x="{bx:.1f}" y="{by - ch:.1f}" '
                         f'width="{w:.1f}" height="{hh:.1f}" '
-                        f'fill="{zone_fill(int(own))}" '
-                        f'opacity="{step / 16:.2f}"/>')
+                        f'fill="{zone_fill(int(own))}"/>')
                 i = run
 
-        if stat_zones:
+        # One opacity for the whole layer, not one per rect. Neighbouring
+        # rects overlap by .6px so no seam shows, and with a translucent fill
+        # on each rect every overlap was drawn twice and read as a dark stripe
+        # down every row. The strength is flat, so nothing is lost.
+        if dots:
+            dots = [f'<g opacity="{float(strength[0]):.2f}">', *dots, '</g>']
+
+        if stat_zones and sample_key is not None:
+            dots = _keyed_regions(occupied, grid_owner, x, y, sample_key,
+                                  centre_key, x0, x1, y0, y1, bins, px, cw, ch)
+        elif stat_zones:
             for own, segs in sorted(by_zone.items()):
                 # Neutral until the page colours it. A zone the current filter
                 # has no rounds for stays this colour, which is the honest
