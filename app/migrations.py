@@ -562,6 +562,22 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         UPDATE zone_names SET name = 'Top mid'
          WHERE map_name = 'de_dust2' AND zone_index = 15 AND name = 'Cat';
     """),
+
+    (23, "each player's money, spending and loadout per round", """
+        -- The buy analysis: what a player could afford, what they spent, and
+        -- what they held when the round went live. NULLABLE on purpose, unlike
+        -- the utility columns: a demo parsed before this reads NULL, and
+        -- "started the round with $0" must never be mistaken for "we did not
+        -- read it". Every reader skips NULL rows; a re-parse fills them.
+        --
+        -- equip_value is the same freeze-end reading that rounds.equip_ct and
+        -- equip_t sum, so the two always agree. loadout is the buyable items
+        -- held at freeze-end, comma separated (counterplay/economy.py).
+        ALTER TABLE player_rounds ADD COLUMN money_start INTEGER;
+        ALTER TABLE player_rounds ADD COLUMN spent       INTEGER;
+        ALTER TABLE player_rounds ADD COLUMN equip_value INTEGER;
+        ALTER TABLE player_rounds ADD COLUMN loadout     TEXT;
+    """),
 ]
 
 

@@ -344,6 +344,15 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                 except (TypeError, ValueError):
                     return cast(default)
 
+            def money(r, name):
+                """Economy stays NULL when the demo did not say (migration 23)."""
+                v = getattr(r, name, None)
+                return None if v is None or v != v else int(v)
+
+            def text(r, name):
+                v = getattr(r, name, None)
+                return None if v is None or v != v else str(v)
+
             conn.executemany(
                 """INSERT INTO player_rounds (match_key, round_num, steamid, name,
                        tier, side, kills, deaths, assists, headshots, damage,
@@ -354,9 +363,10 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                        teammates_flashed, blind_enemy_secs, blind_team_secs,
                        flash_assists, flash_kills,
                        nades_thrown, nades_start, nades_unused,
-                       nades_value, nades_wasted)
+                       nades_value, nades_wasted,
+                       money_start, spent, equip_value, loadout)
                    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,
-                           ?,?,?,?,?,?,?,?,?,?)""",
+                           ?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 [(match_key, int(r.round_num), str(r.steamid), str(r.name),
                   tier, str(r.side), int(r.kills), int(r.deaths), int(r.assists),
                   int(r.headshots), float(r.damage), int(r.opening_kill),
@@ -371,7 +381,9 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                   col(r, "flash_assists"), col(r, "flash_kills"),
                   col(r, "nades_thrown"), col(r, "nades_start"),
                   col(r, "nades_unused"), col(r, "nades_value"),
-                  col(r, "nades_wasted"))
+                  col(r, "nades_wasted"),
+                  money(r, "money_start"), money(r, "spent"),
+                  money(r, "equip_value"), text(r, "loadout"))
                  for r in players.itertuples(index=False)])
 
         # Utility rows. Written before positions only because they are cheap;

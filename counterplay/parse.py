@@ -57,7 +57,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from . import utility
+from . import economy, utility
 
 TICK_RATE = 64.0
 TEAM_T, TEAM_CT = 2, 3
@@ -88,7 +88,11 @@ PLAYER_COLUMNS = ["match_id", "round_num", "steamid", "name", "tier", "side",
                   "teammates_flashed", "blind_enemy_secs", "blind_team_secs",
                   "flash_assists", "flash_kills",
                   "nades_thrown", "nades_start", "nades_unused",
-                  "nades_value", "nades_wasted"]
+                  "nades_value", "nades_wasted",
+                  # Economy, read by the buy analysis. None on a demo that
+                  # does not carry them, never 0: "had no money" and "we do
+                  # not know" must not look the same.
+                  "money_start", "spent", "equip_value", "loadout"]
 
 # Weapons whose damage is utility damage rather than aim.
 UTIL_WEAPONS = {"hegrenade", "molotov", "incgrenade", "inferno", "flashbang",
@@ -249,6 +253,44 @@ def _trades_and_clutches(deaths, round_of, tainted, roster, credit,
                 credit(rn, sid, "multi_kills", 1)
 
 
+def _money(v):
+    """A dollar amount as an int, or None when the demo did not say."""
+    if v is None or v != v:
+        return None
+    return int(v)
+
+
+def _economy(parser, roster, end_by_round) -> None:
+    """What each player spent, per round.
+
+    Money at the start of the round, equipment and the loadout at freeze-end
+    are already on the roster row. Spending is read at the END of the round,
+    not at freeze-end: buy time runs a few seconds past freeze-end, so a
+    freeze-end read misses the late buys. `cash_spent_this_round` cannot grow
+    after buy time and does not reset until the next round starts.
+
+    A rifle bought for a teammate is in the BUYER's `spent` and the
+    RECEIVER's `equip_value`; the two together are how a drop shows.
+
+    Not read from `item_purchase`. On a real collegiate demo that event
+    re-emitted purchases mid-round and missed others inside the buy window,
+    so 107 of 240 player-rounds listed items that did not add up to what was
+    spent. The tick props agreed with the team totals on every round.
+    """
+    ends = sorted({t - WIN_STATUS_PROBE for t in end_by_round.values()})
+    end_round = {end_by_round[rn] - WIN_STATUS_PROBE: rn for rn in end_by_round}
+    try:
+        df = parser.parse_ticks(["cash_spent_this_round"], ticks=ends)
+    except Exception:
+        return
+    if not hasattr(df, "itertuples") or "cash_spent_this_round" not in df.columns:
+        return
+    for r in df.itertuples(index=False):
+        row = roster.get((end_round.get(int(r.tick)), str(r.steamid)))
+        if row is not None:
+            row["spent"] = _money(r.cash_spent_this_round)
+
+
 def _ended_on_purpose(parser) -> bool | None:
     """Did the game show its end-of-match panel?
 
@@ -395,7 +437,8 @@ def parse_demo(path: str, tier: str = "premier"):
             "(a 'part1' file from a split broadcast) rather than a bad parser")
 
     # Round number and equipment both come from the freeze-end tick.
-    eq = parser.parse_ticks(["team_num", "current_equip_value", "total_rounds_played"],
+    eq = parser.parse_ticks(["team_num", "current_equip_value", "total_rounds_played",
+                             "start_balance", "inventory"],
                             ticks=freeze)
 
     # Winner is read just before the round is officially over.
@@ -525,6 +568,10 @@ def parse_demo(path: str, tier: str = "premier"):
                 "blind_team_secs": 0.0, "flash_assists": 0, "flash_kills": 0,
                 "nades_thrown": 0, "nades_start": 0, "nades_unused": 0,
                 "nades_value": 0, "nades_wasted": 0,
+                "money_start": _money(getattr(r, "start_balance", None)),
+                "spent": None,
+                "equip_value": _money(r.current_equip_value),
+                "loadout": economy.loadout(getattr(r, "inventory", None)),
             }
 
     # --- events -----------------------------------------------------------
@@ -682,6 +729,8 @@ def parse_demo(path: str, tier: str = "premier"):
                    tainted, credit)
 
     _trades_and_clutches(deaths, round_of, tainted, roster, credit, ct_won_by_round)
+
+    _economy(parser, roster, end_by_round)
 
     if tainted:
         print(f"    dropped {len(tainted)} round(s) with an unattributable death: "
