@@ -505,6 +505,43 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         UPDATE matches SET ingested_at = played_at WHERE ingested_at IS NULL;
         UPDATE matches SET played_at = NULL;
     """),
+
+    (21, "bombsite labels, checked against the game's own bombsite bits", """
+        -- See the note in the patch that wrote this migration. Four of the
+        -- fourteen hand-written site labels disagreed with which_bomb_zone,
+        -- which is CS2's own answer and was sitting in the position blobs
+        -- the whole time.
+        --
+        -- Keyed on the name as well as the index so this cannot rename the
+        -- wrong cluster on a database whose zone model was built separately.
+
+        -- 100% of site 1, called "A default". Mirage had no A site.
+        UPDATE zone_names SET name = 'A site'
+         WHERE map_name = 'de_mirage' AND zone_index = 7 AND name = 'A default';
+
+        -- 95% of site 1, called "Trophy". Nuke had no A site.
+        UPDATE zone_names SET name = 'A site'
+         WHERE map_name = 'de_nuke' AND zone_index = 2 AND name = 'Trophy';
+
+        -- Anubis moves BOTH in one step. Clusters are grouped by name, so
+        -- renaming 4 while 9 still said "A site" would collapse two
+        -- different places into one zone. 9 is demonstrably not the site;
+        -- "A approach" is honest until somebody gives it its real callout.
+        UPDATE zone_names SET name = 'A approach'
+         WHERE map_name = 'de_anubis' AND zone_index = 9 AND name = 'A site';
+        UPDATE zone_names SET name = 'A site'
+         WHERE map_name = 'de_anubis' AND zone_index = 4 AND name = 'Camera';
+
+        -- de_ancient is NOT fixed here. Its site 2 cluster is "Cave", which
+        -- is two raw clusters collapsed into one group, and choosing between
+        -- them needs the picture rather than a query.
+
+        -- One capital, first letter only, so "CT spawn" and "A main" are
+        -- untouched and this is idempotent.
+        UPDATE zone_names
+           SET name = UPPER(SUBSTR(name, 1, 1)) || SUBSTR(name, 2)
+         WHERE name <> '' AND SUBSTR(name, 1, 1) <> UPPER(SUBSTR(name, 1, 1));
+    """),
 ]
 
 
