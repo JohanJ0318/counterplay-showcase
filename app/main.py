@@ -623,6 +623,20 @@ def advice_card(it, baseline: float) -> str:
         + '</div>')
 
 
+def opening_tile(you) -> str:
+    """The share of opening duels your side won, as a stat tile.
+
+    Empty without a known side or without a single opening duel."""
+    if not you:
+        return ""
+    took, lost = you["opening_took"], you["opening_lost"]
+    if not took + lost:
+        return ""
+    return (f'<div class="stat" title="{took} of {took + lost}">'
+            f'<span class="stat-n">{report_mod.pct(took, took + lost):.0f}%</span>'
+            f'<span class="label">opening duels won</span></div>')
+
+
 @app.get("/dashboard", response_class=HTMLResponse)
 def dashboard(request: Request):
     user, redirect = require_user(request)
@@ -689,15 +703,13 @@ def dashboard(request: Request):
     done = [q for q in all_matches if q["result"]]
     wins = sum(1 for q in done if q["result"] == "W")
     record = f"{wins}&ndash;{len(done) - wins}" if done else "&ndash;"
-    # Rounds won is the fourth tile. It used to say "Free, this season",
-    # which is a price, not a number about the team.
+    # Opening duels won is the fourth tile. It was rounds won, and before
+    # that "Free, this season". The first real coach said rounds won is the
+    # number coaches do not care about; who dies first is something to
+    # practise.
     _st = report_mod.team_stats(team["id"]) if team else None
     _you = (_st["you"] if _st and _st["anchors"]["confident"] else None)
-    won_pct = report_mod.pct(_you["won"], _you["rounds"]) if _you else None
-    won_tile = (f'<div class="stat" title="{_you["won"]} of {_you["rounds"]}">'
-                f'<span class="stat-n">{won_pct:.0f}%</span>'
-                f'<span class="label">rounds won</span></div>'
-                if won_pct is not None else "")
+    won_tile = opening_tile(_you)
     pending = sum(1 for q in all_matches if q["status"] != "parsed")
     pending_note = (f'<span class="den" style="font-size:.5em"> +{pending}</span>'
                     if pending else "")
@@ -2661,6 +2673,7 @@ def _stats_body(team, user=None, share: str = ""):
     # See the note on the patch that wrote this: one drawing per map, thirty
     # filter combinations, summed in the browser.
     decided, zdata, znames = [], {}, {}
+    decided_block = ""
     try:
         raw = movement.scan(team["id"])
         duels = raw.get("duels", {})
@@ -2700,7 +2713,10 @@ def _stats_body(team, user=None, share: str = ""):
                 f'data-v="{v}">{esc(lab)}</button>'
                 for i, (v, lab) in enumerate(opts)) + '</div>'
             for f, opts in ROWS)
-        pos_blocks.append(
+        # Its own block, placed straight under "What to work on": where on
+        # the map you win and lose fights is what the first real coach asked
+        # for before anything else, and it sat below four other sections.
+        decided_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
             f'<p class="lede">Your kills and deaths in every place on the map. '
@@ -2771,7 +2787,7 @@ def _stats_body(team, user=None, share: str = ""):
             f'rounds.</p>'
             f'<div class="zonerow">{"".join(figs)}</div></section>'))
 
-    if pos_blocks:
+    if pos_blocks or decided_block:
         positional_block = "".join(pos_blocks)
     elif db.one("SELECT COUNT(*) n FROM zone_names")["n"] == 0:
         positional_block = (
@@ -2917,14 +2933,19 @@ def _stats_body(team, user=None, share: str = ""):
             'upload one more and this page switches to your rounds '
             'alone.</p></section>')
 
+    # Opening duels won, not rounds won; see opening_tile(). Without your
+    # side known there is no "you" to have won a duel, so it is the count.
+    second_tile = (opening_tile(y if known else None) or
+                   f'<div class="stat"><span class="stat-n">{st["rounds"]}</span>'
+                   f'<span class="label">rounds</span></div>')
+
     body = f"""
   {PAGE_NAV}
   <section>
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{st["matches"]}</span>
         <span class="label">matches</span></div>
-      <div class="stat"><span class="stat-n">{f"{100 * y['won'] / y['rounds']:.0f}%" if known and y["rounds"] else st["rounds"]}</span>
-        <span class="label">{"rounds you won" if known and y["rounds"] else "rounds"}</span></div>
+      {second_tile}
       <div class="stat"><span class="stat-n">{len(st["maps"])}</span>
         <span class="label">maps played</span></div>
       <div class="stat"><span class="stat-n">{len(plan["items"])}</span>
@@ -2933,6 +2954,8 @@ def _stats_body(team, user=None, share: str = ""):
   </section>
 
   {monday_block}
+
+  {decided_block}
 
   {form_block}
 
