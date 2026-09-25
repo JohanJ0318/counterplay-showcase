@@ -110,11 +110,14 @@ def test_finished_matches_have_a_legal_scoreline(rows):
         for win_at in (13, 16):
             if hi == win_at and lo < win_at - 1:
                 legal = True
+            # Each overtime is 6 rounds won at 4, so the winning score goes
+            # up by 3 and not by 4: 16, 19, 22, 25 for MR12. The loser of that
+            # overtime is somewhere in [target - 4, target - 1].
             target = win_at + 3
             while target <= hi + 4:
                 if hi == target and lo >= target - 4:
                     legal = True
-                target += 4
+                target += 3
         assert legal, \
             f"{m['filename']}: {hi}-{lo} is not reachable in MR12 or MR15"
 
