@@ -1264,55 +1264,31 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         mine = [c for c in buys.match_calls(match_key)
                 if sides_here.get(c["round"]) == c["side"]]
         # No model decimals on the page. The model decides WHICH calls are
-        # worth a look; what the coach reads is the facts of the round, the
-        # better call, and what real teams in that spot went on to win.
-        cards, spots = [], []
+        # worth a look, and it only ever names one kind (economy.FLAG_CALLS):
+        # buying less than the full buy you could afford. The coach reads the
+        # facts of the round and what real teams in that spot went on to win.
+        cards = []
         for c in sorted((c for c in mine if c["flag"]),
                         key=lambda c: -c["gain"]):
-            alt = c["options"][c["best"]]
             left = c["money"] - c["spent"]
-            if c["made"] == "force" and alt["kind"] == "full":
-                what = (f'You bought ${c["equip"]:,.0f} of equipment and '
-                        f'kept ${left:,.0f}, when a full buy was affordable.')
-                better, spot = "A full buy was the better call.", "underbuy"
-            elif c["made"] == "eco" and alt["kind"] == "force":
-                what = (f'You saved with ${c["money"]:,.0f} between you.')
-                better = ("Forcing was the better call against what they "
-                          "could afford.")
-                spot = "save_or_force"
-            elif c["made"] == "eco":
-                what = (f'You saved with ${c["money"]:,.0f} between you, '
-                        f'when a full buy was affordable.')
-                better, spot = "A full buy was the better call.", None
-            else:
-                what = (f'You bought ${c["equip"]:,.0f} of equipment with '
-                        f'${c["money"]:,.0f} between you.')
-                better, spot = ("Saving for the round after was the better "
-                                "call."), None
-            if spot and spot not in spots:
-                spots.append(spot)
             cards.append(
                 f'<div class="card"><p><strong>Round {c["round"]}</strong> '
                 f'<span class="pill {c["side"]}">{c["side"].upper()}</span> '
                 f'<span class="den">{"won" if c["won"] else "lost"}</span></p>'
-                f'<p>{what} {better}</p></div>')
+                f'<p>You bought ${c["equip"]:,.0f} of equipment and kept '
+                f'${left:,.0f}, when a full buy was affordable. A full buy '
+                f'was the better call.</p></div>')
         EV = economy.EVIDENCE
-        SPOT = {
-            "underbuy": ("Teams that could afford a full buy, against a full buy",
-                         [("Full bought", ("underbuy", "full")),
-                          ("Bought less", ("underbuy", "force"))]),
-            "save_or_force": ("Teams with $12k to $20k to spend, against a full buy",
-                              [("Forced", ("save_or_force", "force")),
-                               ("Saved", ("save_or_force", "eco"))]),
-        }
-        evidence = "".join(
-            f'<p class="den" style="margin:14px 0 0">{SPOT[sp][0]}: rounds '
-            f'won out of that one and the next, in college matches.</p>' +
+        evidence = (
+            '<p class="den" style="margin:14px 0 0">College teams that could '
+            'afford a full buy, against a full buy: rounds won from there to '
+            'the end of the half.</p>' +
             charts.versus([
-                (lab, EV[key][0] / 2 * 100, f'{EV[key][1]:,} teams',
-                 f'{EV[key][0]:.2f} of 2')
-                for lab, key in SPOT[sp][1]])
-            for sp in spots)
+                (lab, report_mod.pct(*EV[key]),
+                 f'{EV[key][0]:,} of {EV[key][1]:,} rounds')
+                for lab, key in (("Full bought", ("underbuy", "full")),
+                                 ("Bought less", ("underbuy", "force")))])
+        ) if cards else ""
         per_player: dict = {}
         for c in mine:
             for n in c["notes"]:
@@ -1326,16 +1302,13 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         if mine:
             calls_block = '<div class="buycalls">' + (
                 (f'<h3>Calls worth a second look</h3>'
-                 f'<p class="lede">Judged on what each side had and could '
-                 f'afford when it bought, over this round and the next, and '
-                 f'only where the other call came out clearly ahead. The '
-                 f'round after a pistol round is left out: college matches '
-                 f'do not settle whether to force it.</p>'
+                 f'<p class="lede">Rounds where you bought less than the full '
+                 f'buy you could afford, judged on what each side had and '
+                 f'could afford when it bought, over the rest of the half.</p>'
                  f'<div class="grid2">{"".join(cards)}</div>{evidence}'
                  if cards else
-                 '<p class="note">No buy call this match where the other '
-                 'call came out clearly ahead. The round after a pistol '
-                 'round is not judged.</p>') +
+                 '<p class="note">No round this match where you bought less '
+                 'than a full buy you could afford and it cost you.</p>') +
                 (f'<h3>Player buys against the team&rsquo;s call</h3>'
                  f'<ul class="buynotes">{notes_list}</ul>' if notes_list else '')
             ) + '</div>'

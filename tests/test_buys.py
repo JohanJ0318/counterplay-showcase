@@ -34,7 +34,7 @@ def test_more_equipment_wins_more():
 def test_nothing_carries_past_the_last_round_of_a_half():
     j = E.judge(money=12000, spent=11000, equip=12000, side="t", counter=2,
                 their_equip=26000, their_money=9000, their_spent=4000,
-                their_counter=0, last_of_half=True)
+                their_counter=0, rounds_left=1)
     assert j["p"] == j["v"]
     # with nothing to save for, buying beats saving
     assert j["best"] == "buy" and not j["flag"]
@@ -43,7 +43,7 @@ def test_nothing_carries_past_the_last_round_of_a_half():
 def test_a_save_that_matches_the_advice_is_never_flagged():
     j = E.judge(money=6000, spent=1500, equip=2500, side="ct", counter=1,
                 their_equip=26000, their_money=20000, their_spent=16000,
-                their_counter=0, last_of_half=False)
+                their_counter=0, rounds_left=6)
     assert j["made"] == "eco"
     assert not (j["flag"] and j["best"] == "save")
 
@@ -84,6 +84,8 @@ def test_a_coach_in_the_server_does_not_stop_the_check(monkeypatch):
     def fake_query(sql, *args):
         if "FROM rounds" in sql:
             return [{"round_num": n, "ct_won": n % 2} for n in range(1, 7)]
+        if "FROM events" in sql:
+            return []
         out = []
         for n in range(1, 7):
             for i in range(5):
@@ -111,3 +113,58 @@ def test_late_buys_do_not_invent_money():
     opts = E.options(money=19150, reach=14500 + 19150 - 15400, side="t")
     assert opts["buy"][0] == 18250
     assert E.kind(opts["buy"][0]) == "force"
+
+
+def test_every_ct_is_paid_fifty_for_each_team_kill():
+    """Found in what was left of 11,000 real CT losses after the loss bonus
+    and each player's own kill money: $50 steps, one per team kill."""
+    base = E.income("ct", False, 1, 0, 0, False)
+    assert E.income("ct", False, 1, 0, 3, False) == base + 150
+    assert E.income("t", False, 1, 0, 3, False) == E.loss_bonus(1)
+    assert E.income("t", False, 1, 0, 0, True) == E.loss_bonus(1) + 600
+
+
+def test_kill_rewards_by_weapon():
+    assert E.kill_reward("awp") == 100
+    assert E.kill_reward("mac10") == 600
+    assert E.kill_reward("nova") == 900
+    assert E.kill_reward("knife_karambit") == 1500
+    assert E.kill_reward("ak47") == 300
+
+
+def test_money_over_the_cap_and_an_awper_short_of_the_awp(monkeypatch):
+    """Round 1: the CT AWPer spends $2,000 on a round the team saves, then
+    cannot afford the AWP in round 2 when the team buys. The T side keeps
+    $15,000 and wins, which pushes them over $16,000."""
+    def pr(rn, sid, side, money, spent, equip, loadout):
+        return {"round_num": rn, "steamid": sid, "name": sid, "side": side,
+                "money_start": money, "spent": spent, "equip_value": equip,
+                "loadout": loadout, "kills": 1, "deaths": 1, "damage": 50.0}
+
+    def fake_query(sql, *args):
+        if "FROM rounds" in sql:
+            return [{"round_num": n, "ct_won": 0} for n in range(1, 8)]
+        if "FROM events" in sql:
+            return []
+        rows = []
+        for rn in range(1, 8):
+            for i in range(5):
+                if i == 0 and rn == 5:      # the round the AWPer spends
+                    rows.append(pr(rn, "awper", "ct", 4000, 2000, 2200, "USP-S, MP9"))
+                elif i == 0 and rn == 6:    # and the round after
+                    rows.append(pr(rn, "awper", "ct", 4500, 3000, 3200, "USP-S, MP9"))
+                elif i == 0:
+                    rows.append(pr(rn, "awper", "ct", 6000, 5400, 5600, "USP-S, AWP"))
+                else:
+                    saving = rn == 5
+                    rows.append(pr(rn, f"ct{i}", "ct", 4000, 300 if saving else 3500,
+                                   500 if saving else 3700, "USP-S, M4A1-S"))
+                rows.append(pr(rn, f"t{i}", "t", 16000, 1000, 5000,
+                               "Glock-18, AK-47"))
+        return rows
+
+    monkeypatch.setattr(buys.db, "query", fake_query)
+    kinds = {(c["round"], n["steamid"], n["kind"])
+             for c in buys.match_calls("m") for n in c["notes"]}
+    assert (6, "awper", "awp_money") in kinds
+    assert any(k == "cap" and sid.startswith("t") for _, sid, k in kinds)

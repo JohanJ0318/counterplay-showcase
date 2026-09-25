@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import math
 
+import numpy as np
+
 PISTOL, SMG, HEAVY, RIFLE, SNIPER, GRENADE = (
     "pistol", "smg", "heavy", "rifle", "sniper", "grenade")
 
@@ -100,9 +102,58 @@ EQUIP_FLOOR = 200.0        # a side holding nothing still has pistols
 LOSS_START, LOSS_MAX, LOSS_WIN_STEP = 1, 5, 2
 LOSS_BASE, LOSS_STEP = 1400, 500
 
-# Paid per player for a win, read off the same rounds. CT's is $3,500; T's
-# is $3,250 plus bomb money, which averages out near $3,400.
-WIN_REWARD = {"ct": 3500, "t": 3400}
+# Paid per player for a win: $3,250 either side, and T's bomb money brings
+# theirs to about $3,400 on average.
+WIN_REWARD = {"ct": 3250, "t": 3400}
+
+# Every CT is paid $50 for each kill their team makes, won or lost. Found
+# in what was left over after the loss bonus and each player's own kill
+# money on 11,000 CT losses: $0 at no kills, $50 at one, up to $250 at
+# five, in 90% or more of rows at every count. T sides get nothing like it.
+# It is also why a CT win looked like $3,500: $3,250 plus five kills.
+CT_TEAM_KILL_BONUS = 50
+CT_KILLS = {True: 4.93, False: 2.47}    # a CT team's kills, won and lost
+
+# What one kill pays, by the weapon names death events carry. Checked
+# indirectly but exactly: with each player's kills priced by this table,
+# what was left of a CT loss came out in clean $50 steps (the team kill
+# bonus above) on 90% or more of rows.
+MONEY_CAP = 16000
+
+
+def kill_reward(weapon: str | None) -> int:
+    w = (weapon or "").lower()
+    if w.startswith("knife") or w == "bayonet":
+        return 1500
+    if w in ("awp",):
+        return 100
+    if w in ("cz75a",):
+        return 100
+    if w in ("taser",):
+        return 0
+    if w in ("mac10", "mp9", "mp7", "mp5sd", "ump45", "bizon"):
+        return 600
+    if w in ("nova", "sawedoff", "mag7"):
+        return 900
+    if w == "xm1014":
+        return 600
+    return 300
+
+
+def income(side: str, won: bool, counter_before: int, own_kill_money: int,
+           team_kills: int, planted: bool) -> int:
+    """What one player is paid at the end of a round, before the cap.
+
+    A win is counted at its $3,250 floor, without the bomb or defuse extra,
+    so anything built on this (the money lost to the cap) is never
+    overstated."""
+    pay = 3250 if won else loss_bonus(counter_before)
+    if side == "t" and not won and planted:
+        pay += 600
+    if side == "ct":
+        pay += CT_TEAM_KILL_BONUS * team_kills
+    return pay + own_kill_money
+
 
 # Kill money a whole team makes in a round, on average.
 KILL_MONEY = {("ct", True): 1500, ("ct", False): 740,
@@ -161,37 +212,40 @@ def enemy_buys(available: float, side: str) -> list[float]:
 # save as spending nothing made it look worse than the saves teams play.
 ECO_SPEND = 2300
 
-# NEXT round is far less certain than the "full buy or save" projection
-# makes it look: real teams half-buy, drop, and save guns. On the collegiate
-# corpus the projected next-round chance, regressed on what happened, came
-# out at a logit slope of 0.50 (0.40 before the other side's buy was read
-# as an expectation; this round's own slope is 1.13, so the curve itself is
-# if anything cautious). So the next-round chance is pulled toward 50% by
-# exactly that, and every two-round comparison, which is what raises a
-# flag, is built on the tempered number. Re-measure with NEXT_SLOPE = 1.0
-# whenever anything above changes.
-NEXT_SLOPE = 0.50
+# How far ahead a call is judged, and how sure the rounds after this one
+# are allowed to be. Both are measured, not chosen: tools/buycheck.py plays
+# every real call forward and compares with what happened. Re-measure both
+# whenever anything above changes (set FUTURE_SLOPE = 1.0 first).
+HORIZON = 12              # rounds, this one included; the half ends first
+FUTURE_SLOPE = 1.0
+SIMS = 400
 
 # The product's own buckets (counterplay/schema.classify_round).
 ECO_BELOW, FULL_FROM = 5000, 20000
 
-# What real teams went on to win, over that round and the next, in the two
-# spots the check flags most, both against a full buy. No model in it: this
-# is what the match report shows beside a flag, so a coach sees the rounds
-# rather than a decimal the model has not earned. Printed by
-# tools/buycheck.py (section 6); copy it here when it moves.
-#   underbuy:      could afford a full buy ($22k+ with what they carried)
-#   save_or_force: $12k to $20k available
-EVIDENCE = {   # (spot, call): (rounds won of the next 2, teams)
-    ("save_or_force", "eco"): (0.61, 151),
-    ("save_or_force", "force"): (0.72, 478),
-    ("underbuy", "force"): (0.72, 204),
-    ("underbuy", "full"): (1.00, 1826),
+# What real teams went on to win from that round to the end of the half,
+# with no model in it: the evidence the match report shows beside a flag.
+# Printed by tools/buycheck.py (section 6); copy it here when it moves.
+# "underbuy" is a team that could afford a full buy ($22k+ with what it
+# carried) and bought less, against a side on a full buy.
+EVIDENCE = {   # (spot, call): (rounds won, rounds played), to the half's end
+    ("underbuy", "force"): (377, 1023),     # 37%
+    ("underbuy", "full"): (4019, 8046),     # 50%
 }
 
-# Two rounds' worth of wins a different call has to be ahead by before it is
-# worth saying. Below this the curve cannot tell the calls apart.
-MARGIN = 0.10
+# Which calls the check will name, and by how much the other call has to
+# come out ahead over the rest of the half before it does.
+#
+# ONLY "you bought less than the full buy you could afford". Over the rest
+# of the half real teams back it: 37% of rounds won after under-buying
+# against a full buy, 50% after full buying, and the teams it flags then do
+# WORSE than the model predicted (0.375 won against 0.45), so it errs the
+# safe way. The model also likes forcing over saving, and over two rounds
+# the data agreed (0.72 against 0.61), but over the rest of the half teams
+# that saved and teams that forced with $12k to $20k both won 41%. A call
+# the data does not back is not printed, however sure the model is.
+FLAG_CALLS = {("force", "full")}
+MARGIN = 0.05
 
 
 def p_win(mine: float, theirs: float, side: str) -> float:
@@ -199,12 +253,6 @@ def p_win(mine: float, theirs: float, side: str) -> float:
          CURVE_SLOPE * (math.log(max(mine, EQUIP_FLOOR)) -
                         math.log(max(theirs, EQUIP_FLOOR))))
     return 1.0 / (1.0 + math.exp(-x))
-
-
-def _temper(p: float) -> float:
-    """A next-round chance pulled toward 50% by NEXT_SLOPE on the logit."""
-    p = min(max(p, 1e-6), 1 - 1e-6)
-    return 1.0 / (1.0 + math.exp(-NEXT_SLOPE * math.log(p / (1 - p))))
 
 
 def loss_counter(results: list[bool]) -> int:
@@ -227,38 +275,92 @@ def kind(equip: float) -> str:
     return "eco" if equip < ECO_BELOW else "force" if equip < FULL_FROM else "full"
 
 
-def next_equip(money_left: float, equip_now: float, side: str, won: bool,
-               counter_before: int) -> float:
-    """A team's equipment next round, if it wins or loses this one.
-
-    Next round is assumed to go the way coaches teach: full buy if the
-    money reaches it, save if not. That assumption is what makes a force
-    costly, which is the whole point of looking a round ahead."""
-    money = (money_left + KILL_MONEY[(side, won)] +
-             5 * (WIN_REWARD[side] if won else loss_bonus(counter_before)))
-    carried = max(DEFAULT_KIT, CARRY[(side, won)] * equip_now)
-    if carried + money >= FULL_FROM:
-        return max(carried, min(FULL_BUY[side], carried + money))
-    return carried
+def _table(side: str):
+    """ENEMY_BUY as an array, row = $ available // ENEMY_STEP, for sampling."""
+    top = max(k for _, k in ENEMY_BUY)
+    rows = [ENEMY_BUY[(side, max(i, 1))] for i in range(top + 1)]
+    return np.array(rows, dtype=float), top
 
 
-def value(equip: float, money_left: float, side: str, counter: int,
-          their_equip: float, their_left: float, their_counter: int,
-          last_of_half: bool) -> tuple[float, float]:
-    """(P(win this round), expected rounds won over this round and the next).
+_TABLES = {}
 
-    `their_equip` is one guess at what the other side holds; judge() passes
-    each of the ENEMY_BUY points in turn and averages."""
+
+def _buy(available, side, rng):
+    """What a team with this much available holds: one draw per simulation
+    from what real teams in that spot held (ENEMY_BUY), never more than it
+    can reach."""
+    if side not in _TABLES:
+        _TABLES[side] = _table(side)
+    tab, top = _TABLES[side]
+    row = np.clip((available // ENEMY_STEP).astype(int), 1, top)
+    pick = rng.integers(0, tab.shape[1], size=len(available))
+    return np.minimum(tab[row, pick], available)
+
+
+def _p(mine, theirs, side, slope=1.0):
+    x = (CURVE_INTERCEPT + (CURVE_CT if side == "ct" else 0.0) +
+         CURVE_SLOPE * (np.log(np.maximum(mine, EQUIP_FLOOR)) -
+                        np.log(np.maximum(theirs, EQUIP_FLOOR))))
+    return 1.0 / (1.0 + np.exp(-slope * x))
+
+
+def _pay(money_left, equip, side, won, counter):
+    """Money and carried equipment going into the next round, per simulation."""
+    kill = np.where(won, KILL_MONEY[(side, True)], KILL_MONEY[(side, False)])
+    after = np.minimum(counter + 1, LOSS_MAX)
+    bonus = LOSS_BASE + LOSS_STEP * (after - 1)
+    money = money_left + kill + 5 * np.where(won, WIN_REWARD[side], bonus)
+    if side == "ct":
+        money = money + 5 * CT_TEAM_KILL_BONUS * np.where(
+            won, CT_KILLS[True], CT_KILLS[False])
+    money = np.minimum(money, 5 * MONEY_CAP)
+    frac = np.where(won, CARRY[(side, True)], CARRY[(side, False)])
+    carried = np.maximum(DEFAULT_KIT, frac * equip)
+    counter = np.where(won, np.maximum(counter - LOSS_WIN_STEP, 0), after)
+    return money, carried, counter
+
+
+def simulate(equip: float, money_left: float, side: str, counter: int,
+             their_money: float, their_carried: float, their_counter: int,
+             rounds: int, n: int = SIMS, seed: int = 0) -> tuple[float, float]:
+    """(P(win this round), expected rounds won over the next `rounds` rounds,
+    this one included), with this round's buy fixed at `equip`.
+
+    Each simulation plays the rounds out: the other side's buy this round,
+    and both sides' buys after it, are drawn from what real teams with that
+    much money held (ENEMY_BUY), not from a rule like "full buy or save",
+    which made the next round look far more certain than it was. Money moves
+    by the measured rules. Rounds after this one are pulled toward 50% by
+    FUTURE_SLOPE, measured on what happened (tools/buycheck.py).
+
+    Every call with the same seed uses the same random draws, so two calls
+    for the same round differ only by the call being compared."""
+    rng = np.random.default_rng(seed)
     other = "t" if side == "ct" else "ct"
-    p = p_win(equip, their_equip, side)
-    if last_of_half:
-        return p, p                      # money resets; nothing to carry over
-    nxt = 0.0
-    for won, weight in ((True, p), (False, 1.0 - p)):
-        us = next_equip(money_left, equip, side, won, counter)
-        them = next_equip(their_left, their_equip, other, not won, their_counter)
-        nxt += weight * _temper(p_win(us, them, side))
-    return p, p + nxt
+    us_eq = np.full(n, float(equip))
+    us_left = np.full(n, float(money_left))
+    us_cnt = np.full(n, counter)
+    th_carried = np.full(n, float(their_carried))
+    th_money = np.full(n, float(their_money))
+    th_eq = _buy(th_carried + th_money, other, rng)
+    th_left = th_money - np.maximum(th_eq - th_carried, 0.0)
+    th_cnt = np.full(n, their_counter)
+    total, p_now = np.zeros(n), None
+    for k in range(rounds):
+        p = _p(us_eq, th_eq, side, 1.0 if k == 0 else FUTURE_SLOPE)
+        if k == 0:
+            p_now = float(p.mean())
+        total += p
+        if k == rounds - 1:
+            break
+        won = rng.random(n) < p
+        us_money, us_carried, us_cnt = _pay(us_left, us_eq, side, won, us_cnt)
+        th_money, th_carried, th_cnt = _pay(th_left, th_eq, other, ~won, th_cnt)
+        us_eq = _buy(us_carried + us_money, side, rng)
+        us_left = us_money - np.maximum(us_eq - us_carried, 0.0)
+        th_eq = _buy(th_carried + th_money, other, rng)
+        th_left = th_money - np.maximum(th_eq - th_carried, 0.0)
+    return p_now, float(total.mean())
 
 
 def options(money: float, reach: float, side: str) -> dict[str, tuple[float, float]]:
@@ -283,40 +385,33 @@ def options(money: float, reach: float, side: str) -> dict[str, tuple[float, flo
 
 def judge(money: float, spent: float, equip: float, side: str, counter: int,
           their_equip: float, their_money: float, their_spent: float,
-          their_counter: int, last_of_half: bool) -> dict:
-    """The call a team made, against saving and against buying.
+          their_counter: int, rounds_left: int, seed: int = 0) -> dict:
+    """The call a team made, against saving and against buying, over the
+    next HORIZON rounds of the half (fewer if the half ends sooner).
 
     Everything is team totals, so a drop moves money between teammates and
-    cancels out of the sum."""
-    # The other side as it looked at buy time: what it could afford, and the
-    # spread of what teams with that much actually hold (ENEMY_BUY).
-    other = "t" if side == "ct" else "ct"
+    cancels out of the sum. The other side is read as it looked at buy time:
+    what it could afford, never what it bought."""
     their_reach = their_equip + their_money - their_spent
     their_carried = min(max(their_reach - their_money, DEFAULT_KIT), their_reach)
-    theirs = [min(te, their_reach) for te in enemy_buys(their_reach, other)]
+    rounds = max(1, min(rounds_left, HORIZON))
 
-    def expected(eq, left):
-        ps, vs = [], []
-        for te in theirs:
-            their_left = max(their_money - max(te - their_carried, 0.0), 0.0)
-            p, v = value(eq, left, side, counter, te, their_left,
-                         their_counter, last_of_half)
-            ps.append(p)
-            vs.append(v)
-        return sum(ps) / len(ps), sum(vs) / len(vs)
+    def run(eq, left):
+        return simulate(eq, left, side, counter, their_money, their_carried,
+                        their_counter, rounds, seed=seed)
 
-    p_actual, v_actual = expected(equip, money - spent)
+    p_actual, v_actual = run(equip, money - spent)
     alt = {}
     for call, (eq, left) in options(money, equip + money - spent, side).items():
-        p, v = expected(eq, left)
+        p, v = run(eq, left)
         alt[call] = {"equip": eq, "kind": kind(eq), "p": p, "v": v}
     best = max(alt, key=lambda k: alt[k]["v"])
     made = kind(equip)
-    # A different call only counts when it lands in a different bucket: a
-    # $21k full buy is not "wrong" next to a $24k one.
-    differs = (alt[best]["kind"] != made and
-               not (best == "save" and made == "eco"))
+    # Only a call in FLAG_CALLS is ever named, and a different call only
+    # counts when it lands in a different bucket: a $21k full buy is not
+    # "wrong" next to a $24k one.
+    differs = (made, alt[best]["kind"]) in FLAG_CALLS
     return {"made": made, "equip": equip, "p": p_actual, "v": v_actual,
-            "options": alt, "best": best,
+            "rounds": rounds, "options": alt, "best": best,
             "gain": alt[best]["v"] - v_actual,
             "flag": differs and alt[best]["v"] - v_actual >= MARGIN}

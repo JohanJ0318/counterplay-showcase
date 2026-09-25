@@ -43,6 +43,11 @@ BROKE_SAVE_SPEND = 2000       # spent this much while the team saved
 COULD_BUY_FROM = 3000         # had this much and held under TEAM_SAVED_BELOW
 RIFLE_MONEY = 4500            # could have bought a rifle and armour outright
 COULD_DROP_LEFT = 3000        # left after buying, with a teammate on a pistol
+CAP_LOSS_FROM = 500           # dollars over the cap before it is worth a line
+AWP_KIT = 4750 + 650          # an AWP and armour, the least an AWPer buys
+AWPER_ROUNDS = 5              # held an AWP this many rounds: the team's AWPer,
+                              # not someone who picked one up
+AWP_MONEY_SPENT = 1500        # spent this much the round before
 
 
 def _load(match_key: str):
@@ -99,6 +104,7 @@ def match_calls(match_key: str) -> list[dict]:
     starts = {}
     for rn in sorted(rounds):
         starts.setdefault(half[rn], rn)
+    half_len = (starts[1] - starts[0]) if 1 in starts else 12
 
     def team(rn, side):
         ps = [p for p in players.get(rn, []) if p["side"] == side]
@@ -116,7 +122,10 @@ def match_calls(match_key: str) -> list[dict]:
             continue                                   # overtime, pistol round
         results = [bool(rounds[k]["ct_won"]) for k in range(starts[h], rn)
                    if k in rounds]
-        last = half.get(rn + 1) != h
+        # Rounds left in this half, this one included. The half's length is
+        # read off the swap (12, or 15 on an MR15 demo), never off how the
+        # match went on to end, which would hand the judge the future.
+        rounds_left = half_len - (rn - starts[h])
         teams = {s: team(rn, s) for s in ("ct", "t")}
         if not all(teams.values()):
             continue
@@ -129,7 +138,8 @@ def match_calls(match_key: str) -> list[dict]:
                         their_equip=them["equip"], their_money=them["money"],
                         their_spent=them["spent"],
                         their_counter=E.loss_counter([not w for w in mine]),
-                        last_of_half=last)
+                        rounds_left=rounds_left,
+                        seed=rn * 2 + (side == "ct"))
             if rn == starts[h] + 1:
                 j["flag"] = False            # after the pistol: see above
             out.append(dict(j, round=rn, side=side,
@@ -137,6 +147,82 @@ def match_calls(match_key: str) -> list[dict]:
                             money=us["money"], spent=us["spent"],
                             players=us["players"],
                             notes=player_notes(us["players"])))
+    extra = match_notes(match_key, rounds, players, half, starts)
+    for c in out:
+        c["notes"] += extra.get((c["round"], c["side"]), [])
+    return out
+
+
+def match_notes(match_key, rounds, players, half, starts) -> dict:
+    """Notes that need two rounds to see: money lost to the cap, and an AWPer
+    who spent the AWP money the round before. {(round, side): [note]}."""
+    kills = defaultdict(int)          # (round, steamid) -> kill money
+    team_kills = defaultdict(int)     # (round, side) -> kills that side made
+    planted = set()
+    for e in db.query("SELECT round_num, type, attacker_steamid, victim_side, "
+                      "weapon FROM events WHERE match_key = ?", match_key):
+        if e["type"] == "plant":
+            planted.add(e["round_num"])
+            continue
+        if e["type"] != "death" or not e["victim_side"]:
+            continue
+        killer_side = "t" if e["victim_side"] == "ct" else "ct"
+        team_kills[(e["round_num"], killer_side)] += 1
+        if e["attacker_steamid"]:
+            kills[(e["round_num"], e["attacker_steamid"])] += E.kill_reward(e["weapon"])
+
+    by = {(rn, p["steamid"]): p for rn, ps in players.items() for p in ps}
+    awp_rounds = defaultdict(int)
+    for (rn, sid), p in by.items():
+        if p["loadout"] and "AWP" in p["loadout"].split(", "):
+            awp_rounds[sid] += 1
+    out = defaultdict(list)
+
+    def add(rn, p, kind, text):
+        out[(rn, p["side"])].append({"steamid": p["steamid"], "name": p["name"],
+                                     "kind": kind, "text": text})
+
+    for (rn, sid), p in by.items():
+        nxt = by.get((rn + 1, sid))
+        h = half.get(rn)
+        if (nxt is None or h is None or h >= 2 or half.get(rn + 1) != h or
+                nxt["side"] != p["side"] or p["money_start"] is None or
+                p["spent"] is None or nxt["money_start"] is None):
+            continue
+        side = p["side"]
+        results = [bool(rounds[k]["ct_won"]) == (side == "ct")
+                   for k in range(starts[h], rn) if k in rounds]
+        won = bool(rounds[rn]["ct_won"]) == (side == "ct")
+        left = p["money_start"] - p["spent"]
+        uncapped = left + E.income(side, won, E.loss_counter(results),
+                                   kills[(rn, sid)], team_kills[(rn, side)],
+                                   rn in planted)
+        lost = uncapped - E.MONEY_CAP
+        if lost >= CAP_LOSS_FROM and nxt["money_start"] >= E.MONEY_CAP - 50:
+            add(rn, p, "cap",
+                f"kept ${left:,} unspent, so about ${lost // 50 * 50:,} went "
+                f"over the $16,000 cap")
+
+        # The AWPer, the round after spending: the team bought, they could
+        # not afford the AWP, and would have without last round's spend.
+        if awp_rounds[sid] < AWPER_ROUNDS or nxt["spent"] is None:
+            continue
+        team_next = sorted(q["equip_value"] or 0 for q in players.get(rn + 1, [])
+                           if q["side"] == side)
+        team_now = sorted(q["equip_value"] or 0 for q in players.get(rn, [])
+                          if q["side"] == side)
+        if not team_next or not team_now:
+            continue
+        bought_next = team_next[len(team_next) // 2] >= TEAM_BOUGHT_FROM
+        bought_now = team_now[len(team_now) // 2] >= TEAM_BOUGHT_FROM
+        has_awp = nxt["loadout"] and "AWP" in nxt["loadout"].split(", ")
+        if (bought_next and not bought_now and not has_awp and
+                p["spent"] >= AWP_MONEY_SPENT and
+                nxt["money_start"] < AWP_KIT <= nxt["money_start"] + p["spent"]):
+            add(rn + 1, nxt, "awp_money",
+                f"no AWP with ${nxt['money_start']:,} to spend, after "
+                f"spending ${p['spent']:,} in round {rn} while the team "
+                f"did not buy")
     return out
 
 

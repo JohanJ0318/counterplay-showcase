@@ -41,6 +41,11 @@ def rows(tier: str = "league"):
         half = buys._halves(rounds, players)
         eq = {r["round_num"]: (r["equip_ct"], r["equip_t"]) for r in db.query(
             "SELECT round_num, equip_ct, equip_t FROM rounds WHERE match_key = ?", mk)}
+        awps = {}                                   # (round, side) -> AWPs held
+        for rn, ps in players.items():
+            for p in ps:
+                if p["loadout"] and "AWP" in p["loadout"].split(", "):
+                    awps[(rn, p["side"])] = awps.get((rn, p["side"]), 0) + 1
         # Team A is CT in even halves. Overtime alternates too.
         res = []                                   # (round, a_won)
         for rn in sorted(rounds):
@@ -60,20 +65,50 @@ def rows(tier: str = "league"):
                 side = "ct" if a_ct == team_a else "t"
                 mine = eq[rn][0] if side == "ct" else eq[rn][1]
                 theirs = eq[rn][1] if side == "ct" else eq[rn][0]
+                other = "t" if side == "ct" else "ct"
                 out.append((mk, side, float(mine), float(theirs),
-                            math.log(rate / (1 - rate)), int(won)))
+                            math.log(rate / (1 - rate)), int(won),
+                            min(awps.get((rn, side), 0), 1),
+                            min(awps.get((rn, other), 0), 1)))
     return out
 
 
-def fit(data, with_strength):
-    from sklearn.linear_model import LogisticRegression
+def matrix(data, with_strength, with_awp=False):
     ct = np.array([d[1] == "ct" for d in data], dtype=float)
     ratio = np.log(np.maximum([d[2] for d in data], 200.0) /
                    np.maximum([d[3] for d in data], 200.0))
     cols = [ct, ratio] + ([np.array([d[4] for d in data])] if with_strength else [])
-    y = np.array([d[5] for d in data])
-    lr = LogisticRegression(C=1e6, max_iter=5000).fit(np.column_stack(cols), y)
+    if with_awp:
+        cols += [np.array([d[6] for d in data], float),
+                 np.array([d[7] for d in data], float)]
+    return np.column_stack(cols), np.array([d[5] for d in data])
+
+
+def fit(data, with_strength, with_awp=False):
+    from sklearn.linear_model import LogisticRegression
+    X, y = matrix(data, with_strength, with_awp)
+    lr = LogisticRegression(C=1e6, max_iter=5000).fit(X, y)
     return lr.intercept_[0], lr.coef_[0]
+
+
+def held_out(data, keys, with_awp):
+    """Median log-loss and ECE over 20 match splits, 1 in 5 held out."""
+    from sklearn.linear_model import LogisticRegression
+    from sklearn.metrics import log_loss
+    sys.path.insert(0, str(ROOT / "tools"))
+    from econfit import ece
+    X, y = matrix(data, True, with_awp)
+    key = np.array([d[0] for d in data])
+    ll, ec = [], []
+    for seed in range(20):
+        rng = np.random.default_rng(seed)
+        test = set(rng.permutation(keys)[: len(keys) // 5])
+        te = np.array([k in test for k in key])
+        lr = LogisticRegression(C=1e6, max_iter=5000).fit(X[~te], y[~te])
+        p = lr.predict_proba(X[te])[:, 1]
+        ll.append(log_loss(y[te], p))
+        ec.append(ece(p, y[te]))
+    return float(np.median(ll)), float(np.median(ec))
 
 
 def main() -> int:
@@ -101,6 +136,19 @@ def main() -> int:
     print(f"  equipment only       {q(s0)[0]:.3f} to {q(s0)[1]:.3f}")
     print(f"  with team strength   {q(s1)[0]:.3f} to {q(s1)[1]:.3f}")
     print(f"  kept: {c1[1] / c0[1]:.0%} of the slope survives the control")
+
+    # Does holding an AWP matter beyond its price? The price is already in
+    # the equipment ratio; this asks whether the gun is worth more than it
+    # costs. Held out by match, the bar maps failed to clear.
+    b2, c2 = fit(data, True, True)
+    print()
+    print(f"with AWPs too:         slope {c2[1]:.3f}  CT {c2[0]:+.3f}  "
+          f"strength {c2[2]:.3f}  your AWP {c2[3]:+.3f}  their AWP {c2[4]:+.3f}  "
+          f"intercept {b2:+.3f}")
+    a = held_out(data, keys, False)
+    b = held_out(data, keys, True)
+    print(f"held out, 20 splits:   without AWPs log-loss {a[0]:.4f} ECE {a[1]:.4f}")
+    print(f"                       with AWPs    log-loss {b[0]:.4f} ECE {b[1]:.4f}")
     return 0
 
 
