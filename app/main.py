@@ -2298,8 +2298,12 @@ def _stats_body(team, user=None, share: str = ""):
             ranked.append((label, _sign(it) * it["stake"],
                            f"{it['stake']:.0f} rds"))
         gl = charts.diverging(ranked)
-        chart_block = (f'<div class="chart" style="margin:6px 0 18px">{gl}</div>'
-                       if gl else "")
+        chart_block = (
+            f'<details class="drop"><summary>See the ranking as a chart'
+            f'</summary><p class="note">Bar length is how many rounds each one '
+            f'is worth: how far it sits from your usual, times how many rounds '
+            f'it covers. Left is costing you, right is earning you.</p>'
+            f'<div class="chart">{gl}</div></details>') if gl else ""
 
         monday_block = f"""
   <section class="lead">
@@ -2950,8 +2954,8 @@ def _stats_body(team, user=None, share: str = ""):
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
     <p class="lede">Counted, never predicted. A line appears once it has
-      {report_mod.MIN_PATTERN_CHANCES} chances behind it; under
-      {report_mod.MIN_CHANCES} it shows raw counts rather than a percentage.</p>
+      {report_mod.MIN_PATTERN_CHANCES} chances behind it. Hover any figure for
+      the rounds it came from.</p>
     <div class="grid-chart">
       <div>{patterns_block}</div>
       <div class="chart">{patterns_chart}</div>

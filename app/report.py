@@ -451,13 +451,16 @@ def scoreboard(match_key: str, rows: list,
 def count(hit: int, of: int) -> str:
     """A census, not a rate. For one match, where the denominator is everything.
 
-    `rate` exists to answer "how often does this happen", and it marks anything
-    under MIN_CHANCES as thin because eight chances cannot support a tendency.
-    That is the right warning on a season page and the wrong one on a match
-    report, where a team plays twenty-odd rounds and every split of them is
-    small by construction: two pistol rounds, six forces, five rounds through
-    apartments. Twelve of nineteen figures on a real match report came back
-    wearing a warning label.
+    `rate` exists to answer "how often does this happen", and it prints a
+    percentage off any denominator. That is right on a season page and wrong
+    on a match report, where a team plays twenty-odd rounds and every split of
+    them is small by construction: two pistol rounds, six forces, five rounds
+    through apartments. A percentage off two rounds is 100% or 50% and says
+    nothing either way.
+
+    (`rate` used to refuse a percentage under MIN_CHANCES and print a "thin"
+    pill instead. That went on 2026-09-24 for glance-ability. This function is
+    where the same reasoning still lives, and it is where it mattered most.)
 
     Nothing about those numbers is unreliable. There WERE two CT pistol rounds
     and you DID win both. The denominator is not a sample of anything, it is
@@ -476,35 +479,29 @@ SAME_AS_BAND = 5.0
 
 
 def rate(won: int, total: int, against: float | None = None) -> str:
-    """A rate, or raw counts when the sample is too thin to carry a percentage.
+    """A percentage, with its denominator one hover away.
 
     Every percentage in the product comes through here, so what is decided
     here is decided everywhere: the recurring patterns, the map pool, the
     scoreboard, both player tables and the positional tables.
 
-    TWO LINES, CENTRED, ALWAYS THE SAME SHAPE.
+    THE DENOMINATOR IS IN THE TITLE, NOT UNDER THE FIGURE. It used to print
+    on a second line under every rate, and a table of them was twice as tall
+    for a number most readers take on trust. It is still on every figure and
+    still one hover away.
 
-    The headline sits on top and the evidence sits under it, smaller. Side by
-    side, "59% 78 / 133" reads as one long string and the denominator competes
-    with the figure; stacked, the eye takes the percentage and the denominator
-    is there the moment it is wanted. Which is the right order: the
-    denominator is the product's whole argument, and it is still not the thing
-    you read first.
+    THERE IS NO LONGER A THIN VARIANT. This used to refuse a percentage under
+    MIN_CHANCES and print "5 / 7" with a "thin" pill, on the argument that a
+    rate off seven chances overstates itself and a bar drawn at 71% overstates
+    it further. That argument has not gone away; it lost to glance-ability on
+    the owner's call. MIN_CHANCES still governs `count()` and the advice
+    thresholds, which is where it does the most work.
 
-    Every variant occupies an identical box, including the thin one and the
-    empty one. They used to be laid out differently and sat askew from the
-    rows around them, which made a column of rates look misaligned rather than
-    look like a column.
+    A zero denominator still draws a dash rather than 0%, because no chances
+    is not the same as never.
     """
     if total == 0:
         return '<span class="rt nil"><b class="den">&ndash;</b></span>'
-    if total < MIN_CHANCES:
-        # A thin sample gets the count as its headline, because the count IS
-        # the information, and no bar. Drawing 5 of 7 as a 71% fill is exactly
-        # the overstatement the thin label exists to prevent, and a bar is a
-        # more confident claim than a number because it invites comparison.
-        return (f'<span class="rt few"><b>{won} / {total}</b>'
-                f'<span class="pill beta">thin</span></span>')
     pct = 100.0 * won / total
     # `against` is what this rate should be read next to, and it is ALWAYS
     # something this team did: the same map and side without the habit, or
@@ -515,8 +512,8 @@ def rate(won: int, total: int, against: float | None = None) -> str:
     if against is not None:
         d = pct - against
         cmp_cls = " up" if d >= SAME_AS_BAND else (" down" if d <= -SAME_AS_BAND else "")
-    return (f'<span class="rt{cmp_cls}" style="--f:{pct:.0f}%"><b>{pct:.0f}%</b>'
-            f'<span class="den">{won} / {total}</span></span>')
+    return (f'<span class="rt{cmp_cls}" style="--f:{pct:.0f}%" '
+            f'title="{won} of {total}"><b>{pct:.0f}%</b></span>')
 
 
 @memo.by_team

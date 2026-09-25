@@ -440,6 +440,16 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
 .rt b{font-weight:600;font-size:13px;letter-spacing:-.01em;
   display:block;height:18px;line-height:18px}
 .rt .den{font-size:10px}
+.rt[title]{cursor:help}
+details.drop{margin:8px 0 16px}
+details.drop>summary{cursor:pointer;font-size:.8rem;font-weight:600;
+  letter-spacing:.02em;color:var(--purple);list-style:none;
+  padding:7px 12px;border:1px solid var(--purple-line);border-radius:var(--r);
+  background:var(--purple-soft);display:inline-block}
+details.drop>summary::-webkit-details-marker{display:none}
+details.drop>summary::after{content:" \25be";font-size:.7rem}
+details.drop[open]>summary::after{content:" \25b4"}
+details.drop>.note{margin:10px 0 2px}
 .rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
   height:3px;border-radius:2px}
 .rt::before{right:0;background:var(--border)}

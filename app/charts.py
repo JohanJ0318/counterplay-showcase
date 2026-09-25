@@ -461,14 +461,18 @@ def diverging(items: list[tuple[str, float, str]], width: int = 600,
     if not items:
         return ""
     lab_w, note_w = 172, 66
-    height = len(items) * row_h + 26
+    height = len(items) * row_h + 28
     inner = width - lab_w - note_w
     mid = lab_w + inner / 2
     most = max((abs(v) for _, v, _ in items), default=1) or 1
-    out = [f'<line x1="{mid:.1f}" y1="14" x2="{mid:.1f}" y2="{height - 14}" '
-           f'stroke="{LINE}" stroke-width="1"></line>']
+    # Named at the TOP, next to the first bar. At the foot it was four rows
+    # away from anything it described and read as a stray caption.
+    out = [f'<line x1="{mid:.1f}" y1="16" x2="{mid:.1f}" y2="{height - 4}" '
+           f'stroke="{LINE}" stroke-width="1"></line>',
+           _text(mid - 6, 11, "costing you", size=9, anchor="end"),
+           _text(mid + 6, 11, "earning you", size=9)]
     for i, (label, value, note) in enumerate(items):
-        y = 18 + i * row_h
+        y = 20 + i * row_h
         w = abs(value) / most * (inner / 2 - 6)
         fill, op = diverge(value, 0.0, most)
         x = mid if value >= 0 else mid - w
@@ -478,12 +482,7 @@ def diverging(items: list[tuple[str, float, str]], width: int = 600,
             + f'<rect x="{x:.1f}" y="{y + 3}" width="{max(w, 1.5):.1f}" '
               f'height="12" rx="2" fill="{fill}" opacity="{op:.2f}"></rect>'
             + _text(width - note_w + 6, y + 13, note, size=9.5))
-    # The axis is named once at the foot, at the OUTER ends. Both captions
-    # were centred on the zero line and printed on top of each other, which
-    # is the sort of thing only rendering the picture shows you.
-    out.append(_text(lab_w + 2, height - 3, "costs you rounds", size=9))
-    out.append(_text(width - note_w - 2, height - 3, "gains you rounds",
-                     size=9, anchor="end"))
+
     return (_open(width, height, "What is gaining and costing you rounds, "
                                  "each against your own rate without it")
             + "".join(out) + "</svg>")
