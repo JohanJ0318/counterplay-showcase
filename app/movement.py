@@ -29,7 +29,6 @@ from .report import (MIN_PATTERN_CHANCES, _side_by_round, _team_match_keys,
 from counterplay import zonemodel as ZM
 from counterplay.schema import classify_round
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
-from counterplay.zones import Z_WEIGHT
 
 # How many of a side have to be somewhere before it is a commitment rather than
 # one player wandering. Three of five is a decision the other two live with.
@@ -62,11 +61,6 @@ SETUP_PLAYERS = 2
 # that happened twice.
 MIN_ZONE_SHARE = 0.15
 
-# Positions further than this from every centre belong to no zone. Without it,
-# someone in a corner nobody clusters gets snapped to whichever centre happens
-# to be least far away, and the pattern inherits the error.
-MAX_ZONE_DISTANCE = 900.0
-
 
 def _centres(map_name):
     """The stored zone model for a map, with same-named zones merged.
@@ -80,8 +74,12 @@ def _centres(map_name):
     a group of three standing across both halves of B site would otherwise count
     as two of one zone and one of another, and register as nowhere at all.
 
-    Assignment still uses all twenty centres, so the geometry stays as fine as
+    Assignment still uses all twenty zones, so the geometry stays as fine as
     the clustering made it; only the reporting collapses.
+
+    The first element is a ZM.Zones, not a bare array: it carries the walked
+    ground as well as the centres, and `_assign` is the only thing that reads
+    it.
     """
     zs = ZM.load(map_name)
     if not zs:
@@ -113,24 +111,22 @@ def _centres(map_name):
     for g, parts in g_pts.items():
         w = np.array([max(p[1], 1e-9) for p in parts])
         g_centres[g] = (np.array([p[0] for p in parts]) * w[:, None]).sum(0) / w.sum()
-    return centres, group_of, g_names, g_centres
+    return ZM.Zones(centres, ZM.walk(map_name, zs)), group_of, g_names, g_centres
 
 
-def _assign(centres, sx, sy, sz):
+def _assign(zones, sx, sy, sz):
     """Zone index for every sample in a round. 1-based; 0 means nowhere.
+
+    WALKED, not straight-line: a position belongs to the zone whose anchor
+    it is fewest walked units from, over ground people have stood on, so a
+    zone cannot reach through a wall into the next room. See the walking
+    notes in counterplay/zonemodel.py.
 
     Height is weighted exactly as the clustering weighted it. That is not a
     detail: on Nuke the two bombsites sit 369 units above each other, so
-    unweighted nearest-centre would file half of B site under A.
+    unweighted distance would file half of B site under A.
     """
-    shape = sx.shape
-    dx = sx.astype(np.float64).ravel()[None, :] - centres[:, 0:1]
-    dy = sy.astype(np.float64).ravel()[None, :] - centres[:, 1:2]
-    dz = (sz.astype(np.float64).ravel()[None, :] - centres[:, 2:3]) * Z_WEIGHT
-    d = dx * dx + dy * dy + dz * dz
-    best = np.argmin(d, axis=0)
-    near = d[best, np.arange(d.shape[1])] <= MAX_ZONE_DISTANCE ** 2
-    return np.where(near, best + 1, 0).reshape(shape)
+    return zones.assign(sx, sy, sz)
 
 
 def groups_of_samples(map_name, x, y, z, chunk: int = 200_000):
@@ -215,6 +211,26 @@ def _traded_lookup(keys) -> dict:
                                      AND traded_deaths > 0""", *keys)}
 
 
+def _fights(alive, on_our_side, gid):
+    """Every death in a round: (sample index, place, whether it was ours).
+
+    One of ours dying is a death, one of theirs a kill. The place is where the
+    victim fell, read at the first sample they are dead and, when that sample
+    places them nowhere, the last one they were alive.
+
+    Side is read at t_i, while the player is still standing: a player missing
+    from a tick is written all-zero, which would read as T side.
+
+    `on_our_side` used to be called `theirs`, which it never was. The code
+    was right and the name said the opposite, so it read as a bug to anyone
+    who looked; tests/test_movement.py pins the direction.
+    """
+    for t_i, p_i in np.argwhere(alive[:-1] & ~alive[1:]):
+        z = int(gid[t_i + 1, p_i]) or int(gid[t_i, p_i])
+        if z:
+            yield int(t_i), z, bool(on_our_side[t_i, p_i])
+
+
 @memo.by_team
 def scan(team_id: int) -> dict:
     """Walk every round once, collecting the counts every pattern needs.
@@ -268,8 +284,8 @@ def scan(team_id: int) -> dict:
         # Who is ours: the players on our side. Read per sample rather than
         # once, so a late joiner or a disconnect is handled by the alive bit
         # instead of by a fixed index into the roster.
-        theirs = is_ct if side == "ct" else ~is_ct
-        ours_alive = theirs & alive
+        on_our_side = is_ct if side == "ct" else ~is_ct
+        ours_alive = on_our_side & alive
         if not ours_alive.any():
             continue
 
@@ -349,15 +365,12 @@ def scan(team_id: int) -> dict:
         plant_at = plants.get((r["match_key"], r["round_num"]))
         buy = classify_round(
             r["equip_ct"] if side == "ct" else r["equip_t"], r["round_num"])
-        for t_i, p_i in np.argwhere(alive[:-1] & ~alive[1:]):
-            z_d = int(gid[t_i + 1, p_i]) or int(gid[t_i, p_i])
-            if not z_d:
-                continue
+        for t_i, z_d, was_ours in _fights(alive, on_our_side, gid):
             phase = ("post" if plant_at is not None
                      and secs[t_i + 1] >= plant_at else "pre")
             rec = duels.setdefault(mp, {}).setdefault(z_d, {}).setdefault(
                 (side, phase, buy), [0, 0])
-            rec[1 if bool(theirs[t_i, p_i]) else 0] += 1
+            rec[1 if was_ours else 0] += 1
 
         # ---- the opening duel: the first death on EITHER side
         #
@@ -379,7 +392,7 @@ def scan(team_id: int) -> dict:
                         "round_won": 0})
                 d["n"] += 1
                 d["round_won"] += won
-                if bool(theirs[t_i, p_i]):
+                if bool(on_our_side[t_i, p_i]):
                     d["lost"] += 1
                     sid_o = str(int(_sids[p_i]))
                     d["traded"] += int(traded.get(
@@ -392,7 +405,7 @@ def scan(team_id: int) -> dict:
         # The place alone says where a round starts going wrong. Whether the
         # death was traded says whether it went wrong: the same first death,
         # traded, leaves a 4v4, and untraded leaves a 4v5.
-        died = alive[:-1] & ~alive[1:] & theirs[1:]
+        died = alive[:-1] & ~alive[1:] & on_our_side[1:]
         if died.any():
             t_i, p_i = np.argwhere(died)[0]
             z = int(gid[t_i + 1, p_i])
@@ -551,8 +564,8 @@ def match_positions(match_key: str, team_id: int) -> dict:
         secs = sample_seconds(meta)
         alive = (sm["flags"] & FLAG_ALIVE).astype(bool)
         is_ct = (sm["flags"] & FLAG_CT).astype(bool)
-        theirs = is_ct if side == "ct" else ~is_ct
-        ours = theirs & alive
+        on_our_side = is_ct if side == "ct" else ~is_ct
+        ours = on_our_side & alive
         if not ours.any():
             continue
         won = bool(r["ct_won"]) == (side == "ct")
@@ -594,7 +607,7 @@ def match_positions(match_key: str, team_id: int) -> dict:
         # Where the first of ours died.
         died_in = None
         was_traded = None
-        fell = alive[:-1] & ~alive[1:] & theirs[1:]
+        fell = alive[:-1] & ~alive[1:] & on_our_side[1:]
         if fell.any():
             t_i, p_i = np.argwhere(fell)[0]
             z = int(gid[t_i + 1, p_i])

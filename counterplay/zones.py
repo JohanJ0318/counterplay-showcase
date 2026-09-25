@@ -196,7 +196,8 @@ def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
     counting wherever height mattered or a centre sat across a wall, so a
     region could be painted over ground whose deaths were filed elsewhere.
     Cells nobody stood in, filled by the pinhole and radar-mask passes, have
-    no samples to vote and take their nearest centre's place (`centre_key`).
+    no samples to vote and take the nearest voted cell's place (`centre_key`
+    only when no cell voted at all).
 
     Key 0 is a spawn or an unnamed place, which scan() never reports. It is
     drawn as its own region so the borders are true, but it is not a `zfill`
@@ -210,8 +211,17 @@ def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
     tally = np.bincount((ix[ok] * bins + iy[ok]) * k_n + sample_key[ok],
                         minlength=bins * bins * k_n).reshape(bins * bins, k_n)
     key = np.where(tally.sum(1) > 0, tally.argmax(1), -1).reshape(bins, bins)
+    # Cells nobody stood in take the nearest cell somebody did, not the
+    # nearest centre: a centre across a wall is near in a straight line and
+    # nowhere near on foot, and the cell next door is the honest guess.
     empty = occupied & (key < 0)
-    key[empty] = np.asarray(centre_key, dtype=np.int64)[grid_owner[empty]]
+    voted = key >= 0
+    if empty.any() and voted.any():
+        from scipy.ndimage import distance_transform_edt
+        _d, (ni, nj) = distance_transform_edt(~voted, return_indices=True)
+        key[empty] = key[ni[empty], nj[empty]]
+    elif empty.any():
+        key[empty] = np.asarray(centre_key, dtype=np.int64)[grid_owner[empty]]
     key[~occupied] = -1
 
     # Speckle out. Where two places meet, single cells vote the other way

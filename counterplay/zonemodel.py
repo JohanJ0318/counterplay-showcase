@@ -479,6 +479,234 @@ def zone_of(map_name: str, x, y, z=None, max_distance: float = 900.0):
     return np.where(far, 0, out)
 
 
+# ---------------------------------------------------------------- walking
+#
+# WHICH PLACE A POSITION IS IN, MEASURED THE WAY A PLAYER WALKS.
+#
+# Nearest centre in a straight line lets a zone reach through a wall: a
+# centre near one side of a wall claims the corridor on the other side, which
+# is a different callout that a player reaches by going round. On the map
+# that showed as a place spilling into its neighbour's room, and in the
+# numbers as deaths filed under a place the victim was never in.
+#
+# So distance is walked. The ground is every voxel somebody has stood in, two
+# voxels are joined when they touch, and each voxel belongs to whichever
+# zone's anchor it is fewest walked units from. A wall is simply ground nobody
+# stood on, so nothing can cross one. Height counts Z_WEIGHT times, as it did
+# in the clustering, so a staircase is a longer walk than a floor.
+
+WALK_CELL = 32.0        # xy, about two feet, as SPLIT_CELL
+WALK_CELL_Z = 48.0      # a step or a crouch-jump stays one voxel up
+WALK_MIN_SAMPLES = 2    # a voxel one glitched sample stood in is not ground
+WALK_THIN = 4           # coverage, not density, is what the ground needs
+# A position this many voxels from any known ground is not placed by walking.
+WALK_SNAP = 3
+# Further than this from its zone's anchor, walked, is nowhere: the walked
+# counterpart of the old straight-line 900.
+WALK_MAX = 1800.0
+# A box top or ledge this close to walked ground, height weighted, is part of
+# it: one crouch-jump is 64 units up, 192 weighted.
+WALK_HOP = 200.0
+
+_NEIGHBOURS = np.array([(i, j, k) for i in (-1, 0, 1) for j in (-1, 0, 1)
+                        for k in (-1, 0, 1) if i or j or k], dtype=np.int64)
+_OFF = 1 << 20          # voxel coordinates are shifted positive before packing
+
+
+def _pack(ix, iy, iz):
+    return ((ix + _OFF) << 42) | ((iy + _OFF) << 21) | (iz + _OFF)
+
+
+def _voxels(x, y, z):
+    return (np.floor(np.asarray(x, float) / WALK_CELL).astype(np.int64),
+            np.floor(np.asarray(y, float) / WALK_CELL).astype(np.int64),
+            np.floor(np.asarray(z, float) / WALK_CELL_Z).astype(np.int64))
+
+
+def build_walk(x, y, z, centres, radii=None, anchors=None) -> dict | None:
+    """The walked zone of every voxel of ground. Pure, so it can be tested.
+
+    `x, y, z` are where players stood; `centres`, `radii` and `anchors` are
+    one per zone in index order. Returns None when there is no ground.
+
+    EACH ZONE WALKS FROM ITS CORE, NOT FROM ONE POINT. Walking from the
+    anchor alone was tried first and measured badly: an anchor is a zone's
+    busiest spot and often sits at its edge, so a large zone shrank toward it
+    and its neighbours ate the rest. Nuke's A site went entirely to Mini, and
+    the B sites on Mirage and Anubis fell from 96% of the game's own bombsite
+    to 65%.
+
+    So the core is the ground the clustering already gave a zone, within its
+    radius, but only the piece of it connected to the anchor: a core that sat
+    across a wall loses the far side. The walk then settles only the ground
+    between cores, which is where the walls are. Without `radii`, each zone
+    walks from its anchor alone.
+    """
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components, dijkstra
+    from scipy.spatial import cKDTree
+
+    ix, iy, iz = _voxels(x, y, z)
+    keys, counts = np.unique(_pack(ix, iy, iz), return_counts=True)
+    keys = keys[counts >= WALK_MIN_SAMPLES]
+    if not len(keys):
+        return None
+    vx = (keys >> 42) - _OFF
+    vy = ((keys >> 21) & ((1 << 21) - 1)) - _OFF
+    vz = (keys & ((1 << 21) - 1)) - _OFF
+
+    rows, cols, cost = [], [], []
+    for dx, dy, dz in _NEIGHBOURS:
+        nk = _pack(vx + dx, vy + dy, vz + dz)
+        pos = np.clip(np.searchsorted(keys, nk), 0, len(keys) - 1)
+        hit = keys[pos] == nk
+        rows.append(np.nonzero(hit)[0])
+        cols.append(pos[hit])
+        step = np.sqrt((dx * WALK_CELL) ** 2 + (dy * WALK_CELL) ** 2
+                       + (dz * WALK_CELL_Z * Z.Z_WEIGHT) ** 2)
+        cost.append(np.full(hit.sum(), step))
+    n = len(keys)
+    graph = coo_matrix((np.concatenate(cost),
+                        (np.concatenate(rows), np.concatenate(cols))),
+                       shape=(n, n)).tocsr()
+
+    # Ground in the unit the clustering measured in, height weighted.
+    pts = np.column_stack([(vx + .5) * WALK_CELL, (vy + .5) * WALK_CELL,
+                           (vz + .5) * WALK_CELL_Z * Z.Z_WEIGHT])
+    tree = cKDTree(pts)
+
+    def weighted(v):
+        v = np.asarray(v, float).reshape(-1, 3)
+        return np.column_stack([v[:, 0], v[:, 1], v[:, 2] * Z.Z_WEIGHT])
+
+    c = weighted(centres)
+    a = c if anchors is None else weighted(anchors)
+    seed = np.zeros(n, dtype=np.int32)          # zone per seed voxel, 0 = none
+    if radii is not None:
+        d_c, own = cKDTree(c).query(pts)
+        r = np.array([float(q or 0.0) for q in radii])
+        core = d_c <= r[own]
+        g = graph.tocoo()
+        same = core[g.row] & core[g.col] & (own[g.row] == own[g.col])
+        _nc, comp = connected_components(
+            coo_matrix((np.ones(same.sum()), (g.row[same], g.col[same])),
+                       shape=(n, n)), directed=False)
+        for zi in range(len(c)):
+            mine = np.nonzero(core & (own == zi))[0]
+            if not len(mine):
+                continue
+            _d, j = cKDTree(pts[mine]).query(a[zi])
+            piece = mine[comp[mine] == comp[mine[j]]]
+            seed[piece] = zi + 1
+    # A zone with no core of its own still starts somewhere: its anchor.
+    _d, at = tree.query(a)
+    for zi, v in enumerate(np.atleast_1d(at)):
+        if not (seed == zi + 1).any() and seed[v] == 0:
+            seed[v] = zi + 1
+
+    sources = np.nonzero(seed)[0]
+    dist, _pred, owner = dijkstra(graph, indices=sources, min_only=True,
+                                  return_predecessors=True, limit=WALK_MAX)
+    # `owner` is the seed voxel each voxel was reached from.
+    label = np.zeros(n, dtype=np.int32)
+    reached = owner >= 0
+    label[reached] = seed[owner[reached]]
+    # Ground no walk reaches is mostly a jump: the top of a box, a ledge,
+    # a drop nobody sampled on the way down. A hop from reached ground, it is
+    # that ground's place. Further, it stays nowhere.
+    if reached.any() and not reached.all():
+        d, near = cKDTree(pts[reached]).query(
+            pts[~reached], distance_upper_bound=WALK_HOP)
+        ok = np.isfinite(d)
+        idx = np.nonzero(~reached)[0]
+        label[idx[ok]] = label[np.nonzero(reached)[0][near[ok]]]
+    return {"keys": keys, "label": label, "tree": tree}
+
+
+def walk_assign(walk: dict, x, y, z) -> np.ndarray:
+    """Zone index for each position, 1-based, 0 for nowhere.
+
+    A position standing in known ground takes that voxel's zone. One in a
+    voxel the thinned sample never saw takes the nearest known ground's, if
+    that is within WALK_SNAP voxels. Anything else is nowhere, which is what
+    the dead-player slots that read (0, 0, 0) need to be.
+    """
+    x = np.asarray(x, float).ravel()
+    y = np.asarray(y, float).ravel()
+    z = np.asarray(z, float).ravel()
+    keys = walk["keys"]
+    k = _pack(*_voxels(x, y, z))
+    pos = np.clip(np.searchsorted(keys, k), 0, len(keys) - 1)
+    hit = keys[pos] == k
+    out = np.zeros(len(x), dtype=np.int32)
+    out[hit] = walk["label"][pos[hit]]
+    miss = np.nonzero(~hit)[0]
+    if len(miss):
+        d, near = walk["tree"].query(
+            np.column_stack([x[miss], y[miss], z[miss] * Z.Z_WEIGHT]),
+            distance_upper_bound=WALK_SNAP * WALK_CELL)
+        ok = np.isfinite(d)
+        out[miss[ok]] = walk["label"][near[ok]]
+    return out
+
+
+class Zones:
+    """A map's stored zones with the rule for placing a position in one.
+
+    What movement and smokes hold as `centres`: they only ever pass it back
+    to be asked where something is, so the walked rule reaches every reading
+    without any of them changing shape.
+    """
+
+    def __init__(self, centres, walk):
+        self.centres = centres
+        self.walk = walk
+
+    def assign(self, x, y, z) -> np.ndarray:
+        shape = np.shape(x)
+        if self.walk is not None:
+            return walk_assign(self.walk, x, y, z).reshape(shape)
+        # No ground known yet: straight line, as before walking existed.
+        dx = np.asarray(x, float).ravel()[None, :] - self.centres[:, 0:1]
+        dy = np.asarray(y, float).ravel()[None, :] - self.centres[:, 1:2]
+        dz = (np.asarray(z, float).ravel()[None, :]
+              - self.centres[:, 2:3]) * Z.Z_WEIGHT
+        d = dx * dx + dy * dy + dz * dz
+        best = np.argmin(d, axis=0)
+        near = d[best, np.arange(d.shape[1])] <= 900.0 ** 2
+        return np.where(near, best + 1, 0).reshape(shape)
+
+
+_WALKS: dict = {}
+
+
+def walk(map_name: str, zs: list[dict]) -> dict | None:
+    """This map's walked zones, built once per process per zone model.
+
+    Built from every alive position on the map, all teams, so the ground a
+    team never walked is still ground. Keyed on the zone model, so a rebuild
+    of the zones is picked up; new uploads are not, deliberately, so a
+    team's numbers do not shift under it every time somebody else uploads.
+    A restart takes them in.
+    """
+    from app import db
+
+    sig = (map_name, tuple((q["zone_index"], round(q["cx"]), round(q["cy"]),
+                            q.get("radius"), q.get("label_x")) for q in zs))
+    if sig in _WALKS:
+        return _WALKS[sig]
+    rows = db.query("""SELECT rp.data FROM round_positions rp
+                         JOIN matches m ON m.match_key = rp.match_key
+                        WHERE m.map_name = ?""", map_name)
+    x, y, z = Z.collect([r["data"] for r in rows], thin=WALK_THIN,
+                        alive_only=True)
+    got = (build_walk(x, y, z, [(q["cx"], q["cy"], q["cz"]) for q in zs],
+                      radii=[q.get("radius") for q in zs],
+                      anchors=[label_pos(q) for q in zs]) if len(x) else None)
+    _WALKS[sig] = got
+    return got
+
+
 def main() -> int:
     import argparse
     from app import db
