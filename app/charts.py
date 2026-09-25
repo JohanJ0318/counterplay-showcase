@@ -212,7 +212,7 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
     # that scaled down to a phone's width every round is still on screen and
     # every label is still readable.
     fs = 1.45 if compact else 1.15
-    pad_l, pad_r, pad_t = (64 if compact else 58), 14, 24
+    pad_l, pad_r, pad_t = (74 if compact else 58), 14, 24
     score_h, gap, econ_h = 84, 18, 132
     ribbon_h, axis_h = 15, 22
     strip_h = 14 if us_is_ct else 0
@@ -436,7 +436,7 @@ def trend(points: list[tuple[str, float, str]], width: int = 680,
     if len(points) < 2:
         return ""
     fs = 1.45 if compact else 1.15
-    pad_l, pad_r, pad_t = (38 if compact else 46), 18, 30
+    pad_l, pad_r, pad_t = (48 if compact else 46), 18, 30
 
     # X labels lie flat when they fit between their neighbours and turn to a
     # slant when they do not, so a label is never cut to three letters: that

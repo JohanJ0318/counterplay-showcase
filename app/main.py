@@ -3402,7 +3402,7 @@ def account(request: Request):
       <p class="lede">Anyone with this link can read your season and match
         reports, no account needed. They can&rsquo;t change anything or see
         other teams.</p>
-      <p><a href="{link}" class="mono">{link}</a></p>
+      <p><a href="{link}" class="mono" style="overflow-wrap:anywhere">{link}</a></p>
       <p class="den">Send it to your players. Revoke it any time: the old
         link stops working at once.</p>
       <form method="post" action="/share/revoke">{csrf_input(user)}
@@ -3465,7 +3465,7 @@ def account(request: Request):
       <h3>Handover link for {esc(team["name"])}</h3>
       <p class="lede">Whoever opens this and signs in becomes the owner of
         this team. They get the demos, the match reports and the season.</p>
-      <p><a href="{clink}" class="mono">{clink}</a></p>
+      <p><a href="{clink}" class="mono" style="overflow-wrap:anywhere">{clink}</a></p>
       <p class="den">It works once and then stops. <strong>You lose access
         when they accept</strong>, which is the point: it is a handover, not
         a shared login. Send it to one person, not a channel.</p>
