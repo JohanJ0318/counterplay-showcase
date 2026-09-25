@@ -604,6 +604,10 @@ details.drop>.note{margin:10px 0 2px}
 .rt.down>b{color:var(--bad)}
 .zlayer{display:none}
 .zlayer.on{display:inline}
+.zfilters{display:flex;flex-direction:column;gap:7px;margin:0 0 16px}
+.zrow{display:flex;gap:6px;flex-wrap:wrap}
+.zfill{transition:fill .12s,opacity .12s}
+.zonefig svg:hover .zfill{cursor:help}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:340px}

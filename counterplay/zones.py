@@ -182,7 +182,7 @@ GROW_PASSES = 6
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None, mask=None, title: str = "", stat_layers=None) -> str:
+        anchors=None, mask=None, title: str = "", stat_zones: bool = False) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -365,6 +365,11 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         grid_owner[ii, jj] = owner
         grid_step[ii, jj] = np.round(strength * 16).astype(np.int16)
 
+        # In stat mode the runs are collected per zone and emitted as one
+        # path each, so a filter can repaint a whole zone by touching a single
+        # element. Otherwise they stay individual rects carrying the zone's
+        # categorical colour, which is the "which zone is where" picture.
+        by_zone: dict = {}
         for j in range(bins):                       # each row of constant y
             i = 0
             while i < bins:
@@ -378,12 +383,28 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                        and grid_step[run, j] == step):
                     run += 1
                 bx, by = px(xe[i], ye[j])
-                dots.append(
-                    f'<rect x="{bx:.1f}" y="{by - cw:.1f}" '
-                    f'width="{cw * (run - i) + .6:.1f}" height="{cw + .6:.1f}" '
-                    f'fill="{zone_fill(int(own))}" '
-                    f'opacity="{step / 16:.2f}"/>')
+                w, hh = cw * (run - i) + .6, cw + .6
+                if stat_zones:
+                    by_zone.setdefault(int(own), []).append(
+                        "M%.1f %.1fh%.1fv%.1fh%.1fz"
+                        % (bx, by - cw, w, hh, -w))
+                else:
+                    dots.append(
+                        f'<rect x="{bx:.1f}" y="{by - cw:.1f}" '
+                        f'width="{w:.1f}" height="{hh:.1f}" '
+                        f'fill="{zone_fill(int(own))}" '
+                        f'opacity="{step / 16:.2f}"/>')
                 i = run
+
+        if stat_zones:
+            for own, segs in sorted(by_zone.items()):
+                # Neutral until the page colours it. A zone the current filter
+                # has no rounds for stays this colour, which is the honest
+                # look for "nothing happened here" and not an opinion.
+                dots.append(
+                    f'<path class="zfill" data-z="{first_number + own}" '
+                    f'd="{"".join(segs)}" fill="var(--faint)" opacity=".28">'
+                    f'<title></title></path>')
 
     marks = []
     if plant_x is not None and len(plant_x):
@@ -411,9 +432,9 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     # fill comes from charts.diverge, so the scale is defined once and not
     # here. A zone with no reading stays a faint dot: nothing to say is not
     # the same as zero.
-    if stat_layers:
+    if False:
         out_stats = []
-        for n, (key, stats) in enumerate(stat_layers):
+        for n, (key, stats) in enumerate([]):
             # Every zone in every layer. A zone with a reading here and none
             # in the next one has to change when the layer changes, and one
             # shared set of dots underneath would leave a dot inside a disc.
@@ -450,7 +471,9 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                              f'{"".join(parts)}</g>')
         labels_final = out_stats
     else:
-        labels_final = None
+        # Stat mode says everything on hover, so nothing is drawn on top of
+        # the map: no name pills, no numbered circles, no faint dots.
+        labels_final = [] if stat_zones else None
 
     marks_out = []
     for k, (centre, n) in enumerate(zip(centres, counts)):

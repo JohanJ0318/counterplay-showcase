@@ -17,6 +17,7 @@ evaluating it should not have to think about what it will cost later.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import threading
 import re
@@ -1712,7 +1713,7 @@ def _zone_title(map_name: str, level) -> str:
 
 
 def zone_pictures(map_name: str, show=None, width: int = 420,
-                  stat_layers=None) -> list[dict]:
+                  stat_zones: bool = False) -> list[dict]:
     """One drawing per floor: [{"level": str|None, "svg": str}, ...].
 
     A split map gets BOTH floors, not the busier one. Nuke's whole difficulty
@@ -1726,11 +1727,8 @@ def zone_pictures(map_name: str, show=None, width: int = 420,
     # The stats go in the key, because the same map drawn for two different
     # readings is two different pictures. Fingerprinted rather than stored
     # whole: the dict is the cache KEY, so it has to be hashable and small.
-    fp = (tuple((key, tuple(sorted((k, v["top"], v["sub"])
-                                   for k, v in st.items())))
-                for key, st in stat_layers)
-          if stat_layers else None)
-    key = (map_name, tuple(sorted(show)) if show else None, width, fp)
+    key = (map_name, tuple(sorted(show)) if show else None, width,
+           bool(stat_zones))
     if key in _ZONE_PIC:
         return _ZONE_PIC[key]
     with _ZONE_PIC_GUARD:
@@ -1738,14 +1736,14 @@ def zone_pictures(map_name: str, show=None, width: int = 420,
     with lock:
         if key in _ZONE_PIC:
             return _ZONE_PIC[key]
-        out = _draw_zones(map_name, show, width, key, stat_layers)
+        out = _draw_zones(map_name, show, width, key, stat_zones)
     with _ZONE_PIC_GUARD:
         _ZONE_PIC_LOCKS.pop(key, None)
     return out
 
 
 def _draw_zones(map_name: str, show, width: int, key,
-                stat_layers=None) -> list[dict]:
+                stat_zones: bool = False) -> list[dict]:
     out: list[dict] = []
     try:
         import numpy as np
@@ -1828,7 +1826,7 @@ def _draw_zones(map_name: str, show, width: int, key,
                                              radar=rad, anchors=anchors,
                                              title=_zone_title(map_name, level),
                                              mask=msk,
-                                             stat_layers=stat_layers)})
+                                             stat_zones=stat_zones)})
     except Exception:
         out = []            # a missing picture must never break the page
     if len(_ZONE_PIC) >= ZONE_PIC_MAX:
@@ -2670,152 +2668,100 @@ def _stats_body(team, user=None, share: str = ""):
     # extra layers cost almost nothing. Flipping between them on a map that
     # does not move is also the point: it is how you see that the place you
     # set up is the place you lose the opening.
-    MIN_OPENINGS, MIN_LOSSES = 4, 3
-    ORDER = [("open", "Opening duel"), ("trade", "Traded back"),
-             ("commit", "How far you get"), ("setup", "Where you set up")]
-    decided, live = [], []
+    # ---- where your rounds are decided
+    #
+    # See the note on the patch that wrote this: one drawing per map, thirty
+    # filter combinations, summed in the browser.
+    decided, zdata, znames = [], {}, {}
     try:
         raw = movement.scan(team["id"])
-        pats = movement.positional_patterns(team["id"])
-        pats_by = {}
-        for p in pats:
-            if p.get("zone_index") is not None:
-                pats_by.setdefault((p["map"], p["side"]), []).append(p)
-
-        keys = set(pats_by)
-        for mp, sides in raw.get("opening", {}).items():
-            for side in sides:
-                keys.add((mp, side))
-
-        def _rank(k):
-            op = raw.get("opening", {}).get(k[0], {}).get(k[1], {})
-            return -sum(d["n"] for d in op.values())
-
-        # Built first, rendered second, because which layers are worth a pill
-        # cannot be known until every map has been counted.
-        built = []
-        for (mp, side) in sorted(keys, key=_rank):
-            names = raw.get("names", {}).get(mp, {})
-            op = raw.get("opening", {}).get(mp, {}).get(side, {})
-            group = pats_by.get((mp, side), [])
-            by_key = {}
-
-            tot_n = sum(d["n"] for d in op.values())
-            tot_w = sum(d["won_duel"] for d in op.values())
-            bench = (100.0 * tot_w / tot_n) if tot_n else 50.0
-            zs = {}
-            for z, d in op.items():
-                if d["n"] < MIN_OPENINGS:
-                    continue
-                fill, o = charts.diverge(100.0 * d["won_duel"] / d["n"],
-                                         bench, 40.0)
-                zs[z] = {"top": f"{d['won_duel']}-{d['lost']}", "sub": "openings",
-                         "fill": fill, "op": o,
-                         "title": (f"{names.get(z, 'here')}: the round's first "
-                                   f"kill happened here {d['n']} times. You won "
-                                   f"{d['won_duel']} and lost {d['lost']}, "
-                                   f"against {bench:.0f}% won across this map "
-                                   f"and side")}
-            by_key["open"] = zs
-
-            tot_l = sum(d["lost"] for d in op.values())
-            tot_t = sum(d["traded"] for d in op.values())
-            tbench = (100.0 * tot_t / tot_l) if tot_l else 0.0
-            zs = {}
-            for z, d in op.items():
-                if d["lost"] < MIN_LOSSES:
-                    continue
-                fill, o = charts.diverge(100.0 * d["traded"] / d["lost"],
-                                         tbench, 40.0)
-                zs[z] = {"top": f"{d['traded']}/{d['lost']}", "sub": "traded",
-                         "fill": fill, "op": o,
-                         "title": (f"{names.get(z, 'here')}: you lost the "
-                                   f"opening here {d['lost']} times and got the "
-                                   f"man back {d['traded']} of them, against "
-                                   f"{tbench:.0f}% traded across this map and "
-                                   f"side. Untraded is a 4v5")}
-            by_key["trade"] = zs
-
-            for kind, phrase in (("commit", "this is as far as the group gets"),
-                                 ("setup", "you are set up here")):
-                here = [q for q in group if q["kind"] == kind]
-                spread = max((abs(q["gap"]) for q in here), default=0) or 1.0
-                zs = {}
-                for q in here:
-                    fill, o = charts.diverge(q["win_pct"], q["other_pct"], spread)
-                    zs[q["zone_index"]] = {
-                        "top": f"{q['win_pct']:.0f}%",
-                        "sub": f"{q['hit']}/{q['of']}",
-                        "fill": fill, "op": o,
-                        "title": (f"{q['zone']}: when {phrase}, in {q['hit']} of "
-                                  f"{q['of']} {side.upper()} rounds, you win "
-                                  f"{q['win_pct']:.0f}% against "
-                                  f"{q['other_pct']:.0f}% when it is not")}
-                by_key[kind] = zs
-
-            if any(by_key.values()):
-                built.append((mp, side, by_key))
-
-        # A layer earns its pill by having a circle SOMEWHERE. Decided across
-        # every map, because one toggle drives all of them at once.
-        live = [(k, lab) for k, lab in ORDER
-                if any(fig[2].get(k) for fig in built)]
-
-        # The pills stay in order of what decides a round, but the one that
-        # OPENS is whichever has the most circles. Opening on the most
-        # important question is no use if that question is the thinnest: on a
-        # two-match season "traded back" has two circles across three maps, so
-        # two of them would still load blank, which reads as broken rather
-        # than as thin. The order teaches; the default has to show something.
-        counts = {k: sum(len(fig[2].get(k, {})) for fig in built)
-                  for k, _lab in live}
-        first = max(counts, key=lambda k: counts[k]) if counts else None
-
-        for mp, side, by_key in built:
-            # `first` leads the list because svg() lights the first layer, and
-            # the pills below mark the same key. Order within the list is
-            # otherwise invisible: they are stacked overlays.
-            order = ([first] + [k for k, _l in live if k != first]) if first                 else [k for k, _l in live]
-            layers = [(k, by_key.get(k, {})) for k in order]
+        duels = raw.get("duels", {})
+        for mp in sorted(duels, key=lambda m: -sum(
+                sum(v[0] + v[1] for v in z.values())
+                for z in duels[m].values())):
+            rows = {}
+            for z, buckets in duels[mp].items():
+                rows[str(z)] = [[sd, ph, by, kd[0], kd[1]]
+                                for (sd, ph, by), kd in sorted(buckets.items())]
+            if not rows:
+                continue
+            zdata[mp] = rows
+            znames[mp] = {str(k): v
+                          for k, v in raw.get("names", {}).get(mp, {}).items()}
             for pic in zone_pictures(mp, show=set(), width=420,
-                                     stat_layers=layers):
+                                     stat_zones=True):
                 floor = (f' <span class="pill">{esc(pic["level"])}</span>'
                          if pic["level"] else "")
                 decided.append(
-                    f'<figure class="zonefig reading">{pic["svg"]}'
-                    f'<figcaption class="den"><strong>'
-                    f'{esc(mp.replace("de_", ""))}</strong> '
-                    f'<span class="pill {esc(side)}">{esc(side.upper())}</span>'
-                    f'{floor}</figcaption></figure>')
+                    f'<figure class="zonefig reading" data-map="{esc(mp)}">'
+                    f'{pic["svg"]}<figcaption class="den"><strong>'
+                    f'{esc(mp.replace("de_", ""))}</strong>{floor}'
+                    f'</figcaption></figure>')
     except Exception:
         decided = []        # a missing picture must never break the page
 
     if decided:
-        pills = "".join(
-            f'<button type="button" class="pill zpill{" on" if k == first else ""}" '
-            f'data-layer="{k}">{esc(lab)}</button>'
-            for k, lab in live)
+        ROWS = [("side", [("all", "Overall"), ("t", "T side"), ("ct", "CT side")]),
+                ("phase", [("all", "Overall"), ("pre", "Pre-plant"),
+                           ("post", "Post-plant")]),
+                ("buy", [("all", "Overall"), ("pistol", "Pistol"), ("eco", "Eco"),
+                         ("force", "Force buy"), ("full", "Full buy")])]
+        filters = "".join(
+            f'<div class="zrow" data-f="{f}">' + "".join(
+                f'<button type="button" class="pill zpill{" on" if i == 0 else ""}" '
+                f'data-v="{v}">{esc(lab)}</button>'
+                for i, (v, lab) in enumerate(opts)) + '</div>'
+            for f, opts in ROWS)
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
-            f'<p class="lede">One map, four questions, in the order they decide '
-            f'a round. <strong>Opening duel</strong> is your won-lost record in '
-            f'the round\u2019s first fight; <strong>traded back</strong> is how '
-            f'often somebody got the man back when you lost it, which is the '
-            f'half you can actually coach. The other two are what the space '
-            f'bought you. Green beats your own rate on this map and side, red '
-            f'is worse, faint is the same. Hover a circle for the sentence.</p>'
-            f'<div class="zpills">{pills}</div>'
+            f'<p class="lede">Your kills and deaths in every place on the map. '
+            f'<strong>Green means you win more fights there than you do '
+            f'everywhere else</strong> under the same filter, red means fewer, '
+            f'faint means the same or too little to say. Hover anywhere on the '
+            f'map for the numbers.</p>'
+            f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<script>(function(){{'
-            f'var ps=document.querySelectorAll(".zpill");'
-            f'for(var i=0;i<ps.length;i++){{ps[i].addEventListener("click",function(){{'
-            f'var k=this.getAttribute("data-layer");'
-            f'for(var j=0;j<ps.length;j++){{ps[j].classList.toggle("on",ps[j]===this);}}'
-            f'var ls=document.querySelectorAll(".zlayer");'
-            f'for(var j=0;j<ls.length;j++){{'
-            f'ls[j].classList.toggle("on",ls[j].getAttribute("data-layer")===k);}}'
-            f'}});}}}})();</script></section>')
+            f'var D={json.dumps(zdata, separators=(",", ":"))},'
+            f'N={json.dumps(znames, separators=(",", ":"))},'
+            f'F={{side:"all",phase:"all",buy:"all"}},MIN=6;'
+            f'function pl(n,w){{return n+" "+w+(n===1?"":"s");}}'
+            f'function paint(){{'
+            f'var figs=document.querySelectorAll(".zonefig[data-map]");'
+            f'for(var a=0;a<figs.length;a++){{'
+            f'var mp=figs[a].getAttribute("data-map"),d=D[mp]||{{}},n=N[mp]||{{}};'
+            f'var tk=0,td=0,per={{}};'
+            f'for(var z in d){{var k=0,x=0,r=d[z];'
+            f'for(var b=0;b<r.length;b++){{var q=r[b];'
+            f'if(F.side!=="all"&&q[0]!==F.side)continue;'
+            f'if(F.phase!=="all"&&q[1]!==F.phase)continue;'
+            f'if(F.buy!=="all"&&q[2]!==F.buy)continue;'
+            f'k+=q[3];x+=q[4];}}'
+            f'per[z]=[k,x];tk+=k;td+=x;}}'
+            f'var base=td>0?tk/td:1;'
+            f'var ps=figs[a].querySelectorAll(".zfill");'
+            f'for(var p=0;p<ps.length;p++){{var el=ps[p],z=el.getAttribute("data-z");'
+            f'var v=per[z]||[0,0],k=v[0],x=v[1],tot=k+x;'
+            f'var ttl=el.querySelector("title"),nm=n[z]||"this place";'
+            f'if(tot<MIN){{el.setAttribute("fill","var(--faint)");'
+            f'el.setAttribute("opacity","0.28");'
+            f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+" here. '
+            f'Too few to read anything into.";continue;}}'
+            f'var kd=x>0?k/x:k,rel=(kd-base)/(base||1);'
+            f'var good=rel>0.12,bad=rel<-0.12;'
+            f'el.setAttribute("fill",good?"var(--good)":bad?"var(--bad)":"var(--faint)");'
+            f'el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0.28");'
+            f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+", K/D "+kd.toFixed(2)'
+            f'+" against "+base.toFixed(2)+" everywhere else";}}}}}}'
+            f'var rows=document.querySelectorAll(".zfilters .zrow");'
+            f'for(var i=0;i<rows.length;i++){{(function(row){{'
+            f'var bs=row.querySelectorAll(".zpill");'
+            f'for(var j=0;j<bs.length;j++){{bs[j].addEventListener("click",function(){{'
+            f'F[row.getAttribute("data-f")]=this.getAttribute("data-v");'
+            f'for(var m=0;m<bs.length;m++){{bs[m].classList.toggle("on",bs[m]===this);}}'
+            f'paint();}});}}}})(rows[i]);}}'
+            f'paint();}})();</script></section>')
 
     # ---- the maps, once each, at the head of the three tables
     figs = []
