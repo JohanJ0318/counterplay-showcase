@@ -102,3 +102,12 @@ def test_a_coach_in_the_server_does_not_stop_the_check(monkeypatch):
     calls = buys.match_calls("m")
     assert calls, "rounds with a coach in the server must still be judged"
     assert all(len(c["players"]) == 5 for c in calls)
+
+
+def test_late_buys_do_not_invent_money():
+    """`spent` includes buys made after freeze-end; freeze-end equipment does
+    not. A team holding $14,500 and keeping $3,750 can reach $18,250, not a
+    full buy, however the two readings disagree about what it carried in."""
+    opts = E.options(money=19150, reach=14500 + 19150 - 15400, side="t")
+    assert opts["buy"][0] == 18250
+    assert E.kind(opts["buy"][0]) == "force"

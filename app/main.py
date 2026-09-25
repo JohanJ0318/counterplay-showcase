@@ -30,6 +30,8 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
+from counterplay import economy
+
 from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
@@ -1261,33 +1263,56 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     if sides_here:
         mine = [c for c in buys.match_calls(match_key)
                 if sides_here.get(c["round"]) == c["side"]]
-        CALL = {"eco": "saved", "force": "forced", "full": "full bought"}
-        OTHER = {"eco": "Saving", "force": "Forcing", "full": "A full buy"}
-        cards = []
+        # No model decimals on the page. The model decides WHICH calls are
+        # worth a look; what the coach reads is the facts of the round, the
+        # better call, and what real teams in that spot went on to win.
+        cards, spots = [], []
         for c in sorted((c for c in mine if c["flag"]),
                         key=lambda c: -c["gain"]):
             alt = c["options"][c["best"]]
             left = c["money"] - c["spent"]
             if c["made"] == "force" and alt["kind"] == "full":
-                what = (f'You bought ${c["equip"]:,.0f} of equipment and kept '
-                        f'${left:,.0f}. A full buy was in reach.')
+                what = (f'You bought ${c["equip"]:,.0f} of equipment and '
+                        f'kept ${left:,.0f}, when a full buy was affordable.')
+                better, spot = "A full buy was the better call.", "underbuy"
+            elif c["made"] == "eco" and alt["kind"] == "force":
+                what = (f'You saved with ${c["money"]:,.0f} between you.')
+                better = ("Forcing was the better call against what they "
+                          "could afford.")
+                spot = "save_or_force"
+            elif c["made"] == "eco":
+                what = (f'You saved with ${c["money"]:,.0f} between you, '
+                        f'when a full buy was affordable.')
+                better, spot = "A full buy was the better call.", None
             else:
-                what = (f'You {CALL[c["made"]]} with ${c["money"]:,.0f} between '
-                        f'you, holding ${c["equip"]:,.0f} of equipment.')
-            fig = charts.versus([
-                (f'What you did ({CALL[c["made"]]})', c["v"] / 2 * 100,
-                 "Rounds you could expect to win out of this one and the next",
-                 f'{c["v"]:.2f} of 2'),
-                (OTHER[alt["kind"]], alt["v"] / 2 * 100,
-                 "Rounds you could expect to win out of this one and the next",
-                 f'{alt["v"]:.2f} of 2')], muted_second=False)
+                what = (f'You bought ${c["equip"]:,.0f} of equipment with '
+                        f'${c["money"]:,.0f} between you.')
+                better, spot = ("Saving for the round after was the better "
+                                "call."), None
+            if spot and spot not in spots:
+                spots.append(spot)
             cards.append(
                 f'<div class="card"><p><strong>Round {c["round"]}</strong> '
                 f'<span class="pill {c["side"]}">{c["side"].upper()}</span> '
                 f'<span class="den">{"won" if c["won"] else "lost"}</span></p>'
-                f'<p>{what} {OTHER[alt["kind"]]} '
-                f'was worth about {c["gain"]:.2f} more rounds over this round '
-                f'and the next.</p>{fig}</div>')
+                f'<p>{what} {better}</p></div>')
+        EV = economy.EVIDENCE
+        SPOT = {
+            "underbuy": ("Teams that could afford a full buy, against a full buy",
+                         [("Full bought", ("underbuy", "full")),
+                          ("Bought less", ("underbuy", "force"))]),
+            "save_or_force": ("Teams with $12k to $20k to spend, against a full buy",
+                              [("Forced", ("save_or_force", "force")),
+                               ("Saved", ("save_or_force", "eco"))]),
+        }
+        evidence = "".join(
+            f'<p class="den" style="margin:14px 0 0">{SPOT[sp][0]}: rounds '
+            f'won out of that one and the next, in college matches.</p>' +
+            charts.versus([
+                (lab, EV[key][0] / 2 * 100, f'{EV[key][1]:,} teams',
+                 f'{EV[key][0]:.2f} of 2')
+                for lab, key in SPOT[sp][1]])
+            for sp in spots)
         per_player: dict = {}
         for c in mine:
             for n in c["notes"]:
@@ -1301,16 +1326,16 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
         if mine:
             calls_block = '<div class="buycalls">' + (
                 (f'<h3>Calls worth a second look</h3>'
-                 f'<p class="lede">Judged on what each side held and could '
-                 f'afford, over this round and the next. Only calls where the '
-                 f'other choice was worth a tenth of a round or more. The '
+                 f'<p class="lede">Judged on what each side had and could '
+                 f'afford when it bought, over this round and the next, and '
+                 f'only where the other call came out clearly ahead. The '
                  f'round after a pistol round is left out: college matches '
                  f'do not settle whether to force it.</p>'
-                 f'<div class="grid2">{"".join(cards)}</div>'
+                 f'<div class="grid2">{"".join(cards)}</div>{evidence}'
                  if cards else
                  '<p class="note">No buy call this match where the other '
-                 'choice was worth a tenth of a round more. The round after '
-                 'a pistol round is not judged.</p>') +
+                 'call came out clearly ahead. The round after a pistol '
+                 'round is not judged.</p>') +
                 (f'<h3>Player buys against the team&rsquo;s call</h3>'
                  f'<ul class="buynotes">{notes_list}</ul>' if notes_list else '')
             ) + '</div>'

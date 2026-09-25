@@ -79,9 +79,17 @@ def main_weapon(loadout_text: str | None) -> str | None:
 
 # P(win) = logistic(INTERCEPT + CT * is_ct + SLOPE * ln(yours / theirs)).
 # 20 seeds held out by match: ECE 0.92x its noise floor. Maps added nothing.
-CURVE_INTERCEPT = 0.089
-CURVE_CT = -0.178
-CURVE_SLOPE = 1.223
+#
+# These are the numbers WITH a team-strength control (tools/econconfound.py),
+# not the plain fit. A better team is richer as well as better, so the plain
+# curve (slope 1.228) credited equipment with some of what skill did. With
+# each team's round-win rate over the rest of the match beside it, 89% of
+# the slope survives (1.095; 90% range 0.99 to 1.19). The buy check asks
+# "had you bought instead", which is a question about equipment alone, so
+# it takes the smaller slope, at an even matchup.
+CURVE_INTERCEPT = 0.121
+CURVE_CT = -0.242
+CURVE_SLOPE = 1.095
 EQUIP_FLOOR = 200.0        # a side holding nothing still has pistols
 
 # The loss bonus, as the demos pay it. The counter starts each half at 1, a
@@ -110,22 +118,76 @@ DEFAULT_KIT = 5 * EQUIP_FLOOR
 # spends toward this and no further.
 FULL_BUY = {"ct": 26700, "t": 24175}
 
+# What the other side will hold, from what it can afford: its money plus
+# what it carried in, both known at buy time. Five points across what real
+# teams with that much available ended up holding (tools/econenemy.py, which
+# prints this table). The check averages the win chance over them instead of
+# using the other side's actual buy, which would be hindsight: a save must
+# not look wrong just because the other side happened to force. The median
+# lands $1,450 from the real buy. Under $4,000 available across five
+# players almost never happens and its rows are noise, so it reads $4,000.
+ENEMY_STEP = 4000
+ENEMY_BUY = {    # (side, $ available // STEP): equipment at percentiles (10, 30, 50, 70, 90)
+    ("ct",  1): [1400, 1900, 2500, 4460, 10140],
+    ("ct",  2): [1400, 1900, 2450, 4180, 10220],
+    ("ct",  3): [2000, 2950, 4000, 5630, 12540],
+    ("ct",  4): [5270, 7250, 9450, 15900, 17740],
+    ("ct",  5): [15860, 18950, 20400, 21450, 22680],
+    ("ct",  6): [20100, 22300, 23450, 24200, 25420],
+    ("ct",  7): [22950, 24650, 25850, 26700, 27850],
+    ("ct",  8): [24040, 25750, 26950, 27950, 29350],
+    ("ct",  9): [23830, 26200, 27900, 28810, 30050],
+    ("ct", 10): [27000, 28650, 29800, 30450, 31500],
+    ("t",  1): [1500, 2000, 2800, 5710, 10370],
+    ("t",  2): [1500, 2000, 2780, 5470, 10390],
+    ("t",  3): [2500, 4120, 5820, 11050, 13850],
+    ("t",  4): [6550, 12250, 15050, 16800, 18550],
+    ("t",  5): [14600, 18240, 19600, 20600, 22100],
+    ("t",  6): [19300, 21300, 22500, 23350, 24500],
+    ("t",  7): [21250, 22900, 23800, 24920, 26250],
+    ("t",  8): [21260, 23490, 24500, 25400, 27050],
+    ("t",  9): [21670, 24020, 25200, 26280, 27550],
+    ("t", 10): [24400, 25400, 26000, 27350, 27870],
+}
+
+
+def enemy_buys(available: float, side: str) -> list[float]:
+    b = min(max(int(available // ENEMY_STEP), 1), max(k for _, k in ENEMY_BUY))
+    return [float(x) for x in ENEMY_BUY[(side, b)]]
+
+
 # What a team spends when it saves: pistols and some armour. The median eco
 # round in the corpus spent $2,300 (quartiles $1,300 and $3,600). Modelling a
 # save as spending nothing made it look worse than the saves teams play.
 ECO_SPEND = 2300
 
 # NEXT round is far less certain than the "full buy or save" projection
-# makes it look: real teams half-buy, drop, and save guns. On 4,014 judged
-# collegiate rounds the projected next-round chance, regressed on what
-# happened, came out at a logit slope of 0.40 (this round's: 0.97, i.e. the
-# curve itself is fine). A projected 84% won 71%. So the next-round chance
-# is pulled toward 50% by exactly that, and every two-round comparison,
-# which is what raises a flag, is built on the tempered number.
-NEXT_SLOPE = 0.40
+# makes it look: real teams half-buy, drop, and save guns. On the collegiate
+# corpus the projected next-round chance, regressed on what happened, came
+# out at a logit slope of 0.50 (0.40 before the other side's buy was read
+# as an expectation; this round's own slope is 1.13, so the curve itself is
+# if anything cautious). So the next-round chance is pulled toward 50% by
+# exactly that, and every two-round comparison, which is what raises a
+# flag, is built on the tempered number. Re-measure with NEXT_SLOPE = 1.0
+# whenever anything above changes.
+NEXT_SLOPE = 0.50
 
 # The product's own buckets (counterplay/schema.classify_round).
 ECO_BELOW, FULL_FROM = 5000, 20000
+
+# What real teams went on to win, over that round and the next, in the two
+# spots the check flags most, both against a full buy. No model in it: this
+# is what the match report shows beside a flag, so a coach sees the rounds
+# rather than a decimal the model has not earned. Printed by
+# tools/buycheck.py (section 6); copy it here when it moves.
+#   underbuy:      could afford a full buy ($22k+ with what they carried)
+#   save_or_force: $12k to $20k available
+EVIDENCE = {   # (spot, call): (rounds won of the next 2, teams)
+    ("save_or_force", "eco"): (0.61, 151),
+    ("save_or_force", "force"): (0.72, 478),
+    ("underbuy", "force"): (0.72, 204),
+    ("underbuy", "full"): (1.00, 1826),
+}
 
 # Two rounds' worth of wins a different call has to be ahead by before it is
 # worth saying. Below this the curve cannot tell the calls apart.
@@ -185,10 +247,8 @@ def value(equip: float, money_left: float, side: str, counter: int,
           last_of_half: bool) -> tuple[float, float]:
     """(P(win this round), expected rounds won over this round and the next).
 
-    `their_equip` is what the other side actually held. At buy time a team
-    reads the other side's money off the scoreboard, so this is close to
-    what they knew, and it keeps a force that met another force from being
-    judged against a full buy that never came."""
+    `their_equip` is one guess at what the other side holds; judge() passes
+    each of the ENEMY_BUY points in turn and averages."""
     other = "t" if side == "ct" else "ct"
     p = p_win(equip, their_equip, side)
     if last_of_half:
@@ -201,18 +261,24 @@ def value(equip: float, money_left: float, side: str, counter: int,
     return p, p + nxt
 
 
-def options(money: float, carried: float, side: str) -> dict[str, tuple[float, float]]:
+def options(money: float, reach: float, side: str) -> dict[str, tuple[float, float]]:
     """{call: (equipment, money left)} for saving and for buying.
 
-    A save still spends ECO_SPEND, the way real ones do.
-    Buying spends toward a full buy and stops there. Whether it lands as a
-    force or a full buy is what the money allows, so it is named after the
-    fact by kind()."""
-    carried = max(carried, DEFAULT_KIT)
-    spend = min(money, max(FULL_BUY[side] - carried, 0.0))
-    light = min(money, ECO_SPEND)
-    return {"save": (carried + light, money - light),
-            "buy": (carried + spend, money - spend)}
+    `reach` is the most equipment the team could have held: what it held
+    plus what it kept (equip + money - spent). NOT equip - spent + money
+    built from a carried-in figure: `spent` is read at the round's end and
+    takes in buys made after freeze-end, which freeze-end equipment does
+    not, so "carried" came out negative and clamping it up invented money.
+    That put a team on $18,250 down as able to full buy.
+
+    A save still spends ECO_SPEND, the way real ones do. Buying spends
+    toward a full buy and stops there; whether it lands as a force or a
+    full buy is what the money allows, named after the fact by kind()."""
+    carried = min(max(reach - money, DEFAULT_KIT), reach)
+    save = min(reach, carried + min(money, ECO_SPEND))
+    buy = min(reach, max(FULL_BUY[side], carried))
+    return {"save": (save, max(money - (save - carried), 0.0)),
+            "buy": (buy, max(money - (buy - carried), 0.0))}
 
 
 def judge(money: float, spent: float, equip: float, side: str, counter: int,
@@ -220,14 +286,29 @@ def judge(money: float, spent: float, equip: float, side: str, counter: int,
           their_counter: int, last_of_half: bool) -> dict:
     """The call a team made, against saving and against buying.
 
-    Everything is team totals. `equip - spent` is what the team carried in:
-    a drop moves money between teammates and cancels out of the sum."""
-    their_left = their_money - their_spent
-    args = (side, counter, their_equip, their_left, their_counter, last_of_half)
-    p_actual, v_actual = value(equip, money - spent, *args)
+    Everything is team totals, so a drop moves money between teammates and
+    cancels out of the sum."""
+    # The other side as it looked at buy time: what it could afford, and the
+    # spread of what teams with that much actually hold (ENEMY_BUY).
+    other = "t" if side == "ct" else "ct"
+    their_reach = their_equip + their_money - their_spent
+    their_carried = min(max(their_reach - their_money, DEFAULT_KIT), their_reach)
+    theirs = [min(te, their_reach) for te in enemy_buys(their_reach, other)]
+
+    def expected(eq, left):
+        ps, vs = [], []
+        for te in theirs:
+            their_left = max(their_money - max(te - their_carried, 0.0), 0.0)
+            p, v = value(eq, left, side, counter, te, their_left,
+                         their_counter, last_of_half)
+            ps.append(p)
+            vs.append(v)
+        return sum(ps) / len(ps), sum(vs) / len(vs)
+
+    p_actual, v_actual = expected(equip, money - spent)
     alt = {}
-    for call, (eq, left) in options(money, equip - spent, side).items():
-        p, v = value(eq, left, *args)
+    for call, (eq, left) in options(money, equip + money - spent, side).items():
+        p, v = expected(eq, left)
         alt[call] = {"equip": eq, "kind": kind(eq), "p": p, "v": v}
     best = max(alt, key=lambda k: alt[k]["v"])
     made = kind(equip)

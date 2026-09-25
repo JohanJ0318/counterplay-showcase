@@ -15,6 +15,9 @@ is only worth printing if its two-round numbers come true, so:
      A coach reads a handful of calls a match, not a dozen.
   4. How many player notes a match produces, by kind.
   5. What an eco actually spends, so the "save" option is a real save.
+  6. THE EVIDENCE the match report shows beside a flag: what real teams in
+     that spot went on to win over this round and the next, with no model
+     in it. Copy these into economy.EVIDENCE when they move.
 """
 from __future__ import annotations
 
@@ -36,13 +39,25 @@ def main() -> int:
         "SELECT m.match_key FROM matches m JOIN demos d ON d.id = m.demo_id "
         "WHERE d.tier = 'league' AND d.status = 'parsed'")]
     rows, flagged, notes, eco_spend = [], [], Counter(), []
+    ev = defaultdict(list)
     per_team = []
     for mk in keys:
         calls = buys.match_calls(mk)
         won = {(c["round"], c["side"]): c["won"] for c in calls}
         by_side = defaultdict(int)
+        equip = {(c["round"], c["side"]): c["equip"] for c in calls}
         for c in calls:
             nxt = won.get((c["round"] + 1, c["side"]))
+            other = "t" if c["side"] == "ct" else "ct"
+            reach = c["equip"] - c["spent"] + c["money"]
+            if nxt is not None and equip.get((c["round"], other), 0) >= 20000:
+                two = c["won"] + nxt
+                if reach >= 22000 and c["made"] == "force":
+                    ev["underbuy", "force"].append(two)
+                elif reach >= 22000 and c["made"] == "full":
+                    ev["underbuy", "full"].append(two)
+                if 12000 <= reach < 20000 and c["made"] in ("eco", "force"):
+                    ev["save_or_force", c["made"]].append(two)
             if c["made"] == "eco":
                 eco_spend.append(c["spent"])
             for n in c["notes"]:
@@ -88,6 +103,11 @@ def main() -> int:
     if eco_spend:
         print(f"\n5. a team's spend on an eco: median ${st.median(eco_spend):,.0f}, "
               f"quartiles {[round(q) for q in st.quantiles(eco_spend, n=4)]}")
+    print()
+    print("6. EVIDENCE = {   # (spot, call): (rounds won of the next 2, teams)")
+    for k in sorted(ev):
+        print(f"    {k!r}: ({st.mean(ev[k]):.2f}, {len(ev[k])}),")
+    print("}")
     return 0
 
 
