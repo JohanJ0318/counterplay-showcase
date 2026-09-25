@@ -1640,7 +1640,7 @@ def _players_body(team, user=None, share: str = ""):
             f'<th class="num" title="Share of this player&rsquo;s deaths that a '
             f'teammate traded back">Traded</th>'
             f'<th class="num" title="Grenade and molotov damage per round">'
-            f'Nades</th>'
+            f'Nade dmg/rd</th>'
             f'<th class="num">AWP</th></tr></thead>')
 
     yours, others = squad["yours"], squad["others"]
@@ -1658,9 +1658,8 @@ def _players_body(team, user=None, share: str = ""):
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'Who keeps turning up</span><h2>Your players</h2></div>'
-            f'<p class="lede">Everyone who stood on your side in more than one '
-            f'match. A demo carries no roster, so this is read from your season '
-            f'rather than typed in.</p>'
+            f'<p class="lede">Everyone on your side in more than one match, '
+            f'read from your demos.</p>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
             f'<tbody>{player_rows(regulars)}</tbody></table></div></section>')
     if once:
@@ -1668,8 +1667,7 @@ def _players_body(team, user=None, share: str = ""):
             f'<section><div class="sec-head"><span class="label">'
             f'On your side, once</span><h2>Played with you once</h2></div>'
             f'<p class="lede">Stand-ins and one-off fifths. Their rounds count '
-            f'as yours, but they are not your roster, so they sit apart from '
-            f'it.</p>'
+            f'as yours.</p>'
             f'<details><summary>Show {len(once)} player'
             f'{"s" if len(once) != 1 else ""}</summary>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
@@ -1683,9 +1681,7 @@ def _players_body(team, user=None, share: str = ""):
             f'<section><div class="sec-head"><span class="label">'
             f'The other side of your matches</span>'
             f'<h2>Opponents</h2></div>{note}'
-            f'<p class="lede">Kept because their numbers are the context yours '
-            f'sit in, but they are not your team and they do not belong in the '
-            f'same table.</p>'
+            f'<p class="lede">The players you faced, for context.</p>'
             f'<details><summary>Show {len(others)} opponent'
             f'{"s" if len(others) != 1 else ""}</summary>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
@@ -1707,11 +1703,9 @@ def _players_body(team, user=None, share: str = ""):
   </section>
   {"".join(blocks)}
   <section>
-    <p class="note"><strong>Counted, not modelled.</strong> CT and T damage are
-      kept apart because a player at 90 ADR as CT and 60 as T has a problem one
-      average would hide. Under {report_mod.MIN_ROUNDS_FOR_ROLE} rounds a player is
-      marked thin and gets no role. Trades, clutches and flash figures are on each
-      player&rsquo;s own page.</p>
+    <p class="note">Under {report_mod.MIN_ROUNDS_FOR_ROLE} rounds a player is
+      marked thin and gets no role. Trades, clutches and flashes are on each
+      player&rsquo;s page.</p>
   </section>"""
     return html_page("Players", banner("Players", crumb=esc(team["name"]),
                                        label="Season player stats"),
@@ -2990,18 +2984,12 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
 
     DASH = "&ndash;"
     t = p["totals"]
-    rows = []
+    rows, short_rows = [], []
     for m in p["matches"]:
         # The same W/L pill the rest of the site uses. "Won"/"Lost" in a
         # column of twelve numbers is two words doing a letter's work.
         res = (f'<span class="res {"win" if m["result"] == "won" else "loss"}">'
                f'{"W" if m["result"] == "won" else "L"}</span>')
-        # An ADR well off this player's own average is the point of the page,
-        # so it is marked rather than left for the reader to spot.
-        delta = m["adr"] - t["adr"]
-        flag = ""
-        if m["rounds"] >= 10 and abs(delta) >= 25:
-            flag = (f' <span class="thin">{"+" if delta > 0 else ""}{delta:.0f}</span>')
         clutch = (f'{m["clutch_won"]}/{m["clutch_tried"]}'
                   if m["clutch_tried"] else "&ndash;")
         blind = (f'{m["blind_per_flash"]:.2f}' if m["flashes_thrown"] else "&ndash;")
@@ -3013,7 +3001,7 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
             f'<td>{res}</td>'
             f'<td class="num mono">{esc(m["score"])}</td>'
             f'<td class="num mono">{m["rounds"]}</td>'
-            f'<td class="num mono">{m["adr"]:.0f}{flag}</td>'
+            f'<td class="num mono">{m["adr"]:.0f}</td>'
             f'<td class="num mono">{m["kills"]}{DASH}{m["deaths"]}{DASH}{m["assists"]}</td>'
             f'<td class="num mono">{m["kd"]:.2f}</td>'
             f'<td class="num mono">{m["hs_pct"]:.0f}%</td>'
@@ -3024,6 +3012,39 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
             f'<td class="num mono">{m["util_adr"]:.1f}</td>'
             f'<td class="num mono">{blind}</td>'
             f'<td class="num mono">{m["awp_kills"] or "&ndash;"}</td></tr>')
+        short_rows.append(
+            f'<tr><td class="name">'
+            f'<a href="{match_href(m["match_key"], share)}">'
+            f'{map_chip(m["map_name"])}</a></td>'
+            f'<td>{res}</td>'
+            f'<td class="num mono">{esc(m["score"])}</td>'
+            f'<td class="num mono">{m["adr"]:.0f}</td>'
+            f'<td class="num mono">{m["kills"]}{DASH}{m["deaths"]}{DASH}{m["assists"]}</td>'
+            f'<td class="num mono">{m["opening_kills"]}/{m["opens"]}</td>'
+            f'<td class="num mono">{m["trade_kills"] or "&ndash;"}</td></tr>')
+    # Newest first, like every other list of matches on the site. The chart
+    # above it reads oldest to newest, left to right, as a time axis does.
+    rows.reverse()
+    short_rows.reverse()
+
+    # ADR in every match, as a picture. It replaces a "worst to best" tile
+    # that let a six-round surrender set the range, and the +47 flags in
+    # the table. Matches under ten rounds are drawn hollow.
+    series = p["matches"]
+    adr_pts = [(f'{i + 1} {m["map_name"].replace("de_", "")}', m["adr"],
+                "W" if m["result"] == "won" else "L")
+               for i, m in enumerate(series)]
+    thin = {i for i, m in enumerate(series) if m["rounds"] < 10}
+    adr_chart = charts.both(
+        charts.trend(adr_pts, unit="", is_pct=False, avg=t["adr"],
+                     hollow=thin, title="ADR in each match, oldest to newest"),
+        charts.trend(adr_pts, width=320, unit="", is_pct=False, avg=t["adr"],
+                     hollow=thin, compact=True,
+                     title="ADR in each match, oldest to newest")
+    ) if len(adr_pts) > 1 else ""
+    adr_block = (f'<p class="lede">ADR in each match against this player&rsquo;s '
+                 f'average. A hollow point is a match under ten rounds.</p>'
+                 f'<div class="chart">{adr_chart}</div>') if adr_chart else ""
 
     # ---- utility, as four cards rather than four more columns
     #
@@ -3035,18 +3056,17 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
         ucards.append(
             f'<div class="stat"><span class="stat-n">{t["enemies_flashed"]}</span>'
             f'<span class="label">opponents blinded</span>'
-            f'<span class="den">from {t["flashes_thrown"]} flashes</span></div>')
+            f'<span class="den">with {t["flashes_thrown"]} flashes thrown</span></div>')
         # Same threshold as the team page, said once where the numbers are.
         blind_note = (
-            f'<p class="den" style="margin-top:2px">Blinded means held for at '
-            f'least {utility.MIN_BLIND_SECONDS} seconds. The game reports any '
-            f'exposure at all, including the quarter second somebody catches '
-            f'while turning away.</p>')
+            f'<p class="den" style="margin-top:2px">A blind counts if it lasts '
+            f'{utility.MIN_BLIND_SECONDS} seconds or more.</p>')
         if t["flashes_landed"]:
             ucards.append(
                 f'<div class="stat"><span class="stat-n">'
                 f'{t["own_flash_pct"]:.0f}%</span>'
-                f'<span class="label">of their blinds hit their own side</span>'
+                f'<span class="label">of the players they blinded were '
+                f'teammates</span>'
                 f'<span class="den">{t["teammates_flashed"]} of '
                 f'{t["flashes_landed"]}</span></div>')
         ucards.append(
@@ -3057,7 +3077,7 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
             ucards.append(
                 f'<div class="stat"><span class="stat-n">'
                 f'${t["wasted_per_round"]:.0f}</span>'
-                f'<span class="label">of utility wasted per round</span>'
+                f'<span class="label">of utility a round, unused at death</span>'
                 f'<span class="den">${t["nades_wasted"]:,} of '
                 f'${t["nades_value"]:,} bought</span></div>')
         util_block = f"""
@@ -3070,7 +3090,6 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
     else:
         util_block = ""
 
-    spread = p["best"] - p["worst"]
     body = f"""
   <section>
     <div class="stat-row">
@@ -3080,21 +3099,23 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
         <span class="label">ADR overall</span></div>
       <div class="stat"><span class="stat-n">{t["kd"]:.2f}</span>
         <span class="label">K/D</span></div>
-      <div class="stat"><span class="stat-n">{p["worst"]:.0f}&ndash;{p["best"]:.0f}</span>
-        <span class="label">worst to best ADR</span></div>
     </div>
     <p class="lede">Role: <strong>{esc(t["role"])}</strong>
       <span class="den">({esc(t["role_why"])})</span></p>
   </section>
 
-  {util_block}
-
   <section>
-    <div class="sec-head"><span class="label">Every match, oldest first</span>
+    <div class="sec-head"><span class="label">Every match</span>
       <h2>Match by match</h2></div>
-    <p class="lede">Season totals hide whether a number is a level or an average of two
-      very different nights. A match more than 25 ADR off this player's own average is
-      marked, and the map name links to that match's report.</p>
+    {adr_block}
+    <div class="tbl-wrap" style="margin-top:14px"><table>
+      <thead><tr><th>Match</th><th>Result</th><th class="num">Score</th>
+        <th class="num">ADR</th><th class="num">K{DASH}D{DASH}A</th>
+        <th class="num" title="Opening duels won, of those taken">Opening</th>
+        <th class="num" title="Kills that traded a teammate who had just died">Trades</th>
+        </tr></thead>
+      <tbody>{"".join(short_rows)}</tbody></table></div>
+    <details><summary>All columns</summary>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Match</th><th>Result</th><th class="num">Score</th>
         <th class="num">Rounds</th><th class="num">ADR</th>
@@ -3107,13 +3128,10 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
         <th class="num" title="Enemies blinded per flash thrown">Blind/flash</th>
         <th class="num">AWP</th></tr></thead>
       <tbody>{"".join(rows)}</tbody></table></div>
+    </details>
   </section>
 
-  <section>
-    <p class="note">A spread of <strong>{spread:.0f} ADR</strong> between this player's
-      worst and best match. Consistency is its own skill, and it is invisible on a
-      season average.</p>
-  </section>"""
+  {util_block}"""
     return html_page(f'{p["name"]}', banner(p["name"], crumb=esc(team["name"]),
                                             label="Player"),
                      share_nav(share, "/players") + body, user,

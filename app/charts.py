@@ -411,7 +411,8 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
 
 def trend(points: list[tuple[str, float, str]], width: int = 680,
           height: int = 248, unit: str = "", is_pct: bool = True,
-          avg: float | None = None, compact: bool = False) -> str:
+          avg: float | None = None, compact: bool = False,
+          hollow=None, title: str = "Across matches, oldest to newest") -> str:
     """One measure across matches, oldest to newest.
 
     THE AXIS IS NUMBERS A PERSON WOULD CHOOSE. Dividing the data's own range
@@ -500,9 +501,16 @@ def trend(points: list[tuple[str, float, str]], width: int = 680,
     for i, (label, v, res) in enumerate(points):
         last = i == len(points) - 1
         col = ACCENT if res == "W" else (T_SIDE if res == "L" else FAINT)
-        parts.append(f'<circle cx="{px(i):.1f}" cy="{py(v):.1f}" '
-                     f'r="{5.5 if last else 4.5}" fill="{col}" '
-                     f'stroke="var(--surface)" stroke-width="1.8"/>')
+        # Hollow is a match too short to read much into, such as a
+        # six-round surrender: drawn, but not as a full point.
+        if hollow and i in hollow:
+            parts.append(f'<circle cx="{px(i):.1f}" cy="{py(v):.1f}" r="4" '
+                         f'fill="var(--surface)" stroke="{col}" '
+                         f'stroke-width="1.6"/>')
+        else:
+            parts.append(f'<circle cx="{px(i):.1f}" cy="{py(v):.1f}" '
+                         f'r="{5.5 if last else 4.5}" fill="{col}" '
+                         f'stroke="var(--surface)" stroke-width="1.8"/>')
         # With labels thinned, the one before the last would sit on top of
         # the last, which is always labelled, so it gives way.
         # The highest and lowest points always keep theirs: a dip is usually
@@ -541,7 +549,7 @@ def trend(points: list[tuple[str, float, str]], width: int = 680,
                         pad_t + inner_h + drop + 18 * fs + 9.5 * fs + 6,
                         width - pad_l - pad_r, 9.5 * fs)
 
-    return (_open(width, height, "Across matches, oldest to newest",
+    return (_open(width, height, title,
                   max_w=420 if compact else None)
             + "".join(parts) + legend + "</svg>")
 
