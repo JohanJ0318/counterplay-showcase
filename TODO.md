@@ -235,17 +235,12 @@ true on purpose.
       2026-09-24 every rate prints as a percentage with its rounds in the
       `title`. What the first real coach was sold was "every number has the
       rounds under it". See the `rate()` note in CLAUDE.md before changing it.
-- [ ] **Zone map: kills are filed where the victim fell.** "Your kills here"
-      is really "the enemy died here", so an AWP kill across the map lands at
-      the far end. Decide whether the map should answer "where you stood".
-      Needs the killer's position at the kill, which the events may carry.
-- [ ] **Zone map: open ground still splits in straight lines.** Walking
-      distance fixed every boundary that crossed a wall; in an open yard
-      (Nuke outside) walking and straight-line are the same thing, and the
-      callout boundary there is convention. Only hand-drawn areas fix that.
-- [ ] **Zone map: only bombsite names were measured.** Every other name was
-      checked by eye against the radar on 2026-09-25 and looked right. Two
-      were wrong and are fixed (migration 22).
+- [x] **Zone map: kept as it is** (Johan, 2026-09-25): kills filed where the
+      victim fell, open ground split in straight lines. Not up for redesign.
+- [ ] **Review the whole site with the `frontend-design` skill**: plainer
+      copy, less text and fewer big tables, figures where they read faster,
+      and a check of the existing charts. Audit first, then batches. The
+      brief is in HANDOFF.md.
 
 ## Engineering
 
