@@ -495,9 +495,7 @@ def round_splits(team_id: int) -> dict:
 # Named, because the sample report prints this line too.
 FLASH_ROUND_PATTERN = (
     "You win the round after blinding an opponent",
-    "Rounds where at least one of your flashes blinded somebody on the other "
-    "side. A flash that lands is not the same as a flash that helps, and this "
-    "is the difference between the two.")
+    "Rounds where one of your flashes blinded somebody on the other side.")
 
 
 @memo.by_team

@@ -486,6 +486,17 @@ def count(hit: int, of: int) -> str:
 SAME_AS_BAND = 5.0
 
 
+def pct(won: int, total: int) -> float | None:
+    """The one place a percentage is worked out; None for no chances.
+
+    `rate()` prints through this, and so does every figure that draws a
+    percentage as a bar, so a chart and the table beside it cannot disagree.
+    """
+    if not total:
+        return None
+    return 100.0 * won / total
+
+
 def rate(won: int, total: int, against: float | None = None) -> str:
     """A percentage, with its denominator one hover away.
 
@@ -510,7 +521,7 @@ def rate(won: int, total: int, against: float | None = None) -> str:
     """
     if total == 0:
         return '<span class="rt nil"><b class="den">&ndash;</b></span>'
-    pct = 100.0 * won / total
+    pct_ = pct(won, total)
     # `against` is what this rate should be read next to, and it is ALWAYS
     # something this team did: the same map and side without the habit, or
     # their own season. Never a league figure and never a professional one.
@@ -518,10 +529,10 @@ def rate(won: int, total: int, against: float | None = None) -> str:
     # not read it, and this is the one place every percentage passes through.
     cmp_cls = ""
     if against is not None:
-        d = pct - against
+        d = pct_ - against
         cmp_cls = " up" if d >= SAME_AS_BAND else (" down" if d <= -SAME_AS_BAND else "")
-    return (f'<span class="rt{cmp_cls}" style="--f:{pct:.0f}%" '
-            f'title="{won} of {total}"><b>{pct:.0f}%</b></span>')
+    return (f'<span class="rt{cmp_cls}" style="--f:{pct_:.0f}%" '
+            f'title="{won} of {total}"><b>{pct_:.0f}%</b></span>')
 
 
 @memo.by_team
@@ -851,14 +862,11 @@ MIN_PATTERN_CHANCES = 6
 # pistol lines all ended by warning about full buys.
 BUY_ARTICLE = {"eco": "an", "force": "a", "full": "a", "pistol": "a"}
 BUY_BLURB = {
-    "full": "A full buy is the round you are most expected to win. Full buys "
-            "that do not convert are the most expensive habit in the game.",
-    "force": "Forcing trades economy for tempo. Winning some is the point; "
-             "winning none means the force is buying nothing but a reset.",
-    "eco": "Eco rounds are meant to be lost cheaply. A win here is a bonus, "
-           "so read this next to what the following round could afford.",
-    "pistol": "Pistols swing the two rounds after them as well as themselves, "
-              "which is why a 50% pistol record is never just two rounds.",
+    "full": "The round you are most expected to win.",
+    "force": "Winning some is the point. Winning none means the force buys "
+             "nothing.",
+    "eco": "Meant to be lost cheaply. A win is a bonus.",
+    "pistol": "Each pistol also sets up the two rounds after it.",
 }
 DEFAULT_BUY_BLURB = "How often this buy turns into a round."
 
@@ -870,12 +878,10 @@ DEFAULT_BUY_BLURB = "How often this buy turns into a round."
 PATTERNS = {
     "opening_won": (
         "You win the round after winning the opening duel",
-        "The first kill of the round is the cheapest advantage there is. "
-        "How often you convert it says more than aim does."),
+        "How often you convert the first kill."),
     "opening_lost": (
         "You win the round after losing the opening duel",
-        "Recovering a round down a player. Low here and the problem is "
-        "retakes and trades, not the opening duel itself."),
+        "Playing a player down. Low here points at trades and retakes."),
     "ct": ("You win the round as CT",
            "Your record on the defending side, across every map."),
     "t": ("You win the round as T",

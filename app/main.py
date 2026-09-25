@@ -596,7 +596,15 @@ def advice_card(it, baseline: float) -> str:
     # said one thing three ways.
     lines = list(it["evidence"])
     foot = it.get("foot")
-    if not foot and len(lines) == 1:
+    fig = ""
+    if it.get("vs"):
+        # Drawn as two bars instead of written as "80% in those 10 rounds
+        # against 59% in your other 27". The counts stay in the evidence line
+        # above it and in each bar's title.
+        fig = charts.versus([
+            (lab, report_mod.pct(won, of), f"{won} of {of}")
+            for lab, won, of in it["vs"]])
+    elif not foot and len(lines) == 1:
         lines[0] = (f'{lines[0]} ({it["rate"]:.0f}%), against '
                     f'{baseline:.0f}% overall')
     elif not foot:
@@ -611,6 +619,7 @@ def advice_card(it, baseline: float) -> str:
         + f'</div><h3>{esc(it["do"])}</h3>'
         f'<p class="lede">{esc(it["because"])}</p>'
         f'<ul class="den" style="margin:0;padding-left:17px">{ev}</ul>'
+        + fig
         + (f'<p class="den">{esc(foot)}</p>' if foot else "")
         + '</div>')
 
@@ -2269,10 +2278,8 @@ def _stats_body(team, user=None, share: str = ""):
         # them, so what matters most is still read first.
         groups = []
         for mp, items in plan["by_map"]:
-            head = (f'<div class="sec-head"><span class="label">'
-                    f'{"On " + esc(mp) if mp else "Across every map"}</span>'
-                    f'<h3>{len(items)} thing{"s" if len(items) != 1 else ""} '
-                    f'to work on</h3></div>')
+            head = (f'<div class="sec-head"><h3>'
+                    f'{"On " + esc(mp) if mp else "Across every map"}</h3></div>')
             groups.append(f'<div style="margin-bottom:22px">{head}'
                           f'<div class="grid2">'
                           f'{"".join(advice_card(i, plan["baseline"]) for i in items)}</div></div>')
@@ -2300,29 +2307,28 @@ def _stats_body(team, user=None, share: str = ""):
             if not it["zone"]:
                 label = it["do"]
                 ranked.append((label, _sign(it) * it["stake"],
-                               f"{it['stake']:.0f} rds"))
+                               f"{it['stake']:.0f} rounds"))
                 continue
             label = f"{it['zone']}{', ' + side if side else ''}"
             if it["map"]:
                 label = f"{label} on {it['map']}"
             ranked.append((label, _sign(it) * it["stake"],
-                           f"{it['stake']:.0f} rds"))
+                           f"{it['stake']:.0f} rounds"))
         gl = charts.diverging(ranked)
+        # Shown, not folded away. It is the summary of the cards under it,
+        # and it was hidden behind a toggle while two thousand pixels of
+        # cards sat open.
         chart_block = (
-            f'<details class="drop"><summary>See the ranking as a chart'
-            f'</summary><p class="note">Bar length is how many rounds each one '
-            f'is worth: how far it sits from your usual, times how many rounds '
-            f'it covers. Left is costing you, right is earning you.</p>'
-            f'<div class="chart">{gl}</div></details>') if gl else ""
+            f'<div class="chart">{gl}<p class="den" style="margin:12px 0 0">'
+            f'Longer bar, more rounds at stake. Left costs you rounds, right '
+            f'wins them.</p></div>') if gl else ""
 
         monday_block = f"""
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
       <h2>What to work on</h2></div>
-    <p class="lede">Ranked by how many rounds each one covers and how far it
-      sits from your usual: your own {plan['baseline']:.0f}% across the season, or the
-      same map and side without it for a line about one place. The count
-      behind every line is printed under it.</p>
+    <p class="lede">Biggest first: how far each one sits from your usual,
+      times the rounds it covers.</p>
     {chart_block}
     {"".join(groups)}
   </section>"""
@@ -2348,8 +2354,8 @@ def _stats_body(team, user=None, share: str = ""):
         form_block = (
             f'<section><div class="sec-head"><span class="label">'
             f'Newest first</span><h2>Recent form</h2></div>'
-            f'<p class="lede">Your last {len(form)} matches, with the real '
-            f'result. Click one to open its report.</p>'
+            f'<p class="lede">Your last {len(form)}. Tap one for its '
+            f'report.</p>'
             f'<div class="formrow">{"".join(cards)}</div></section>')
     else:
         form_block = ""
@@ -2367,36 +2373,12 @@ def _stats_body(team, user=None, share: str = ""):
     # beside it — two views of the same list that disagreed about its length.
     patterns_chart = charts.bars(
         [(p_["name"], p_["hit"], p_["of"]) for p_ in patterns],
-        width=600) if patterns else ""
+        notes=[p_["detail"] for p_ in patterns]) if patterns else ""
     if patterns:
-        # The explanation of each pattern used to sit under it as a paragraph.
-        # Nine patterns meant nine paragraphs, and the page was mostly prose
-        # about numbers rather than the numbers. It now lives behind the "i",
-        # which is readable on hover, on focus, and by a screen reader through
-        # aria-describedby — nothing is hidden from anybody, it is just no
-        # longer in the way of the column a coach is reading down.
-        prows = []
-        for i_, p_ in enumerate(patterns):
-            side = (f'<span class="pill {p_["side"]}">{p_["side"].upper()}</span> '
-                    if p_["side"] else "")
-            tid_ = f"pt{i_}"
-            info = (f'<span class="info" tabindex="0" role="button"'
-                    f' aria-describedby="{tid_}" aria-label="What this means">i'
-                    f'<span class="tip" role="tooltip" id="{tid_}">'
-                    f'{esc(p_["detail"])}</span></span>')
-            prows.append(
-                f'<tr><td class="name">{side}{esc(p_["name"])}{info}</td>'
-                f'<td class="num">{rate(p_["hit"], p_["of"])}</td></tr>')
-        # The chart is the reading and the table is the same list as figures,
-        # so the table waits under the chart behind the arrow. Same control
-        # as the ranking chart above, the other way round: there the picture
-        # is the extra, here the numbers are.
-        patterns_block = (
-            f'<div class="chart">{patterns_chart}</div>'
-            f'<details class="drop"><summary>See the numbers</summary>'
-            f'<div class="tbl-plain"><table><thead><tr><th>Pattern</th>'
-            f'<th class="num">Observed / chances</th></tr></thead>'
-            f'<tbody>{"".join(prows)}</tbody></table></div></details>')
+        # The table that used to sit under this repeated the chart row for
+        # row. Its one extra, the note on each pattern, rides on the chart's
+        # own labels behind the "i".
+        patterns_block = f'<div class="chart">{patterns_chart}</div>'
     else:
         patterns_block = (
             f'<p class="note">Nothing has happened often enough to call a pattern '
@@ -2436,51 +2418,31 @@ def _stats_body(team, user=None, share: str = ""):
         hit_pct = 100.0 * uf["hit_enemy"] / uf["thrown"] if uf["thrown"] else 0
         ucard(f"{hit_pct:.0f}%", "of your flashes blind an opponent",
               f'{uf["hit_enemy"]} of {uf["thrown"]} thrown',
-              f'Counted per flash, not per player blinded: one flashbang '
-              f'blinds everyone who can see it. Those {uf["hit_enemy"]} '
-              f'flashes took {uf["enemy_secs"]:.0f} seconds of sight off the '
-              f'opposition. {uf["hit_own"]} of your flashes also blinded your '
-              f'own side, for {uf["own_secs"]:.0f} seconds, though '
-              f'{uf["own_and_enemy"]} of those blinded an opponent as well: '
-              f'only {uf["team_no_enemy"]} blinded a teammate and nobody on '
-              f'the other side. Blinded means held for at least '
-              f'{utility.MIN_BLIND_SECONDS} seconds, because the game reports '
-              f'the quarter second somebody catches while turning away and '
-              f'that is a flinch rather than a flash.')
+              f'Counted per flash, not per player blinded. A blind counts '
+              f'if it lasts {utility.MIN_BLIND_SECONDS} seconds or more.')
         kill_pct = 100.0 * uf["got_a_kill"] / uf["thrown"] if uf["thrown"] else 0
         ucard(f"{kill_pct:.0f}%", "of your flashes get somebody killed",
               f'{uf["got_a_kill"]} of {uf["thrown"]} thrown',
-              f'An opponent this flash blinded, who then died to one of you '
-              f'before it wore off or inside the '
-              f'{utility.KILL_GRACE_SECONDS:.0f} second after it lifted: they '
-              f'turn away, it drops, and they are dead before they have found '
-              f'you again. {uf["kills_from"]} opponents in all. This is the '
-              f'only reason to throw one, and it is a long way below the share '
-              f'that merely land.')
+              f'An opponent it blinded died to one of you before the flash '
+              f'wore off, or within {utility.KILL_GRACE_SECONDS:.0f} second '
+              f'after. {uf["kills_from"]} opponents in all.')
         if us and us["molotovs"]:
             deny_pct = 100.0 * us["denied"] / us["molotovs"]
             ucard(f"{deny_pct:.0f}%", "of your molotovs deny space",
                   f'{us["denied"]} of {us["molotovs"]} thrown',
-                  f'A molotov an opponent had to stand in, walk out of, or go '
-                  f'round, read from the position samples. Between them they '
-                  f'took {us["denied_secs"]:.0f} seconds of ground away, and '
-                  f'{us["moved"]} pushed somebody back out of it. The other '
-                  f'{us["empty"]} burned with nobody near them at any point.')
+                  f'An opponent had to stand in it, walk out of it or go '
+                  f'round it. {us["empty"]} burned with nobody near them.')
         if uu and uu["spent"]:
-            ucard(f'${uu["per_round"]:.0f}', "of utility wasted per round",
+            ucard(f'${uu["per_round"]:.0f}', "of utility a round, unused at death",
                   f'${uu["wasted"]:,} of ${uu["spent"]:,} bought',
-                  f'Utility still in a player\'s hand at the moment they '
-                  f'died, priced at what it cost. Utility a survivor kept is '
-                  f'not counted: carrying a smoke into the next round is '
-                  f'not waste. Across {uu["rounds"]} rounds that is '
-                  f'{uu["unused"]} pieces that bought nothing.')
+                  f'Still in a player\'s hand when they died, priced at what '
+                  f'it cost. Utility a survivor kept is not counted.')
 
         utility_block = f"""
   <section>
     <div class="sec-head"><span class="label">What your utility did</span>
       <h2>Utility</h2></div>
-    <p class="lede">What the utility achieved, counted per throw from the
-      demo, not how much of it was thrown.</p>
+    <p class="lede">What your utility achieved, counted per throw.</p>
     <div class="stat-row">{"".join(cards)}</div>
   </section>"""
     else:
@@ -2494,10 +2456,9 @@ def _stats_body(team, user=None, share: str = ""):
     pos = movement.positional_patterns(team["id"])
     POS_SECTIONS = (
         ("death", "Where your first death happens",
-         "The first of you to die, where, and whether anybody got him back. "
-         "The same death traded leaves a 4v4 and untraded leaves a 4v5, which "
-         "is the difference between a place you lose men and a place you lose "
-         "rounds."),
+         "Where the first of you dies, and whether it was traded. Untraded "
+         "means playing 4 against 5. The bar is how often it happens, out of "
+         "your rounds on that map and side."),
     )
     # Five rows, not twenty.
     #
@@ -2558,37 +2519,26 @@ def _stats_body(team, user=None, share: str = ""):
         hidden = len(rows_early) - len(top)
         trs = []
         for r in top:
-            q, com = r["q"], r["commit"]
-            bits = [esc(r["map"].replace("de_", ""))]
-            if q["kind"] == "setup":
-                bits.append(esc(q["extra"]))
-                if com:
-                    bits.append(f'also as far as the group got in '
-                                f'{com["hit"]} of {com["of"]}')
-            else:
-                # The row IS the group's reach, so the Rounds cell already
-                # says how often. What it does not say is which rounds are in
-                # that denominator.
-                bits.append("the furthest the group got together")
-            sub_line = " &middot; ".join(bits)
-            other = (rate(q["other_won"], q["other"]) if r["cmp"] else
-                     '<span class="rt nil"><b class="den">&ndash;</b></span>')
+            q = r["q"]
+            how_often = report_mod.pct(q["hit"], q["of"]) or 0
+            side_up = r["side"].upper()
             trs.append(
-                f'<tr><td class="name"><span class="pill {r["side"]}">'
-                f'{r["side"].upper()}</span> {esc(r["zone"])}'
-                f'<span class="den" style="font-weight:400;margin-left:7px">'
-                f'{sub_line}</span></td>'
-                f'<td class="num">{rate(q["hit"], q["of"])}</td>'
-                f'<td class="num">'
-                f'{rate(q["won"], q["hit"], against=q["other_pct"] if r["cmp"] else None)}'
-                f'</td>'
-                f'<td class="num">{other}</td></tr>')
+                f'<div class="op"><p class="op-head"><span class="pill '
+                f'{r["side"]}">{side_up}</span> <strong>{esc(r["zone"])}'
+                f'</strong> <span class="den" title="{q["hit"]} of {q["of"]}">'
+                f'{esc(r["map"].replace("de_", ""))} &middot; {how_often:.0f}% '
+                f'of your {side_up} rounds there</span></p>'
+                + charts.versus([
+                    ("Went there", report_mod.pct(q["won"], q["hit"]),
+                     f'won {q["won"]} of {q["hit"]}'),
+                    ("Didn't", report_mod.pct(q["other_won"], q["other"])
+                     if r["cmp"] else None,
+                     f'won {q["other_won"]} of {q["other"]}')])
+                + '</div>')
         note = ""
         if hidden:
-            note = (f'<p class="note">{hidden} more place'
-                    f'{"s" if hidden != 1 else ""} showed the same pattern. '
-                    f'These are the ones where the rounds it happened in and '
-                    f'the rounds it did not are furthest apart.</p>')
+            note = (f'<p class="note">The {len(top)} of {len(rows_early)} '
+                    f'places with the widest gap.</p>')
         # A round where three of you never held anything together is not a
         # round where you went somewhere else, so it is not in the denominator
         # of a row about how far the group got. How often that happens is
@@ -2598,25 +2548,17 @@ def _stats_body(team, user=None, share: str = ""):
         all_r = sum(v[0] for v in pairs.values())
         ans = sum(v[1] for v in pairs.values())
         if all_r and ans < all_r:
-            note += (f'<p class="note">Three of you never held any one place '
-                     f'together in {all_r - ans} of {all_r} rounds. Those are '
-                     f'not counted in a row about how far the group got, '
-                     f'because nobody went anywhere as a group to count.</p>')
+            note += (f'<p class="note">In {all_r - ans} of {all_r} rounds '
+                     f'three of you never stood together anywhere. Those '
+                     f'rounds are left out.</p>')
         early_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where you are in the opening</h2></div>'
             f'<p class="lede">Where two or more of you stand '
-            f'{int(movement.SETUP_AT)} seconds in, once the round has shape '
-            f'and before contact decides it. The last column is the same map '
-            f'and the same side in the rounds it did not happen, which is the '
-            f'only comparison worth making: read against your season average, '
-            f'most of these numbers are reading the map rather than the '
-            f'habit.</p>'
-            f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-            f'<th class="num">Rounds</th><th class="num">Of those, won</th>'
-            f'<th class="num" title="The same map and side, in the rounds '
-            f'this did not happen">When you do not</th></tr></thead>'
-            f'<tbody>{"".join(trs)}</tbody></table></div>{note}</section>')
+            f'{int(movement.SETUP_AT)} seconds in, and how often you win from '
+            f'there. Each place is compared with your other rounds on the '
+            f'same map and side.</p>'
+            f'<div class="chart op-list">{"".join(trs)}</div>{note}</section>')
 
     # Every place the three tables name, gathered BEFORE any of them render,
     # because the maps are drawn once from the union of all three. In map
@@ -2656,21 +2598,28 @@ def _stats_body(team, user=None, share: str = ""):
                 f'<td class="num">{rate(q["hit"], q["of"])}</td>'
                 f'{traded_cell}'
                 f'<td class="num">{rate(q["won"], q["hit"])}</td></tr>')
-        more = (f'<p class="note">{hidden} more place'
-                f'{"s" if hidden != 1 else ""} showed the same pattern less '
-                f'often; the top {POS_TOP_N} are the ones worth practice time.</p>'
-                if hidden else "")
+        more = (f'<p class="note">The top {POS_TOP_N} of '
+                f'{POS_TOP_N + hidden} places.</p>' if hidden else "")
+        if trades:
+            fig = charts.first_deaths([{
+                "side": q["side"], "place": q["zone"],
+                "map": q["map"].replace("de_", ""),
+                "share": report_mod.pct(q["hit"], q["of"]) or 0,
+                "traded": report_mod.pct(q["traded"], q["hit"]),
+                "won": report_mod.pct(q["won"], q["hit"]),
+                "title": f'{q["hit"]} of {q["of"]} {q["side"].upper()} rounds',
+                "traded_title": f'{q["traded"]} of {q["hit"]}',
+                "won_title": f'{q["won"]} of {q["hit"]}'} for q in sel])
+            table = f'<div class="chart">{fig}</div>'
+        else:
+            table = (f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
+                     f'<th class="num">Rounds</th><th class="num">Of those, won'
+                     f'</th></tr></thead><tbody>{"".join(rws)}</tbody></table>'
+                     f'</div>')
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'From position data</span><h2>{title}</h2></div>'
-            f'<p class="lede">{lede}</p>'
-            f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-            f'<th class="num">Rounds</th>'
-            + (f'<th class="num" title="First deaths here that a teammate '
-               f'traded back">Traded</th>' if trades else "")
-            + f'<th class="num">Of those, won</th>'
-            f'</tr></thead><tbody>{"".join(rws)}</tbody></table></div>'
-            f'{more}</section>')
+            f'<p class="lede">{lede}</p>{table}{more}</section>')
 
     if early_block:
         pos_blocks.append(early_block)
@@ -2797,10 +2746,8 @@ def _stats_body(team, user=None, share: str = ""):
         pos_blocks.insert(0, (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>The maps you play</h2></div>'
-            f'<p class="lede">Every place named in the {n} table'
-            f'{"s" if n != 1 else ""} below it, drawn from your own rounds. A map '
-            f'whose sites sit on top of each other, like nuke, gets both '
-            f'floors.</p>'
+            f'<p class="lede">The places named below, drawn from your own '
+            f'rounds.</p>'
             f'<div class="zonerow">{"".join(figs)}</div></section>'))
 
     if pos_blocks:
@@ -2879,6 +2826,49 @@ def _stats_body(team, user=None, share: str = ""):
                 f'<td class="num">{rate(v["won"], v["n"])}</td></tr>')
         buy_head = '<th>Side and buy</th>'
 
+    # With your side known, the map pool is a figure, and the Sides and Buys
+    # tables go: the Recurring patterns chart already has "as CT", "as T" and
+    # every buy, row for row. Without it, they are the only place both sides'
+    # numbers appear, so they stay.
+    if known:
+        pool_fig = charts.sides([{
+            "chip": map_chip(name), "matches": m["matches"],
+            "all": report_mod.pct(m["you_won"], m["you_played"]),
+            "all_title": f'{m["you_won"]} of {m["you_played"]}',
+            "ct": report_mod.pct(m["you_ct_won"], m["you_ct"]),
+            "ct_title": f'{m["you_ct_won"]} of {m["you_ct"]}',
+            "t": report_mod.pct(m["you_t_won"], m["you_t"]),
+            "t_title": f'{m["you_t_won"]} of {m["you_t"]}'}
+            for name, m in st["maps"].items()])
+        pool_block = (
+            f'<section><div class="sec-head"><span class="label">Where the '
+            f'rounds went</span><h2>Map pool</h2></div>'
+            f'<p class="lede">Rounds won on each map, by side. The mark is '
+            f'50%.</p><div class="chart">{pool_fig}</div></section>')
+    else:
+        pool_block = f"""
+  <section>
+    <div class="sec-head"><span class="label">Where the rounds went</span>
+      <h2>Map pool</h2></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>{map_head}</tr></thead>
+      <tbody>{"".join(maprows)}</tbody></table></div>
+  </section>
+  <section>
+    <div class="sec-head"><span class="label">Side by side</span><h2>Sides</h2></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>{side_head}</tr></thead>
+      <tbody>{siderows}</tbody></table></div>
+  </section>
+  <section>
+    <div class="sec-head"><span class="label">By what they could afford</span>
+      <h2>Buys</h2></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr>{buy_head}<th class="num">Rounds</th>
+        <th class="num">Rounds won</th></tr></thead>
+      <tbody>{"".join(buyrows)}</tbody></table></div>
+  </section>"""
+
     if known:
         # A coach is a perfectly good anchor, since they sit on your side
         # every match, but naming one here as a player is the same mistake
@@ -2893,11 +2883,10 @@ def _stats_body(team, user=None, share: str = ""):
         how = (f"all {n} of your matches" if least >= n
                else f"at least {least} of your {n} matches")
         roster_note = (
-            f'<section><p class="note"><strong>These are your rounds, not both '
-            f'sides\'.</strong> {esc(who)} '
-            f'{"appears" if len(named) == 1 else "appear"} in {how} '
-            f'while opponents appear in one each, so whichever side '
-            f'they were on is yours for that round.</p></section>'
+            f'<section><p class="note"><strong>Every number here is your '
+            f'side\'s rounds.</strong> Your side is whichever side {esc(who)} '
+            f'{"was" if len(named) == 1 else "were"} on: '
+            f'they played in {how}.</p></section>'
             if named else "")
     else:
         roster_note = (
@@ -2917,8 +2906,8 @@ def _stats_body(team, user=None, share: str = ""):
         <span class="label">{"rounds you won" if known and y["rounds"] else "rounds"}</span></div>
       <div class="stat"><span class="stat-n">{len(st["maps"])}</span>
         <span class="label">maps played</span></div>
-      <div class="stat"><span class="stat-n">{len(patterns) + len(pos)}</span>
-        <span class="label">patterns found</span></div>
+      <div class="stat"><span class="stat-n">{len(plan["items"])}</span>
+        <span class="label">to work on</span></div>
     </div>
   </section>
 
@@ -2929,9 +2918,8 @@ def _stats_body(team, user=None, share: str = ""):
   <section>
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
-    <p class="lede">Counted, never predicted. A line appears once it has
-      {report_mod.MIN_PATTERN_CHANCES} chances behind it. Hover any figure for
-      the rounds it came from.</p>
+    <p class="lede">Counted, never predicted. A line needs
+      {report_mod.MIN_PATTERN_CHANCES} chances to appear.</p>
     {patterns_block}
   </section>
 
@@ -2939,29 +2927,7 @@ def _stats_body(team, user=None, share: str = ""):
 
   {positional_block}
 
-  <section>
-    <div class="sec-head"><span class="label">Where the rounds went</span>
-      <h2>Map pool</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>{map_head}</tr></thead>
-      <tbody>{"".join(maprows)}</tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><span class="label">Side by side</span><h2>Sides</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>{side_head}</tr></thead>
-      <tbody>{siderows}</tbody></table></div>
-  </section>
-
-  <section>
-    <div class="sec-head"><span class="label">By what they could afford</span>
-      <h2>Buys</h2></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr>{buy_head}<th class="num">Rounds</th>
-        <th class="num">Rounds won</th></tr></thead>
-      <tbody>{"".join(buyrows)}</tbody></table></div>
-  </section>
+  {pool_block}
 
   {roster_note}"""
     body = shared_note + body

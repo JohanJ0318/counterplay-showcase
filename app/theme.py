@@ -560,9 +560,11 @@ details.drop>.tbl-plain{margin-top:10px}
 .rounds .mono{font-size:.86rem;color:var(--ink);letter-spacing:.02em}
 .card.advice{border-left:3px solid var(--t);border-radius:0 var(--r) var(--r) 0}
 .card.advice.good{border-left-color:var(--purple)}
+/* overflow visible: nothing in a chart scrolls any more, and a scrolling box
+   clips the "i" notes on the patterns chart when they open. */
 .chart{background:var(--surface);border:1px solid var(--border);
   border-radius:var(--r);box-shadow:var(--shadow);padding:16px 18px;
-  overflow-x:auto}
+  overflow:visible}
 .chart svg{color:var(--ink)}
 /* No chart scrolls sideways any more. The two SVG charts are drawn twice,
    wide and narrow, and this picks one (charts.both); the bar charts are HTML
@@ -588,6 +590,81 @@ details.drop>.tbl-plain{margin-top:10px}
   color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;
   min-width:6.5rem}
 .hb-den{font-weight:400;color:var(--muted)}
+/* The note behind each row's "i" opens under the whole row and is exactly as
+   wide as it. Anchored to the "i" it could start anywhere along the line and
+   run off either edge of a phone, and a hidden balloon off the edge still
+   gives the page a sideways scroll. */
+.hb li{position:relative}
+.hb .info{position:static}
+.hb .info .tip{left:0;right:0;width:auto;max-width:none;top:calc(100% + 6px)}
+.hb .info .tip::after{display:none}
+
+/* This against that (charts.versus): the finding in the accent, what it is
+   read against in neutral, on one 0-100 scale so the gap is the picture. */
+.vs{display:grid;gap:6px;margin:12px 0 2px;container-type:inline-size}
+/* Label above its bar by default, beside it only when the box is wide
+   enough: inside a three-up card the label column left the bar no room. */
+.vs-row{display:grid;grid-template-columns:minmax(0,1fr) 2.8rem;
+  column-gap:10px;row-gap:3px;align-items:center}
+.vs-row .vs-lab{grid-column:1/-1}
+@container (min-width:420px){
+  .vs-row{grid-template-columns:minmax(0,11rem) minmax(0,1fr) 2.8rem}
+  .vs-row .vs-lab{grid-column:auto}
+}
+.vs-lab{font-size:.8rem;color:var(--ink);line-height:1.25}
+.vs-track{display:block;height:9px;background:var(--border);border-radius:2px;
+  overflow:hidden}
+.vs-fill{display:block;height:100%;background:var(--purple);border-radius:2px}
+.vs-row.base .vs-lab{color:var(--muted)}
+.vs-row.base .vs-fill{background:var(--faint)}
+.vs-val{font-family:var(--f-mono);font-size:.8rem;font-weight:600;
+  color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.vs-row.base .vs-val{font-weight:400;color:var(--muted)}
+/* One place per block in "Where you are in the opening". */
+.op-list{display:grid;gap:18px}
+.op-head{margin:0;font-size:.92rem}
+.op-head .den{font-weight:400;margin-left:4px}
+
+/* First deaths (charts.first_deaths). */
+.fd ul{list-style:none;margin:0;padding:0;display:grid;gap:14px}
+.fd li{display:grid;grid-template-columns:minmax(0,1fr) 3rem;column-gap:10px;
+  row-gap:4px;align-items:center}
+.fd-place{grid-column:1/-1;font-size:.92rem;color:var(--ink)}
+.fd-place .den{font-weight:400}
+.fd-track{display:block;height:12px}
+.fd-bar{display:block;height:100%;
+  background:color-mix(in srgb,var(--bad) 60%,transparent);
+  border-radius:2px;overflow:hidden}
+.fd-traded{display:block;height:100%;background:var(--purple)}
+.fd-val{font-family:var(--f-mono);font-size:.82rem;font-weight:600;
+  color:var(--ink);text-align:right;font-variant-numeric:tabular-nums}
+.fd-sub{grid-column:1/-1;font-size:.78rem}
+.fd-key{margin:14px 0 0;display:flex;align-items:center;gap:6px;flex-wrap:wrap}
+.fd-key .sw{display:inline-block;width:10px;height:10px;border-radius:2px}
+.fd-key .sw.traded{background:var(--purple)}
+.fd-key .sw.untraded{background:color-mix(in srgb,var(--bad) 60%,transparent);
+  margin-left:10px}
+
+/* Map pool by side (charts.sides). The faint mark in each track is 50%. */
+.sd{list-style:none;margin:0;padding:0;display:grid;gap:16px}
+.sd li{display:grid;grid-template-columns:minmax(0,12rem) minmax(0,1fr);
+  column-gap:16px;align-items:center}
+.sd-map{display:flex;flex-direction:column;gap:2px}
+.sd-map .den{font-weight:400}
+.sd-bars{display:grid;gap:5px}
+.sd-side{display:grid;grid-template-columns:1.8rem minmax(0,1fr) 2.8rem;
+  column-gap:8px;align-items:center}
+.sd-lab{font-family:var(--f-mono);font-size:.72rem;color:var(--muted)}
+.sd-track{display:block;height:9px;background:var(--border);border-radius:2px;
+  position:relative;overflow:hidden}
+.sd-track::after{content:"";position:absolute;left:50%;top:0;bottom:0;
+  border-left:1px dashed var(--faint)}
+.sd-fill{display:block;height:100%;border-radius:2px}
+.sd-fill.ct{background:var(--ct)}
+.sd-fill.t{background:var(--t)}
+.sd-val{font-family:var(--f-mono);font-size:.8rem;color:var(--ink);
+  text-align:right;font-variant-numeric:tabular-nums}
+@media(max-width:620px){.sd li{grid-template-columns:1fr;row-gap:6px}}
 
 /* Gaining and costing on one axis (charts.diverging). */
 .dv ul{list-style:none;margin:0;padding:0;display:grid;gap:10px}

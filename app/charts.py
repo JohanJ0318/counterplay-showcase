@@ -568,7 +568,7 @@ def diverging(items: list[tuple[str, float, str]], width: int = 600,
 
 
 def bars(items: list[tuple[str, int, int]], width: int = 560,
-         row_h: int = 36) -> str:
+         row_h: int = 36, notes: list[str] | None = None) -> str:
     """Rates, with the weight of evidence behind them drawn.
 
     The bar's full length is the CHANCES and the filled part is what came of
@@ -586,12 +586,17 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
         return ""
     most = max((of for _, _, of in items), default=1) or 1
     rows = []
-    for label, hit, of in items:
+    for i, (label, hit, of) in enumerate(items):
+        note = (notes[i] if notes and i < len(notes) else "") or ""
+        info = (f'<span class="info" tabindex="0" role="button" '
+                f'aria-describedby="hbn{i}" aria-label="What this means">i'
+                f'<span class="tip" role="tooltip" id="hbn{i}">{esc(note)}'
+                f'</span></span>') if note else ""
         full = of / most * 100
         got = (hit / of * 100) if of else 0
         pct = (100 * hit / of) if of else 0
         rows.append(
-            f'<li><span class="hb-label">{esc(label)}</span>'
+            f'<li><span class="hb-label">{esc(label)}{info}</span>'
             f'<span class="hb-track"><span class="hb-full" '
             f'style="width:{full:.1f}%"><span class="hb-got" '
             f'style="width:{got:.1f}%"></span></span></span>'
@@ -599,3 +604,97 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
             f'{hit}/{of}</span></span></li>')
     return ('<ul class="hb" role="figure" aria-label="Rates, with the chances '
             f'behind them">{"".join(rows)}</ul>')
+
+
+# ---- small HTML figures
+#
+# These take percentages already worked out by report.pct() and never compute
+# one themselves. The count behind each bar is in its title, one hover away,
+# like every rate() on the site.
+
+def versus(rows: list[tuple[str, float | None, str]], muted_second=True) -> str:
+    """Two (or more) rates as bars on one 0-100 scale: this against that.
+
+    Each row is (label, percentage or None, title). The first row is the
+    finding and draws in the accent; the rest are what it is read against and
+    draw neutral, so the eye goes to the gap.
+    """
+    if not rows:
+        return ""
+    out = []
+    for i, (label, pct, title) in enumerate(rows):
+        cls = "vs-row" + (" base" if i and muted_second else "")
+        if pct is None:
+            bar, val = "", "&ndash;"
+        else:
+            bar = f'<span class="vs-fill" style="width:{pct:.1f}%"></span>'
+            val = f"{pct:.0f}%"
+        out.append(f'<div class="{cls}" title="{esc(title)}">'
+                   f'<span class="vs-lab">{esc(label)}</span>'
+                   f'<span class="vs-track">{bar}</span>'
+                   f'<span class="vs-val">{val}</span></div>')
+    return f'<div class="vs" role="figure">{"".join(out)}</div>'
+
+
+def first_deaths(rows: list[dict]) -> str:
+    """Where the first of you dies, and how much of it gets traded.
+
+    Each row: {"side", "place", "map", "share", "traded", "won", "title",
+    "traded_title", "won_title"}. `share` is the percentage of your rounds on
+    that map and side where the first death was here; the bar is drawn to
+    the largest share on the list so the places can be told apart. Inside
+    it, the traded part is the accent and the untraded part is the warning
+    colour, because untraded is the 4 against 5.
+    """
+    if not rows:
+        return ""
+    most = max((r["share"] or 0) for r in rows) or 1
+    out = []
+    for r in rows:
+        w = (r["share"] or 0) / most * 100
+        tr = r["traded"] or 0
+        out.append(
+            f'<li><span class="fd-place"><span class="pill {r["side"]}">'
+            f'{r["side"].upper()}</span> {esc(r["place"])} '
+            f'<span class="den">{esc(r["map"])}</span></span>'
+            f'<span class="fd-track" title="{esc(r["title"])}">'
+            f'<span class="fd-bar" style="width:{w:.1f}%">'
+            f'<span class="fd-traded" style="width:{tr:.1f}%"></span></span></span>'
+            f'<span class="fd-val" title="{esc(r["title"])}">{r["share"]:.0f}%</span>'
+            f'<span class="fd-sub den"><span title="{esc(r["traded_title"])}">'
+            f'{tr:.0f}% traded</span> &middot; <span title="{esc(r["won_title"])}">'
+            f'{(r["won"] or 0):.0f}% of those rounds won</span></span></li>')
+    return ('<div class="fd"><ul>' + "".join(out) + '</ul>'
+            '<p class="fd-key den"><span class="sw traded"></span>traded '
+            '<span class="sw untraded"></span>not traded</p></div>')
+
+
+def sides(rows: list[dict]) -> str:
+    """Rounds won by map, CT and T side by side.
+
+    Each row: {"map", "chip", "matches", "all", "all_title", "ct", "ct_title",
+    "t", "t_title"}; percentages from report.pct(). A faint mark at 50% so a
+    side above or below even reads without a number.
+    """
+    if not rows:
+        return ""
+    out = []
+    for r in rows:
+        bars = []
+        for sd in ("ct", "t"):
+            v = r[sd]
+            fill = (f'<span class="sd-fill {sd}" style="width:{v:.1f}%"></span>'
+                    if v is not None else "")
+            val = f"{v:.0f}%" if v is not None else "&ndash;"
+            bars.append(f'<span class="sd-side" title="{esc(r[sd + "_title"])}">'
+                        f'<span class="sd-lab">{sd.upper()}</span>'
+                        f'<span class="sd-track">{fill}</span>'
+                        f'<span class="sd-val">{val}</span></span>')
+        tot = f'{r["all"]:.0f}%' if r["all"] is not None else "&ndash;"
+        out.append(
+            f'<li><span class="sd-map">{r["chip"]}'
+            f'<span class="den">{r["matches"]} match'
+            f'{"es" if r["matches"] != 1 else ""} &middot; '
+            f'<span title="{esc(r["all_title"])}">{tot} won</span></span></span>'
+            f'<span class="sd-bars">{"".join(bars)}</span></li>')
+    return f'<ul class="sd">{"".join(out)}</ul>'
