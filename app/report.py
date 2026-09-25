@@ -469,7 +469,13 @@ def count(hit: int, of: int) -> str:
     return (f'<span class="rt tally"><b>{hit} / {of}</b></span>')
 
 
-def rate(won: int, total: int) -> str:
+# A rate within this many points of its benchmark reads as "the same". Without
+# a dead band every rounding wobble gets a colour and the page looks like it
+# has an opinion about noise. Same reasoning as charts.NEUTRAL_BAND.
+SAME_AS_BAND = 5.0
+
+
+def rate(won: int, total: int, against: float | None = None) -> str:
     """A rate, or raw counts when the sample is too thin to carry a percentage.
 
     Every percentage in the product comes through here, so what is decided
@@ -500,7 +506,16 @@ def rate(won: int, total: int) -> str:
         return (f'<span class="rt few"><b>{won} / {total}</b>'
                 f'<span class="pill beta">thin</span></span>')
     pct = 100.0 * won / total
-    return (f'<span class="rt" style="--f:{pct:.0f}%"><b>{pct:.0f}%</b>'
+    # `against` is what this rate should be read next to, and it is ALWAYS
+    # something this team did: the same map and side without the habit, or
+    # their own season. Never a league figure and never a professional one.
+    # A number with no comparison is why a coach glances at a table and does
+    # not read it, and this is the one place every percentage passes through.
+    cmp_cls = ""
+    if against is not None:
+        d = pct - against
+        cmp_cls = " up" if d >= SAME_AS_BAND else (" down" if d <= -SAME_AS_BAND else "")
+    return (f'<span class="rt{cmp_cls}" style="--f:{pct:.0f}%"><b>{pct:.0f}%</b>'
             f'<span class="den">{won} / {total}</span></span>')
 
 

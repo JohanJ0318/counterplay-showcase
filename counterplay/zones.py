@@ -182,7 +182,7 @@ GROW_PASSES = 6
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None, mask=None, title: str = "") -> str:
+        anchors=None, mask=None, title: str = "", stats=None) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -399,6 +399,47 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     # numbered one. On a coaching page a purple circle reading "15" is a zone
     # nobody named yet, which is noise; on the naming sheet (labels=None) the
     # number is the whole point, so that path is unchanged.
+    # WHAT THE ZONE IS WORTH, when the caller has a reading for it.
+    #
+    # Replaces the name pills entirely rather than sitting beside them: the
+    # reader is looking at a map and can see where a place is, so the callout
+    # is the one thing the picture already gives away, and two labels on one
+    # shape is how the old drawing ended up with "A main" written across the
+    # middle three times.
+    #
+    # `stats` is {zone number: {"top", "sub", "fill", "op", "title"}} and the
+    # fill comes from charts.diverge, so the scale is defined once and not
+    # here. A zone with no reading stays a faint dot: nothing to say is not
+    # the same as zero.
+    if stats:
+        out_stats = []
+        for k, centre in enumerate(centres):
+            at = anchors[k] if anchors is not None and k < len(anchors) else centre
+            cx, cy = px(at[0], at[1])
+            st = stats.get(first_number + k)
+            if not st:
+                out_stats.append(
+                    f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3.5" '
+                    f'fill="#5B21B6" opacity=".16"/>')
+                continue
+            out_stats.append(
+                f'<g><title>{_esc(st.get("title", ""))}</title>'
+                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" '
+                f'fill="{st["fill"]}" opacity="{st["op"]:.2f}"/>'
+                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" fill="none" '
+                f'stroke="{st["fill"]}" stroke-width="1.5" opacity=".85"/>'
+                f'<text x="{cx:.1f}" y="{cy + 2:.1f}" text-anchor="middle" '
+                f'font-size="15" font-weight="700" fill="#fff" '
+                f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
+                f'{_esc(st["top"])}</text>'
+                f'<text x="{cx:.1f}" y="{cy + 14:.1f}" text-anchor="middle" '
+                f'font-size="10.5" fill="#fff" '
+                f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
+                f'{_esc(st["sub"])}</text></g>')
+        labels_final = out_stats
+    else:
+        labels_final = None
+
     marks_out = []
     for k, (centre, n) in enumerate(zip(centres, counts)):
         i = first_number + k
@@ -426,7 +467,7 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
                 f'opacity=".92"/>'
                 f'<text x="{cx:.1f}" y="{cy + 4:.1f}" text-anchor="middle" '
                 f'font-size="11" font-weight="700" fill="#fff">{i}</text>')
-    labels = marks_out
+    labels = labels_final if labels_final is not None else marks_out
 
     # An accessible name, the same way charts._open gives one. Without it a
     # screen reader announces "graphic" and stops; the figcaption beside the

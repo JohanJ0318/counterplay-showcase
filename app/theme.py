@@ -590,6 +590,9 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
    taller one rendering three times the size of the wider one. */
 .zonefig{margin:0;flex:0 1 auto;min-width:0;max-width:100%}
 .zonefig svg image{filter:var(--radar-dim)}
+.rt.up>b{color:var(--good)}
+.rt.down>b{color:var(--bad)}
+.zonefig.reading svg{height:340px}
 .zonefig svg{display:block;height:250px;width:auto;max-width:100%;
   border:1px solid var(--border);
   border-radius:var(--r);background:var(--card)}

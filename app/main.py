@@ -1711,7 +1711,8 @@ def _zone_title(map_name: str, level) -> str:
             f"positions drawn as a density field and the named places numbered")
 
 
-def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
+def zone_pictures(map_name: str, show=None, width: int = 420,
+                  stats=None) -> list[dict]:
     """One drawing per floor: [{"level": str|None, "svg": str}, ...].
 
     A split map gets BOTH floors, not the busier one. Nuke's whole difficulty
@@ -1722,7 +1723,12 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
     `show` is the set of place names the page's tables refer to. Only those get
     a label; everything else is a faint dot.
     """
-    key = (map_name, tuple(sorted(show)) if show else None, width)
+    # The stats go in the key, because the same map drawn for two different
+    # readings is two different pictures. Fingerprinted rather than stored
+    # whole: the dict is the cache KEY, so it has to be hashable and small.
+    fp = (tuple(sorted((k, v["top"], v["sub"]) for k, v in stats.items()))
+          if stats else None)
+    key = (map_name, tuple(sorted(show)) if show else None, width, fp)
     if key in _ZONE_PIC:
         return _ZONE_PIC[key]
     with _ZONE_PIC_GUARD:
@@ -1730,13 +1736,13 @@ def zone_pictures(map_name: str, show=None, width: int = 420) -> list[dict]:
     with lock:
         if key in _ZONE_PIC:
             return _ZONE_PIC[key]
-        out = _draw_zones(map_name, show, width, key)
+        out = _draw_zones(map_name, show, width, key, stats)
     with _ZONE_PIC_GUARD:
         _ZONE_PIC_LOCKS.pop(key, None)
     return out
 
 
-def _draw_zones(map_name: str, show, width: int, key) -> list[dict]:
+def _draw_zones(map_name: str, show, width: int, key, stats=None) -> list[dict]:
     out: list[dict] = []
     try:
         import numpy as np
@@ -1818,7 +1824,7 @@ def _draw_zones(map_name: str, show, width: int, key) -> list[dict]:
                                              labels=labels, geometry=geom,
                                              radar=rad, anchors=anchors,
                                              title=_zone_title(map_name, level),
-                                             mask=msk)})
+                                             mask=msk, stats=stats)})
     except Exception:
         out = []            # a missing picture must never break the page
     if len(_ZONE_PIC) >= ZONE_PIC_MAX:
@@ -2549,7 +2555,9 @@ def _stats_body(team, user=None, share: str = ""):
                 f'<span class="den" style="font-weight:400;margin-left:7px">'
                 f'{sub_line}</span></td>'
                 f'<td class="num">{rate(q["hit"], q["of"])}</td>'
-                f'<td class="num">{rate(q["won"], q["hit"])}</td>'
+                f'<td class="num">'
+                f'{rate(q["won"], q["hit"], against=q["other_pct"] if r["cmp"] else None)}'
+                f'</td>'
                 f'<td class="num">{other}</td></tr>')
         note = ""
         if hidden:
@@ -2642,6 +2650,62 @@ def _stats_body(team, user=None, share: str = ""):
 
     if early_block:
         pos_blocks.append(early_block)
+
+    # ---- where the rounds are decided
+    #
+    # One picture per map and SIDE, each zone carrying what the team wins in
+    # the rounds where their first death happened there. Coloured against what
+    # they win on the same map and side without it, which is the team's own
+    # number: the only comparison this product makes.
+    decided = []
+    try:
+        pats = movement.positional_patterns(team["id"])
+        by_ms = {}
+        for p in pats:
+            if p["kind"] != "death" or p.get("zone_index") is None:
+                continue
+            by_ms.setdefault((p["map"], p["side"]), []).append(p)
+        for (mp, side), group in sorted(
+                by_ms.items(), key=lambda kv: -sum(q["hit"] for q in kv[1])):
+            spread = max((abs(q["gap"]) for q in group), default=0) or 1.0
+            zstats = {}
+            for q in group:
+                fill, op = charts.diverge(q["win_pct"], q["other_pct"], spread)
+                zstats[q["zone_index"]] = {
+                    "top": f"{q['win_pct']:.0f}%",
+                    "sub": f"{q['hit']}/{q['of']}",
+                    "fill": fill, "op": op,
+                    "title": (f"{q['zone']}: first death here in {q['hit']} of "
+                              f"{q['of']} {side.upper()} rounds, you win "
+                              f"{q['win_pct']:.0f}% of them against "
+                              f"{q['other_pct']:.0f}% when it is somewhere else"),
+                }
+            if not zstats:
+                continue
+            for pic in zone_pictures(mp, show=set(), width=420, stats=zstats):
+                floor = (f' <span class="pill">{esc(pic["level"])}</span>'
+                         if pic["level"] else "")
+                decided.append(
+                    f'<figure class="zonefig reading">{pic["svg"]}'
+                    f'<figcaption class="den"><strong>'
+                    f'{esc(mp.replace("de_", ""))}</strong> '
+                    f'<span class="pill {esc(side)}">{esc(side.upper())}</span>'
+                    f'{floor}</figcaption></figure>')
+    except Exception:
+        decided = []        # a missing picture must never break the page
+
+    if decided:
+        pos_blocks.append(
+            f'<section><div class="sec-head"><span class="label">From position '
+            f'data</span><h2>Where your rounds are decided</h2></div>'
+            f'<p class="lede">Each circle is a place your first death happens. '
+            f'The big number is what you win when it happens there; the small '
+            f'one is how many rounds out of that side\u2019s total. '
+            f'<strong>Red is worse than your own rate on the same map and '
+            f'side when the first death is somewhere else</strong>, green is '
+            f'better, and faint means the same. Hover a circle for the full '
+            f'sentence.</p>'
+            f'<div class="zonerow">{"".join(decided)}</div></section>')
 
     # ---- the maps, once each, at the head of the three tables
     figs = []
