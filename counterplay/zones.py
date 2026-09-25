@@ -182,7 +182,7 @@ GROW_PASSES = 6
 def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
-        anchors=None, mask=None, title: str = "", stats=None) -> str:
+        anchors=None, mask=None, title: str = "", stat_layers=None) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -411,31 +411,43 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     # fill comes from charts.diverge, so the scale is defined once and not
     # here. A zone with no reading stays a faint dot: nothing to say is not
     # the same as zero.
-    if stats:
+    if stat_layers:
         out_stats = []
-        for k, centre in enumerate(centres):
-            at = anchors[k] if anchors is not None and k < len(anchors) else centre
-            cx, cy = px(at[0], at[1])
-            st = stats.get(first_number + k)
-            if not st:
-                out_stats.append(
-                    f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3.5" '
-                    f'fill="#5B21B6" opacity=".16"/>')
-                continue
-            out_stats.append(
-                f'<g><title>{_esc(st.get("title", ""))}</title>'
-                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" '
-                f'fill="{st["fill"]}" opacity="{st["op"]:.2f}"/>'
-                f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" fill="none" '
-                f'stroke="{st["fill"]}" stroke-width="1.5" opacity=".85"/>'
-                f'<text x="{cx:.1f}" y="{cy + 2:.1f}" text-anchor="middle" '
-                f'font-size="15" font-weight="700" fill="#fff" '
-                f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
-                f'{_esc(st["top"])}</text>'
-                f'<text x="{cx:.1f}" y="{cy + 14:.1f}" text-anchor="middle" '
-                f'font-size="10.5" fill="#fff" '
-                f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
-                f'{_esc(st["sub"])}</text></g>')
+        for n, (key, stats) in enumerate(stat_layers):
+            # Every zone in every layer. A zone with a reading here and none
+            # in the next one has to change when the layer changes, and one
+            # shared set of dots underneath would leave a dot inside a disc.
+            parts = []
+            for k, centre in enumerate(centres):
+                at = (anchors[k] if anchors is not None and k < len(anchors)
+                      else centre)
+                cx, cy = px(at[0], at[1])
+                st = stats.get(first_number + k)
+                if not st:
+                    parts.append(
+                        f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="3.5" '
+                        f'fill="#5B21B6" opacity=".16"/>')
+                    continue
+                parts.append(
+                    f'<g><title>{_esc(st.get("title", ""))}</title>'
+                    f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" '
+                    f'fill="{st["fill"]}" opacity="{st["op"]:.2f}"/>'
+                    f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="23" fill="none" '
+                    f'stroke="{st["fill"]}" stroke-width="1.5" opacity=".85"/>'
+                    f'<text x="{cx:.1f}" y="{cy + 2:.1f}" text-anchor="middle" '
+                    f'font-size="15" font-weight="700" fill="#fff" '
+                    f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
+                    f'{_esc(st["top"])}</text>'
+                    f'<text x="{cx:.1f}" y="{cy + 14:.1f}" text-anchor="middle" '
+                    f'font-size="10.5" fill="#fff" '
+                    f'style="paint-order:stroke;stroke:#191325;stroke-width:2.5px">'
+                    f'{_esc(st["sub"])}</text></g>')
+            # The first layer is the one that shows with JavaScript off, so a
+            # reader who never presses anything still gets a whole answer
+            # rather than an empty map.
+            on = " on" if n == 0 else ""
+            out_stats.append(f'<g class="zlayer{on}" data-layer="{_esc(key)}">'
+                             f'{"".join(parts)}</g>')
         labels_final = out_stats
     else:
         labels_final = None

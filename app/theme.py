@@ -592,6 +592,10 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
 .zonefig svg image{filter:var(--radar-dim)}
 .rt.up>b{color:var(--good)}
 .rt.down>b{color:var(--bad)}
+.zlayer{display:none}
+.zlayer.on{display:inline}
+.zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
+.zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:340px}
 .zonefig svg{display:block;height:250px;width:auto;max-width:100%;
   border:1px solid var(--border);
