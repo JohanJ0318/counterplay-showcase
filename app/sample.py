@@ -22,9 +22,8 @@ So the sections below are the sections of `/stats`, in the order `/stats` puts
 them, and the two fictions are gone.
 
 The numbers are invented and the page says so at the top. Everything else - the
-denominator under every rate, the round counts, the refusal to print a
-percentage under `report.MIN_CHANCES` chances - is the real format, because the
-format is what is being previewed.
+denominator behind every rate, the round counts - is the real format, because
+the format is what is being previewed.
 """
 from __future__ import annotations
 
@@ -231,9 +230,9 @@ NOT_CLAIMED = [
     ("No comparison to other teams.",
      "You are not scored against professional or matchmaking players. Those "
      "baselines exist and they do not describe your league, so they are off."),
-    (f"Anything under {MIN_CHANCES} chances shows its raw count.",
-     "No percentage, and the row says so. A rate off four rounds is noise "
-     "wearing a percent sign."),
+    ("Every rate knows its sample size.",
+     "Hover a figure for the rounds behind it. A rate off four rounds is noise "
+     "wearing a percent sign, and you can see when it is one."),
     ("Every figure is auditable.",
      "The rounds behind a claim are printed so you can open the demo and check "
      "it yourself. If a line is wrong, it is wrong in a way you can see."),
@@ -464,8 +463,7 @@ def render(user=None, pictures=None) -> str:
     <div class="warn">
       <strong>Format preview.</strong> A fictional team and invented numbers on
       real maps. What is real is the shape: every rate carries the number it came
-      from, every place named is one your own demos would put somebody in, and
-      anything under {MIN_CHANCES} chances refuses to show a percentage.
+      from, and every place named is one your own demos would put somebody in.
     </div>
   </section>
 
@@ -504,11 +502,9 @@ def render(user=None, pictures=None) -> str:
   <section>
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
-    <p class="lede">Counted, never predicted. A line appears once it has
-      {MIN_PATTERN_CHANCES} chances behind it; under {MIN_CHANCES} it shows raw
-      counts rather than a percentage. In the chart the bar's full length is the
-      chances and the fill is what came of them, so a 5-of-12 and a 45-of-79 read
-      as different weights of evidence even where the percentages are close.</p>
+    <p class="lede">Counted, never predicted. A line needs
+      {MIN_PATTERN_CHANCES} chances to appear. The full bar is the chances and
+      the fill is what came of them.</p>
     <div class="chart">{chart}</div>
     <details class="drop"><summary>See the numbers</summary>
       <div class="tbl-plain"><table>
@@ -588,9 +584,7 @@ def render(user=None, pictures=None) -> str:
       <span class="label">Next match</span>
       <h2>Get this after every match, for free</h2>
       <p class="lede">Send in your league matches and this page rebuilds itself as
-        the season goes on. Free while the collegiate baselines are being built:
-        your demos are what make them exist, and league teams are the only ones
-        who get measured against them.</p>
+        the season goes on. Free this season.</p>
       <a class="btn" href="/signup">Add your team</a>
     </div>
   </section>"""

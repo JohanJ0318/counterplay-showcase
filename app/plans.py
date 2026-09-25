@@ -74,8 +74,7 @@ PLANS: dict[str, Plan] = {
     p.key: p
     for p in [
         Plan("free", "Free", 0, "individual", price_eur_month=0.0,
-             blurb="Your own stats, the leaderboards, and a summary of any "
-                   "public match."),
+             blurb="Your own stats and a summary of any public match."),
         Plan("pro", "Pro", 10, "individual", price_eur_month=None,
              blurb="Everything in Free, plus the weapon and economy detail "
                    "behind your numbers."),
@@ -185,7 +184,9 @@ FEATURES: dict[str, Feature] = {
 }
 
 # Order features appear on the pricing page and in the dashboard.
-FEATURE_ORDER = ["player_stats", "team_stats", "leaderboards", "match_reports",
+# No "leaderboards": it lived on the league site, which is archived, so
+# listing it would claim something nobody can open.
+FEATURE_ORDER = ["player_stats", "team_stats", "match_reports",
                  "replay_2d", "pattern_finder", "decision_scoring"]
 
 PLAN_ORDER = ["free", "pro", "team_t3", "team_t2", "team_t1"]

@@ -168,3 +168,17 @@ def test_the_guard_keys_on_content_not_on_path(tmp_path, monkeypatch):
         else:
             os.environ["COUNTERPLAY_DB"] = was
         importlib.reload(db_mod)
+
+
+# ----------------------------------------------------------- the upload form
+
+def test_the_upload_takes_every_name_a_demo_arrives_under():
+    """The form refused .dem.gz by name, before a byte was read, so a coach
+    uploading straight from FACEIT was told their match was not a demo."""
+    from app.main import is_demo_name
+    for name in ("003837857386282877221_1976594227.dem",
+                 "1-4cfc1e19-aaaa.dem.gz", "1-4cfc1e19-aaaa.dem.zst",
+                 "match730_0031.dem.bz2", "SHOUTY.DEM.GZ"):
+        assert is_demo_name(name), name
+    for name in ("notes.txt", "season.zip", "", "demo.gz"):
+        assert not is_demo_name(name), name

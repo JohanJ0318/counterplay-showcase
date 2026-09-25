@@ -30,8 +30,8 @@ from fastapi.responses import (HTMLResponse, JSONResponse, RedirectResponse,
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 
-from . import (advice, alert, auth, charts, db, legal, mail, movement,
-               traffic,
+from . import (advice, alert, auth, charts, db, ingest, legal, mail,
+               movement, traffic,
                report as report_mod, resets, sample as sample_page,
                utility)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
@@ -47,7 +47,6 @@ SITE = ROOT / "site"
 INSECURE_COOKIES = os.environ.get("COUNTERPLAY_INSECURE_COOKIES") == "1"
 
 MAX_DEMO_BYTES = 400 * 1024 * 1024      # a CS2 demo is 100-250MB
-ZSTD_MAGIC = bytes([0x28, 0xB5, 0x2F, 0xFD])   # FACEIT serves .dem.zst
 LEAGUES = ["NECC", "NACE Starleague", "ECAC", "Playfly", "ESEA",
            "FACEIT League", "Other"]
 ROLES = [("coach", "Coach"), ("igl", "In-game leader"), ("player", "Player"),
@@ -56,13 +55,12 @@ ROLES = [("coach", "Coach"), ("igl", "In-game leader"), ("player", "Player"),
 # Features that actually work today. Everything else in plans.py renders as
 # "Coming" rather than being quietly listed as though it ships.
 BUILT_FEATURES = {"match_reports", "player_stats", "team_stats",
-                  "pattern_finder", "leaderboards"}
+                  "pattern_finder"}
 
 # Where a working feature actually lives, so "Available" is clickable rather
 # than a claim a coach has to go hunting to verify.
-# No entry for "leaderboards": it pointed into the league site, which is
-# archived rather than served. A feature with no link renders as plain text,
-# which is the right thing for one a reader cannot go and look at.
+# A feature with no link renders as plain text, which is the right thing for
+# one a reader cannot go and look at.
 FEATURE_LINKS = {"match_reports": "/matches", "player_stats": "/players",
                  "team_stats": "/stats", "pattern_finder": "/stats"}
 
@@ -730,12 +728,11 @@ def dashboard(request: Request):
             enctype="multipart/form-data">
         {csrf_input(user)}
         <label>Match demos
-          <input type="file" name="demo" accept=".dem,.zst" multiple required></label>
+          <input type="file" name="demo" accept=".dem,.zst,.gz,.bz2" multiple required></label>
         <button type="submit">Upload</button>
-        <p class="den">Select as many as you like; a whole season at once is
-          fine. <strong>.dem</strong> or <strong>.dem.zst</strong> (what FACEIT's
-          download button gives you), up to 400&nbsp;MB each. The same match
-          uploaded twice is stored once.</p>
+        <p class="den">Pick as many as you like, a whole season at once.
+          Upload files exactly as they download, up to 400&nbsp;MB each. The
+          same match twice is stored once.</p>
         <p class="den"><strong>Demos expire.</strong> FACEIT and Valve both
           delete match demos after a few weeks, so save the ones worth keeping
           now.</p>
@@ -766,7 +763,7 @@ def dashboard(request: Request):
 # Both routes are written from files this system has actually parsed rather
 # than from a help page: a Premier match arrives as
 # `003837857386282877221_1976594227.dem` and a FACEIT one as
-# `1-4cfc1e19-....dem.zst`. Neither needs unpacking or renaming, which is
+# `1-4cfc1e19-....dem.gz`. Neither needs unpacking or renaming, which is
 # worth saying, because the instinct with a compressed file is to unzip it.
 DEMO_HELP = """
       <details class="howto">
@@ -775,9 +772,8 @@ DEMO_HELP = """
           <p class="den"><strong>FACEIT, from the match room.</strong> Open the
             match page on faceit.com and use the download button in the middle
             of it. You get a file named like
-            <code>1-4cfc1e19-....dem.zst</code>. <strong>Do not unzip it.</strong>
-            Upload the <code>.dem.zst</code> exactly as it downloads; this reads
-            it faster than you can unpack it.</p>
+            <code>1-4cfc1e19-....dem.gz</code>. <strong>Do not unzip it.</strong>
+            Upload it exactly as it downloads.</p>
           <p class="den"><strong>Premier and Competitive, from the game.</strong>
             Open CS2 and go to <strong>Watch &rarr; Your Matches</strong>. Every
             match from roughly the last month is listed. Click one, then
@@ -788,11 +784,8 @@ DEMO_HELP = """
             is.</p>
           <p class="den"><strong>Both platforms delete demos after a few
             weeks</strong>, FACEIT after about thirty days. Anything older than
-            that is gone and cannot be recovered, which is the argument for
-            pulling a whole season down in one sitting rather than a match at a
-            time.</p>
-          <p class="den">Select as many as you like at once. A season is
-            normally ten to thirty files and they can all go up together.</p>
+            that is gone for good, so pull a whole season down in one
+            sitting.</p>
         </div>
       </details>"""
 
@@ -843,12 +836,24 @@ PAGE_NAV = """
 
 # ---------------------------------------------------------------- upload
 
+# Every name a demo arrives under. FACEIT serves .dem.gz today and .dem.zst
+# historically, Valve serves .dem.bz2, and the game's own download is a plain
+# .dem. The upload used to accept only .dem and .dem.zst, so a coach uploading
+# straight from FACEIT was told their match was not a demo. The name is only a
+# first filter; what the bytes are is decided by ingest.packing_of().
+DEMO_SUFFIXES = (".dem", ".dem.zst", ".dem.gz", ".dem.bz2")
+STORED_SUFFIX = {"zstd": ".dem.zst", "gzip": ".dem.gz", "bzip2": ".dem.bz2"}
+
+
+def is_demo_name(name: str) -> bool:
+    return (name or "").lower().endswith(DEMO_SUFFIXES)
+
+
 async def _save_one(demo: UploadFile, team, user) -> tuple[str, str]:
     """Store one uploaded demo. Returns (outcome, detail) for the summary."""
     name = demo.filename or "unnamed"
-    low = name.lower()
-    if not (low.endswith(".dem") or low.endswith(".dem.zst")):
-        return "skipped", f"{name}: not a .dem or .dem.zst"
+    if not is_demo_name(name):
+        return "skipped", f"{name}: not a demo file"
 
     # Hash and write in one pass, capped. Reading a 400MB upload into memory to
     # hash it would take the process down under any real load.
@@ -866,11 +871,10 @@ async def _save_one(demo: UploadFile, team, user) -> tuple[str, str]:
         if size == 0:
             return "skipped", f"{name}: empty"
         sha = digest.hexdigest()
-        # Keep the extension honest: a coach downloading from FACEIT gets a
-        # .zst, and ingest decides what to do by reading the magic number, not
-        # the name, but the stored name should still say what the bytes are.
-        with tmp.open("rb") as probe:
-            suffix = ".dem.zst" if probe.read(4) == ZSTD_MAGIC else ".dem"
+        # Keep the extension honest: ingest decides what to do by reading the
+        # magic number, not the name, but the stored name should still say
+        # what the bytes are.
+        suffix = STORED_SUFFIX.get(ingest.packing_of(tmp), ".dem")
         final = db.DEMO_DIR / f"{sha}{suffix}"
         if final.exists():
             tmp.unlink(missing_ok=True)     # same bytes already on disk
@@ -1229,7 +1233,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
             ct_t, ct_w = a.get("clutch_tried", 0) or 0, a.get("clutch_won", 0) or 0
             prows.append(
                 f'<tr><td class="name">'
-                f'<a href="/player/{esc(a["steamid"])}">{esc(a["name"])}</a></td>'
+                f'<a href="{player_href(a["steamid"], share)}">{esc(a["name"])}</a></td>'
                 f'<td><span class="{cls}" title="{esc(a["role_why"])}">'
                 f'{esc(a["role"])}</span></td>'
                 f'<td class="num mono">{a["kills"]}{DASH}{a["deaths"]}{DASH}{a["assists"]}</td>'
@@ -1898,7 +1902,7 @@ def empty_state(what: str, team_name: str = "") -> str:
     <div class="grid2">
       <div class="card"><h3>FACEIT</h3>
         <p class="lede">Open the match room and use the download button. You get a
-          <code>.dem.zst</code> file, which is what this expects, so there is no need to
+          <code>.dem.gz</code> file. Upload it as it is; there is no need to
           unpack it.</p></div>
       <div class="card"><h3>Valve matchmaking</h3>
         <p class="lede">In CS2: <b>Watch &rarr; Your Matches</b>, then Download beside
@@ -2104,9 +2108,8 @@ def trends_page(request: Request, map: str = "", metric: str = "win_pct"):
   <section>
     <div class="sec-head"><span class="label">Match by match</span>
       <h2>{esc(label)}</h2></div>
-    <p class="lede">{esc(blurb)} Oldest on the left. The shaded band is your own
-      average across the matches shown, so a point above it is a match better than
-      your normal and a point below is worse.</p>
+    <p class="lede">{esc(blurb)} Oldest on the left. The dashed line is your
+      average.</p>
     <div style="display:flex;gap:7px;flex-wrap:wrap">{tabs}</div>
     <div style="display:flex;gap:7px;flex-wrap:wrap">{map_tabs}</div>
     <div class="chart">{chart}</div>
@@ -3016,7 +3019,7 @@ def _player_body(steamid: str, team, user=None, share: str = ""):
             f'<tr><td class="name">'
             f'<a href="{match_href(m["match_key"], share)}">'
             f'{map_chip(m["map_name"])}</a>'
-            f'<div class="den" style="font-weight:400">{esc((m["ingested_at"] or "")[:10])}</div></td>'
+            f'<div class="den" style="font-weight:400">{esc((m["added"] or "")[:10])}</div></td>'
             f'<td>{res}</td>'
             f'<td class="num mono">{esc(m["score"])}</td>'
             f'<td class="num mono">{m["rounds"]}</td>'
