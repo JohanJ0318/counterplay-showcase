@@ -260,6 +260,12 @@ def _money(v):
     return int(v)
 
 
+def _money_sum(a, b):
+    """a + b in dollars, or None if the demo gave either as missing."""
+    a, b = _money(a), _money(b)
+    return None if a is None or b is None else a + b
+
+
 def _economy(parser, roster, end_by_round) -> None:
     """What each player spent, per round.
 
@@ -438,7 +444,7 @@ def parse_demo(path: str, tier: str = "premier"):
 
     # Round number and equipment both come from the freeze-end tick.
     eq = parser.parse_ticks(["team_num", "current_equip_value", "total_rounds_played",
-                             "start_balance", "inventory"],
+                             "balance", "cash_spent_this_round", "inventory"],
                             ticks=freeze)
 
     # Winner is read just before the round is officially over.
@@ -568,7 +574,13 @@ def parse_demo(path: str, tier: str = "premier"):
                 "blind_team_secs": 0.0, "flash_assists": 0, "flash_kills": 0,
                 "nades_thrown": 0, "nades_start": 0, "nades_unused": 0,
                 "nades_value": 0, "nades_wasted": 0,
-                "money_start": _money(getattr(r, "start_balance", None)),
+                # What they had before buying: what is left plus what went.
+                # Not `start_balance`, which is not updated when overtime
+                # resets everyone's money, so it read $3,700 at the start of
+                # every overtime on 32 of 253 matches. Nobody earns anything
+                # in freeze time, so the sum is exact.
+                "money_start": _money_sum(getattr(r, "balance", None),
+                                          getattr(r, "cash_spent_this_round", None)),
                 "spent": None,
                 "equip_value": _money(r.current_equip_value),
                 "loadout": economy.loadout(getattr(r, "inventory", None)),
