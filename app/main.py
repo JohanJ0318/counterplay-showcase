@@ -2667,7 +2667,9 @@ def _stats_body(team, user=None, share: str = ""):
     # does not move is also the point: it is how you see that the place you
     # set up is the place you lose the opening.
     MIN_OPENINGS, MIN_LOSSES = 4, 3
-    decided = []
+    ORDER = [("open", "Opening duel"), ("trade", "Traded back"),
+             ("commit", "How far you get"), ("setup", "Where you set up")]
+    decided, live = [], []
     try:
         raw = movement.scan(team["id"])
         pats = movement.positional_patterns(team["id"])
@@ -2685,13 +2687,15 @@ def _stats_body(team, user=None, share: str = ""):
             op = raw.get("opening", {}).get(k[0], {}).get(k[1], {})
             return -sum(d["n"] for d in op.values())
 
+        # Built first, rendered second, because which layers are worth a pill
+        # cannot be known until every map has been counted.
+        built = []
         for (mp, side) in sorted(keys, key=_rank):
             names = raw.get("names", {}).get(mp, {})
             op = raw.get("opening", {}).get(mp, {}).get(side, {})
             group = pats_by.get((mp, side), [])
-            layers = []
+            by_key = {}
 
-            # 1. the opening duel, as a won-lost record
             tot_n = sum(d["n"] for d in op.values())
             tot_w = sum(d["won_duel"] for d in op.values())
             bench = (100.0 * tot_w / tot_n) if tot_n else 50.0
@@ -2699,8 +2703,8 @@ def _stats_body(team, user=None, share: str = ""):
             for z, d in op.items():
                 if d["n"] < MIN_OPENINGS:
                     continue
-                pct = 100.0 * d["won_duel"] / d["n"]
-                fill, o = charts.diverge(pct, bench, 40.0)
+                fill, o = charts.diverge(100.0 * d["won_duel"] / d["n"],
+                                         bench, 40.0)
                 zs[z] = {"top": f"{d['won_duel']}-{d['lost']}", "sub": "openings",
                          "fill": fill, "op": o,
                          "title": (f"{names.get(z, 'here')}: the round's first "
@@ -2708,9 +2712,8 @@ def _stats_body(team, user=None, share: str = ""):
                                    f"{d['won_duel']} and lost {d['lost']}, "
                                    f"against {bench:.0f}% won across this map "
                                    f"and side")}
-            layers.append(("open", zs))
+            by_key["open"] = zs
 
-            # 2. the trade on the ones you lost
             tot_l = sum(d["lost"] for d in op.values())
             tot_t = sum(d["traded"] for d in op.values())
             tbench = (100.0 * tot_t / tot_l) if tot_l else 0.0
@@ -2718,8 +2721,8 @@ def _stats_body(team, user=None, share: str = ""):
             for z, d in op.items():
                 if d["lost"] < MIN_LOSSES:
                     continue
-                pct = 100.0 * d["traded"] / d["lost"]
-                fill, o = charts.diverge(pct, tbench, 40.0)
+                fill, o = charts.diverge(100.0 * d["traded"] / d["lost"],
+                                         tbench, 40.0)
                 zs[z] = {"top": f"{d['traded']}/{d['lost']}", "sub": "traded",
                          "fill": fill, "op": o,
                          "title": (f"{names.get(z, 'here')}: you lost the "
@@ -2727,9 +2730,8 @@ def _stats_body(team, user=None, share: str = ""):
                                    f"man back {d['traded']} of them, against "
                                    f"{tbench:.0f}% traded across this map and "
                                    f"side. Untraded is a 4v5")}
-            layers.append(("trade", zs))
+            by_key["trade"] = zs
 
-            # 3 and 4. what the space bought, and the default
             for kind, phrase in (("commit", "this is as far as the group gets"),
                                  ("setup", "you are set up here")):
                 here = [q for q in group if q["kind"] == kind]
@@ -2745,10 +2747,32 @@ def _stats_body(team, user=None, share: str = ""):
                                   f"{q['of']} {side.upper()} rounds, you win "
                                   f"{q['win_pct']:.0f}% against "
                                   f"{q['other_pct']:.0f}% when it is not")}
-                layers.append((kind, zs))
+                by_key[kind] = zs
 
-            if not any(st for _k, st in layers):
-                continue
+            if any(by_key.values()):
+                built.append((mp, side, by_key))
+
+        # A layer earns its pill by having a circle SOMEWHERE. Decided across
+        # every map, because one toggle drives all of them at once.
+        live = [(k, lab) for k, lab in ORDER
+                if any(fig[2].get(k) for fig in built)]
+
+        # The pills stay in order of what decides a round, but the one that
+        # OPENS is whichever has the most circles. Opening on the most
+        # important question is no use if that question is the thinnest: on a
+        # two-match season "traded back" has two circles across three maps, so
+        # two of them would still load blank, which reads as broken rather
+        # than as thin. The order teaches; the default has to show something.
+        counts = {k: sum(len(fig[2].get(k, {})) for fig in built)
+                  for k, _lab in live}
+        first = max(counts, key=lambda k: counts[k]) if counts else None
+
+        for mp, side, by_key in built:
+            # `first` leads the list because svg() lights the first layer, and
+            # the pills below mark the same key. Order within the list is
+            # otherwise invisible: they are stacked overlays.
+            order = ([first] + [k for k, _l in live if k != first]) if first                 else [k for k, _l in live]
+            layers = [(k, by_key.get(k, {})) for k in order]
             for pic in zone_pictures(mp, show=set(), width=420,
                                      stat_layers=layers):
                 floor = (f' <span class="pill">{esc(pic["level"])}</span>'
@@ -2763,12 +2787,10 @@ def _stats_body(team, user=None, share: str = ""):
         decided = []        # a missing picture must never break the page
 
     if decided:
-        PILLS = [("open", "Opening duel"), ("trade", "Traded back"),
-                 ("commit", "How far you get"), ("setup", "Where you set up")]
         pills = "".join(
-            f'<button type="button" class="pill zpill{" on" if i == 0 else ""}" '
+            f'<button type="button" class="pill zpill{" on" if k == first else ""}" '
             f'data-layer="{k}">{esc(lab)}</button>'
-            for i, (k, lab) in enumerate(PILLS))
+            for k, lab in live)
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
