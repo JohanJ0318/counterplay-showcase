@@ -2256,6 +2256,41 @@ def _stats_body(team, user=None, share: str = ""):
             groups.append(f'<div style="margin-bottom:22px">{head}'
                           f'<div class="grid2">'
                           f'{"".join(advice_card(i, plan["baseline"]) for i in items)}</div></div>')
+        # The ranking, drawn. `stake` is rounds at stake and `good` says which
+        # way it points, so the bar is the signed stake: left is what this
+        # season is costing, right is what is earning. Same items as the
+        # cards below, in the same order, so the two can never disagree.
+        #
+        # The direction comes from `good` and NOT from `gap`. gap is a rate
+        # minus the season baseline, and for a utility finding the rate is a
+        # share of FLASHES while the baseline is a share of ROUNDS, so the
+        # subtraction is meaningless: advice.py says as much where it explains
+        # why those findings carry their own footer. Signed by gap, "Fix who
+        # your flashes land on" drew green, as a thing earning them rounds.
+        # `good` is the same flag the card's own "worth changing" pill reads.
+        def _sign(it):
+            return 1.0 if it["good"] else -1.0
+
+        ranked = []
+        for it in plan["items"]:
+            # A season-wide finding has no place, and labelling three of them
+            # "across every map" says nothing three times. Its own headline is
+            # the only thing that identifies it, trimmed to the label column.
+            side = (it["side"] or "").upper()
+            if not it["zone"]:
+                label = it["do"][:30] + ("..." if len(it["do"]) > 30 else "")
+                ranked.append((label, _sign(it) * it["stake"],
+                               f"{it['stake']:.0f} rds"))
+                continue
+            label = f"{it['zone']}{', ' + side if side else ''}"
+            if it["map"]:
+                label = f"{label} on {it['map']}"
+            ranked.append((label, _sign(it) * it["stake"],
+                           f"{it['stake']:.0f} rds"))
+        gl = charts.diverging(ranked)
+        chart_block = (f'<div class="chart" style="margin:6px 0 18px">{gl}</div>'
+                       if gl else "")
+
         monday_block = f"""
   <section class="lead">
     <div class="sec-head"><span class="label">Read this one first</span>
@@ -2264,6 +2299,7 @@ def _stats_body(team, user=None, share: str = ""):
       sits from your usual: your own {plan['baseline']:.0f}% across the season, or the
       same map and side without it for a line about one place. The count
       behind every line is printed under it.</p>
+    {chart_block}
     {"".join(groups)}
   </section>"""
     else:

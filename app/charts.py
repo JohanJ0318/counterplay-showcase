@@ -413,6 +413,82 @@ def trend(points: list[tuple[str, float, str]], width: int = 680,
             + "".join(parts) + legend + "</svg>")
 
 
+# Read against the team's own baseline, never a global one. See the module
+# note: the benchmark is always something this team did.
+GOOD = "var(--good)"
+BAD = "var(--bad)"
+
+# Below this share of the spread, a value is "the same as normal" and draws
+# neutral. Without a dead band every rounding wobble gets a colour and the
+# page looks like it has an opinion about noise.
+NEUTRAL_BAND = 0.08
+
+
+def diverge(value: float, benchmark: float, spread: float,
+            good_high: bool = True) -> tuple[str, float]:
+    """(fill, opacity) for one value read against a benchmark.
+
+    `spread` is the distance at which the colour saturates. Passing the
+    largest gap on the page makes the strongest bar the most intense one and
+    everything else proportional to it, so intensity is comparable within a
+    picture and never between two pictures.
+    """
+    if spread <= 0:
+        return FAINT, 0.30
+    d = (value - benchmark) if good_high else (benchmark - value)
+    t = max(-1.0, min(1.0, d / spread))
+    if abs(t) < NEUTRAL_BAND:
+        return FAINT, 0.30
+    return (GOOD if t > 0 else BAD), 0.35 + 0.5 * abs(t)
+
+
+def diverging(items: list[tuple[str, float, str]], width: int = 600,
+              row_h: int = 34, unit: str = "") -> str:
+    """What is gaining and what is costing, on one axis through zero.
+
+    Leetify's "Rating Gained & Lost" is the form: categories above and below a
+    baseline, so the things helping and the things hurting are one picture
+    instead of two lists. This is the same shape with the label to the LEFT of
+    its own bar rather than rotated vertically under it, because a rotated
+    label is unreadable and there is room here for a real one.
+
+    `items` is (label, signed value, note). Positive is gaining.
+
+    ORDERED BY SIZE, not by sign. Sorting the good ones above the bad ones
+    makes two blocks and hides the ranking, and the ranking is the reading:
+    the top bar is what matters most whichever way it points.
+    """
+    if not items:
+        return ""
+    lab_w, note_w = 172, 66
+    height = len(items) * row_h + 26
+    inner = width - lab_w - note_w
+    mid = lab_w + inner / 2
+    most = max((abs(v) for _, v, _ in items), default=1) or 1
+    out = [f'<line x1="{mid:.1f}" y1="14" x2="{mid:.1f}" y2="{height - 14}" '
+           f'stroke="{LINE}" stroke-width="1"></line>']
+    for i, (label, value, note) in enumerate(items):
+        y = 18 + i * row_h
+        w = abs(value) / most * (inner / 2 - 6)
+        fill, op = diverge(value, 0.0, most)
+        x = mid if value >= 0 else mid - w
+        out.append(
+            _text(lab_w - 8, y + 12, label, size=10.5, fill=INK, font=BODY,
+                  anchor="end")
+            + f'<rect x="{x:.1f}" y="{y + 3}" width="{max(w, 1.5):.1f}" '
+              f'height="12" rx="2" fill="{fill}" opacity="{op:.2f}"></rect>'
+            + _text(width - note_w + 6, y + 13, note, size=9.5))
+    # The axis is named once at the foot, at the OUTER ends. Both captions
+    # were centred on the zero line and printed on top of each other, which
+    # is the sort of thing only rendering the picture shows you.
+    out.append(_text(lab_w + 2, height - 3, "costs you rounds", size=9))
+    out.append(_text(width - note_w - 2, height - 3, "gains you rounds",
+                     size=9, anchor="end"))
+    return (_open(width, height, "What is gaining and costing you rounds, "
+                                 "each against your own rate without it")
+            + "".join(out) + "</svg>")
+
+
 def bars(items: list[tuple[str, int, int]], width: int = 560,
          row_h: int = 36) -> str:
     """Rates, with the weight of evidence behind them drawn.
