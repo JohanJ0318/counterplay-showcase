@@ -450,6 +450,7 @@ details.drop>summary::-webkit-details-marker{display:none}
 details.drop>summary::after{content:" \\25be";font-size:.7rem}
 details.drop[open]>summary::after{content:" \\25b4"}
 details.drop>.note{margin:10px 0 2px}
+details.drop>.tbl-plain{margin-top:10px}
 .rt::before,.rt::after{content:"";position:absolute;left:0;bottom:0;
   height:3px;border-radius:2px}
 .rt::before{right:0;background:var(--border)}
