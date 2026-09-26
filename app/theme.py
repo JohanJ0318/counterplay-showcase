@@ -736,9 +736,13 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
    see which place the line under the map is about. */
 .zfill.hot{opacity:.85}
 .zfill.hot.even{fill:var(--muted);opacity:.4}
-.zread{margin:8px 0 0;min-height:2.8em;max-width:60ch;font-size:.88rem;
-  color:var(--muted);line-height:1.4}
-.zread strong{color:var(--ink)}
+.zonefig.reading{position:relative}
+/* The box a hovered or tapped place opens beside the pointer. */
+.ztip{position:absolute;z-index:5;max-width:240px;padding:8px 10px;
+  background:var(--card);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--shadow);font-size:.82rem;
+  line-height:1.4;color:var(--muted);pointer-events:none}
+.ztip strong{color:var(--ink)}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:460px}

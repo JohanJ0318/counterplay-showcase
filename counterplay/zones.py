@@ -185,9 +185,17 @@ VOID_TITLE = "Not counted: a spawn, or a place with no name yet."
 # the cell is taken to be speckle and joins them.
 SPECKLE_VOTES = 6
 
+# A place over another, like Anubis's mid bridge over its canal, takes the
+# cell when it stands this far above the cell's majority (a floor, not a
+# slope: a ramp's cells differ by a few dozen units) with at least this share
+# of the cell's samples and this many samples. See _keyed_regions.
+UPPER_GAP = 64
+UPPER_SHARE = 0.15
+UPPER_MIN = 3
+
 
 def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
-                   x0, x1, y0, y1, bins, px, cw, ch) -> list[str]:
+                   x0, x1, y0, y1, bins, px, cw, ch, z=None) -> list[str]:
     """Stat-mode regions, one path per counted place, plus the borders.
 
     A cell belongs to whichever place most of the samples standing in it were
@@ -202,6 +210,16 @@ def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
     Key 0 is a spawn or an unnamed place, which scan() never reports. It is
     drawn as its own region so the borders are true, but it is not a `zfill`
     and the filters never paint it.
+
+    WHERE ONE PLACE RUNS OVER ANOTHER, THE UPPER ONE IS DRAWN. The picture
+    is flat, so a cell over Anubis's mid bridge holds both the players on the
+    bridge (counted as Mid) and the players in the canal under it (counted
+    as Water), and the canal had more of them: the bridge was painted Water,
+    and hovering it showed Water's numbers for ground counted as Mid. The
+    counting was right all along; only the picture chose the lower floor.
+    Now a place standing at least UPPER_GAP units above the majority, with at
+    least UPPER_SHARE of the cell's samples, takes the cell, because the
+    upper floor is what the radar shows from above.
     """
     sample_key = np.asarray(sample_key, dtype=np.int64)
     ix = ((x - x0) / (x1 - x0) * bins).astype(np.int64)
@@ -211,6 +229,25 @@ def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
     tally = np.bincount((ix[ok] * bins + iy[ok]) * k_n + sample_key[ok],
                         minlength=bins * bins * k_n).reshape(bins * bins, k_n)
     key = np.where(tally.sum(1) > 0, tally.argmax(1), -1).reshape(bins, bins)
+    if z is not None and len(sample_key):
+        cell = (ix[ok] * bins + iy[ok]) * k_n + sample_key[ok]
+        zsum = np.bincount(cell, weights=np.asarray(z, dtype=np.float64)[ok],
+                           minlength=bins * bins * k_n).reshape(bins * bins, k_n)
+        with np.errstate(invalid="ignore", divide="ignore"):
+            zmean = zsum / tally
+        total = tally.sum(1, keepdims=True)
+        enough = (tally >= UPPER_MIN) & (tally >= UPPER_SHARE * total)
+        top = np.where(enough, zmean, -np.inf)
+        upper = top.argmax(1)
+        flat = key.reshape(-1)
+        rows = np.arange(bins * bins)
+        has = flat >= 0
+        lift = np.zeros(bins * bins, dtype=bool)
+        lift[has] = (np.isfinite(top[rows[has], upper[has]]) &
+                     (top[rows[has], upper[has]] -
+                      zmean[rows[has], flat[has]] >= UPPER_GAP))
+        flat[lift] = upper[lift]
+        key = flat.reshape(bins, bins)
     # Cells nobody stood in take the nearest cell somebody did, not the
     # nearest centre: a centre across a wall is near in a straight line and
     # nowhere near on foot, and the cell next door is the honest guess.
@@ -325,7 +362,7 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
         width: int = 620, pad: int = 26, first_number: int = 1,
         labels=None, geometry=None, radar=None, extent=None,
         anchors=None, mask=None, title: str = "", stat_zones: bool = False,
-        sample_key=None, centre_key=None) -> str:
+        sample_key=None, centre_key=None, sample_z=None) -> str:
     """A top-down picture of one map, drawn from its own position samples.
 
     Density as a dot field, numbered zone centres on top, and the bomb plant
@@ -551,7 +588,8 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
 
         if stat_zones and sample_key is not None:
             dots = _keyed_regions(occupied, grid_owner, x, y, sample_key,
-                                  centre_key, x0, x1, y0, y1, bins, px, cw, ch)
+                                  centre_key, x0, x1, y0, y1, bins, px, cw, ch,
+                                  z=sample_z)
         elif stat_zones:
             for own, segs in sorted(by_zone.items()):
                 # Neutral until the page colours it. A zone the current filter

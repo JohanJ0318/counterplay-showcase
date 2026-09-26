@@ -121,3 +121,18 @@ def test_the_coach_is_on_the_roster_as_a_coach(client):
     assert 'class="role">Coach<' in row.group(0)
     assert "coachsid" not in html            # no link to a player page
     assert "and your coach" in html
+
+
+def test_the_zone_map_script_is_one_statement_list():
+    """The zone map's script is the page's data followed by ZONE_JS. A comma
+    where the data ends ("N={...},var F=") is a syntax error that leaves every
+    place uncoloured and silent, and nothing else on the page complains. The
+    test page has no positions to draw a map from, so this checks the join in
+    the source and the start of the constant it joins to."""
+    import inspect
+    from app import main
+    src = inspect.getsource(main)
+    join = src[src.index("N={json.dumps(znames"):]
+    join = join[:join.index("ZONE_JS")]
+    assert "))};'" in join, join
+    assert main.ZONE_JS.lstrip().startswith("var ")

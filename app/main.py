@@ -1961,6 +1961,16 @@ def _draw_zones(map_name: str, show, width: int, key,
                                              stat_zones=stat_zones,
                                              sample_key=(grouped[0][sel]
                                                          if grouped else None),
+                                             # Only on a map drawn as ONE
+                                             # floor. A split map (Nuke) is
+                                             # already a picture per floor,
+                                             # and what overlaps inside one
+                                             # is a duct or a catwalk over a
+                                             # room, where the room is the
+                                             # place: with it, the vent took
+                                             # 2% of Nuke's B site.
+                                             sample_z=(z[sel] if grouped and
+                                                       split is None else None),
                                              centre_key=(
                                                  [int(grouped[1][i + 1])
                                                   for i in idx]
@@ -2332,31 +2342,39 @@ def matches_page(request: Request):
 # What hovering a place on "Where your rounds are decided" says. The map used
 # to answer a hover with the browser's own tooltip, after a delay, and only
 # the counts: nothing said WHY a place was green, red or clear, and a phone
-# has no hover at all. Now a hover or a tap shades the place and writes the
-# reason under the map, in the page's own words.
-ZREAD_IDLE = "Hover over a place, or tap it, to see why it has its colour."
-
+# has no hover at all. Now a hover or a tap shades the place and opens a box
+# beside it: the reason first, then the K/D, then the kills and deaths.
 ZONE_JS = r"""
 var F={side:"all",phase:"all",buy:"all"},MIN=6;
 function pl(n,w){return n+" "+w+(n===1?"":"s");}
 function esc(t){return String(t).replace(/[&<>"]/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
 function why(r){
-  var f=r.k+r.x,nm="<strong>"+esc(r.nm)+"</strong>: ";
-  if(f<MIN){return nm+pl(f,"fight")+" here under this filter ("+pl(r.k,"kill")+
-    ", "+pl(r.x,"death")+"). Too few to read anything into, so it is left clear.";}
-  var head=r.good?"you win more of your fights here than across the map. ":
-    r.bad?"you lose more of your fights here than across the map. ":
-    "about the same as across the map, so it is left clear. ";
-  return nm+head+pl(r.k,"kill")+", "+pl(r.x,"death")+": K/D "+r.kd.toFixed(2)+
-    " here, "+r.base.toFixed(2)+" across the map.";}
+  var f=r.k+r.x,nm="<strong>"+esc(r.nm)+"</strong><br>",
+      tail=" "+pl(r.k,"kill")+", "+pl(r.x,"death")+".";
+  if(f<MIN){return nm+"Too few fights here under this filter to read "+
+    "anything into, so it is left clear."+tail;}
+  var head=r.good?"You win more of your fights here than across the map. ":
+    r.bad?"You lose more of your fights here than across the map. ":
+    "About the same as across the map, so it is left clear. ";
+  return nm+head+"K/D "+r.kd.toFixed(2)+" here, "+r.base.toFixed(2)+
+    " across the map."+tail;}
 function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
   for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
-function show(fig,el){unhot(fig);if(!el._r){return;}
+function place(fig,ev){
+  var tip=fig.querySelector(".ztip"),fr=fig.getBoundingClientRect();
+  if(!ev||ev.clientX===undefined){return;}
+  var x=ev.clientX-fr.left+14,y=ev.clientY-fr.top+14,
+      w=tip.offsetWidth,h=tip.offsetHeight;
+  if(x+w>fr.width){x=ev.clientX-fr.left-w-14;}
+  if(y+h>fr.height){y=ev.clientY-fr.top-h-14;}
+  tip.style.left=Math.max(0,x)+"px";tip.style.top=Math.max(0,y)+"px";}
+function show(fig,el,ev){unhot(fig);if(!el._r){return;}
   el.classList.add("hot");if(!el._r.good&&!el._r.bad){el.classList.add("even");}
-  fig._hot=el;fig.querySelector(".zread").innerHTML=why(el._r);}
-function reset(fig){unhot(fig);fig._hot=null;
-  fig.querySelector(".zread").textContent=IDLE;}
+  fig._hot=el;var tip=fig.querySelector(".ztip");
+  tip.innerHTML=why(el._r);tip.hidden=false;if(ev){fig._ev=ev;}
+  place(fig,fig._ev);}
+function reset(fig){unhot(fig);fig._hot=null;fig.querySelector(".ztip").hidden=true;}
 function paint(){
   var figs=document.querySelectorAll(".zonefig[data-map]");
   for(var a=0;a<figs.length;a++){
@@ -2384,8 +2402,9 @@ var figs=document.querySelectorAll(".zonefig.reading");
 for(var i=0;i<figs.length;i++){(function(fig){
   var ps=fig.querySelectorAll(".zfill");
   for(var j=0;j<ps.length;j++){(function(el){
-    el.addEventListener("mouseenter",function(){show(fig,el);});
-    el.addEventListener("click",function(){show(fig,el);});})(ps[j]);}
+    el.addEventListener("mouseenter",function(e){show(fig,el,e);});
+    el.addEventListener("mousemove",function(e){fig._ev=e;place(fig,e);});
+    el.addEventListener("click",function(e){show(fig,el,e);});})(ps[j]);}
   fig.addEventListener("mouseleave",function(){reset(fig);});})(figs[i]);}
 var rows=document.querySelectorAll(".zfilters .zrow");
 for(var i2=0;i2<rows.length;i2++){(function(row){
@@ -2845,8 +2864,8 @@ def _stats_body(team, user=None, share: str = ""):
                     f'<figure class="zonefig reading" data-map="{esc(mp)}">'
                     f'{pic["svg"]}<figcaption class="den"><strong>'
                     f'{esc(mp.replace("de_", ""))}</strong>{floor}'
-                    f'</figcaption><p class="zread" aria-live="polite">'
-                    f'{ZREAD_IDLE}</p></figure>')
+                    f'</figcaption><div class="ztip" role="status" hidden>'
+                    f'</div></figure>')
     except Exception:
         decided = []        # a missing picture must never break the page
 
@@ -2876,8 +2895,8 @@ def _stats_body(team, user=None, share: str = ""):
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<script>(function(){{var D={json.dumps(zdata, separators=(",", ":"))},'
-            f'N={json.dumps(znames, separators=(",", ":"))},'
-            f'IDLE={json.dumps(ZREAD_IDLE)};' + ZONE_JS + '})();</script></section>')
+            f'N={json.dumps(znames, separators=(",", ":"))};'
+            + ZONE_JS + '})();</script></section>')
 
     # ---- the maps, once each, at the head of the three tables
     figs = []
