@@ -1735,15 +1735,27 @@ def _players_body(team, user=None, share: str = ""):
     if not regulars:
         regulars, once = once, []
 
+    # The coach, on the roster but out of every number: a coach in a player
+    # slot stands still all match, so their ADR and "clutches" are artifacts
+    # (report.is_coach). Named, with dashes, and not a link, because their
+    # own page would be nothing but those artifacts.
+    coach_rows = "".join(
+        f'<tr><td class="name">{esc(c["name"])}</td>'
+        f'<td><span class="role">Coach</span></td>'
+        f'<td class="num mono">{c["matches"]}</td>' +
+        '<td class="num mono">&ndash;</td>' * 9 + '</tr>'
+        for c in report_mod.team_coaches(team["id"]))
+
     blocks = []
-    if regulars:
+    if regulars or coach_rows:
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
             f'Who keeps turning up</span><h2>Your players</h2></div>'
             f'<p class="lede">Everyone on your side in more than one match, '
-            f'read from your demos.</p>'
+            f'read from your demos{", and your coach" if coach_rows else ""}.</p>'
             f'<div class="tbl-wrap"><table class="dense">{HEAD}'
-            f'<tbody>{player_rows(regulars)}</tbody></table></div></section>')
+            f'<tbody>{player_rows(regulars)}{coach_rows}</tbody></table></div>'
+            f'</section>')
     if once:
         blocks.append(
             f'<section><div class="sec-head"><span class="label">'
@@ -2317,6 +2329,75 @@ def matches_page(request: Request):
                                        label="Match reports"), body, user)
 
 
+# What hovering a place on "Where your rounds are decided" says. The map used
+# to answer a hover with the browser's own tooltip, after a delay, and only
+# the counts: nothing said WHY a place was green, red or clear, and a phone
+# has no hover at all. Now a hover or a tap shades the place and writes the
+# reason under the map, in the page's own words.
+ZREAD_IDLE = "Hover over a place, or tap it, to see why it has its colour."
+
+ZONE_JS = r"""
+var F={side:"all",phase:"all",buy:"all"},MIN=6;
+function pl(n,w){return n+" "+w+(n===1?"":"s");}
+function esc(t){return String(t).replace(/[&<>"]/g,function(c){
+  return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
+function why(r){
+  var f=r.k+r.x,nm="<strong>"+esc(r.nm)+"</strong>: ";
+  if(f<MIN){return nm+pl(f,"fight")+" here under this filter ("+pl(r.k,"kill")+
+    ", "+pl(r.x,"death")+"). Too few to read anything into, so it is left clear.";}
+  var head=r.good?"you win more of your fights here than across the map. ":
+    r.bad?"you lose more of your fights here than across the map. ":
+    "about the same as across the map, so it is left clear. ";
+  return nm+head+pl(r.k,"kill")+", "+pl(r.x,"death")+": K/D "+r.kd.toFixed(2)+
+    " here, "+r.base.toFixed(2)+" across the map.";}
+function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
+  for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
+function show(fig,el){unhot(fig);if(!el._r){return;}
+  el.classList.add("hot");if(!el._r.good&&!el._r.bad){el.classList.add("even");}
+  fig._hot=el;fig.querySelector(".zread").innerHTML=why(el._r);}
+function reset(fig){unhot(fig);fig._hot=null;
+  fig.querySelector(".zread").textContent=IDLE;}
+function paint(){
+  var figs=document.querySelectorAll(".zonefig[data-map]");
+  for(var a=0;a<figs.length;a++){
+    var fig=figs[a],mp=fig.getAttribute("data-map"),d=D[mp]||{},n=N[mp]||{};
+    var tk=0,td=0,per={};
+    for(var z in d){var k=0,x=0,r=d[z];
+      for(var b=0;b<r.length;b++){var q=r[b];
+        if(F.side!=="all"&&q[0]!==F.side)continue;
+        if(F.phase!=="all"&&q[1]!==F.phase)continue;
+        if(F.buy!=="all"&&q[2]!==F.buy)continue;
+        k+=q[3];x+=q[4];}
+      per[z]=[k,x];tk+=k;td+=x;}
+    var base=td>0?tk/td:1;
+    var ps=fig.querySelectorAll(".zfill");
+    for(var p=0;p<ps.length;p++){var el=ps[p],zz=el.getAttribute("data-z");
+      var v=per[zz]||[0,0],kk=v[0],xx=v[1],tot=kk+xx;
+      var ttl=el.querySelector("title");if(ttl){ttl.textContent="";}
+      var kd=xx>0?kk/xx:kk,rel=(kd-base)/(base||1);
+      var good=tot>=MIN&&rel>0.12,bad=tot>=MIN&&rel<-0.12;
+      el._r={nm:n[zz]||"This place",k:kk,x:xx,kd:kd,base:base,good:good,bad:bad};
+      el.setAttribute("fill",good?"var(--good)":bad?"var(--bad)":"var(--faint)");
+      el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0");}
+    if(fig._hot){show(fig,fig._hot);}}}
+var figs=document.querySelectorAll(".zonefig.reading");
+for(var i=0;i<figs.length;i++){(function(fig){
+  var ps=fig.querySelectorAll(".zfill");
+  for(var j=0;j<ps.length;j++){(function(el){
+    el.addEventListener("mouseenter",function(){show(fig,el);});
+    el.addEventListener("click",function(){show(fig,el);});})(ps[j]);}
+  fig.addEventListener("mouseleave",function(){reset(fig);});})(figs[i]);}
+var rows=document.querySelectorAll(".zfilters .zrow");
+for(var i2=0;i2<rows.length;i2++){(function(row){
+  var bs=row.querySelectorAll(".zpill");
+  for(var j2=0;j2<bs.length;j2++){bs[j2].addEventListener("click",function(){
+    F[row.getAttribute("data-f")]=this.getAttribute("data-v");
+    for(var m=0;m<bs.length;m++){bs[m].classList.toggle("on",bs[m]===this);}
+    paint();});}})(rows[i2]);}
+paint();
+"""
+
+
 @app.get("/stats", response_class=HTMLResponse)
 def stats_page(request: Request):
     """Team stats and recurring patterns, across every match the team sent in."""
@@ -2764,7 +2845,8 @@ def _stats_body(team, user=None, share: str = ""):
                     f'<figure class="zonefig reading" data-map="{esc(mp)}">'
                     f'{pic["svg"]}<figcaption class="den"><strong>'
                     f'{esc(mp.replace("de_", ""))}</strong>{floor}'
-                    f'</figcaption></figure>')
+                    f'</figcaption><p class="zread" aria-live="polite">'
+                    f'{ZREAD_IDLE}</p></figure>')
     except Exception:
         decided = []        # a missing picture must never break the page
 
@@ -2788,51 +2870,14 @@ def _stats_body(team, user=None, share: str = ""):
             f'data</span><h2>Where your rounds are decided</h2></div>'
             f'<p class="lede">Your kills and deaths in every place on the map. '
             f'<strong>Green means you win more fights there than you do '
-            f'everywhere else</strong> under the same filter, red means fewer, '
-            f'faint means the same or too little to say. Hover anywhere on the '
-            f'map for the numbers.</p>'
+            f'across the whole map</strong> under the same filter, red means fewer, '
+            f'clear means the same or too little to say. Hover over a place, '
+            f'or tap it, to see why it has its colour.</p>'
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
-            f'<script>(function(){{'
-            f'var D={json.dumps(zdata, separators=(",", ":"))},'
+            f'<script>(function(){{var D={json.dumps(zdata, separators=(",", ":"))},'
             f'N={json.dumps(znames, separators=(",", ":"))},'
-            f'F={{side:"all",phase:"all",buy:"all"}},MIN=6;'
-            f'function pl(n,w){{return n+" "+w+(n===1?"":"s");}}'
-            f'function paint(){{'
-            f'var figs=document.querySelectorAll(".zonefig[data-map]");'
-            f'for(var a=0;a<figs.length;a++){{'
-            f'var mp=figs[a].getAttribute("data-map"),d=D[mp]||{{}},n=N[mp]||{{}};'
-            f'var tk=0,td=0,per={{}};'
-            f'for(var z in d){{var k=0,x=0,r=d[z];'
-            f'for(var b=0;b<r.length;b++){{var q=r[b];'
-            f'if(F.side!=="all"&&q[0]!==F.side)continue;'
-            f'if(F.phase!=="all"&&q[1]!==F.phase)continue;'
-            f'if(F.buy!=="all"&&q[2]!==F.buy)continue;'
-            f'k+=q[3];x+=q[4];}}'
-            f'per[z]=[k,x];tk+=k;td+=x;}}'
-            f'var base=td>0?tk/td:1;'
-            f'var ps=figs[a].querySelectorAll(".zfill");'
-            f'for(var p=0;p<ps.length;p++){{var el=ps[p],z=el.getAttribute("data-z");'
-            f'var v=per[z]||[0,0],k=v[0],x=v[1],tot=k+x;'
-            f'var ttl=el.querySelector("title"),nm=n[z]||"this place";'
-            f'if(tot<MIN){{el.setAttribute("fill","var(--faint)");'
-            f'el.setAttribute("opacity","0");'
-            f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+" here. '
-            f'Too few to read anything into.";continue;}}'
-            f'var kd=x>0?k/x:k,rel=(kd-base)/(base||1);'
-            f'var good=rel>0.12,bad=rel<-0.12;'
-            f'el.setAttribute("fill",good?"var(--good)":bad?"var(--bad)":"var(--faint)");'
-            f'el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0");'
-            f'ttl.textContent=nm+": "+pl(k,"kill")+", "+pl(x,"death")+", K/D "+kd.toFixed(2)'
-            f'+" against "+base.toFixed(2)+" everywhere else";}}}}}}'
-            f'var rows=document.querySelectorAll(".zfilters .zrow");'
-            f'for(var i=0;i<rows.length;i++){{(function(row){{'
-            f'var bs=row.querySelectorAll(".zpill");'
-            f'for(var j=0;j<bs.length;j++){{bs[j].addEventListener("click",function(){{'
-            f'F[row.getAttribute("data-f")]=this.getAttribute("data-v");'
-            f'for(var m=0;m<bs.length;m++){{bs[m].classList.toggle("on",bs[m]===this);}}'
-            f'paint();}});}}}})(rows[i]);}}'
-            f'paint();}})();</script></section>')
+            f'IDLE={json.dumps(ZREAD_IDLE)};' + ZONE_JS + '})();</script></section>')
 
     # ---- the maps, once each, at the head of the three tables
     figs = []

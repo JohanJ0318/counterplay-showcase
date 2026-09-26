@@ -730,7 +730,15 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
 .zfilters{display:flex;flex-direction:column;gap:7px;margin:0 0 16px}
 .zrow{display:flex;gap:6px;flex-wrap:wrap}
 .zfill{transition:fill .12s,opacity .12s}
-.zonefig svg:hover .zfill{cursor:help}
+.zonefig svg:hover .zfill{cursor:pointer}
+/* The place under the pointer, on "Where your rounds are decided": its
+   own colour made strong, or shaded grey where it is clear, so you can
+   see which place the line under the map is about. */
+.zfill.hot{opacity:.85}
+.zfill.hot.even{fill:var(--muted);opacity:.4}
+.zread{margin:8px 0 0;min-height:2.8em;max-width:60ch;font-size:.88rem;
+  color:var(--muted);line-height:1.4}
+.zread strong{color:var(--ink)}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:460px}

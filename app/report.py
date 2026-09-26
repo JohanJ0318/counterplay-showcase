@@ -726,6 +726,43 @@ def team_matches(team_id: int) -> list[dict]:
     return out
 
 
+def team_coaches(team_id: int) -> list[dict]:
+    """The coaches who sat on this team's side: [{steamid, name, matches}].
+
+    A coach is kept out of every stat (is_coach), because their numbers are
+    artifacts of standing still in a player slot. They still belong on the
+    roster, named as a coach, so the page shows the whole team.
+    """
+    rows = db.query("""
+        SELECT pr.steamid, pr.name, pr.match_key, pr.round_num,
+               pr.kills, pr.deaths, pr.damage
+          FROM player_rounds pr
+          JOIN matches m ON m.match_key = pr.match_key
+          JOIN demos   d ON d.id = m.demo_id
+         WHERE d.team_id = ?""", team_id)
+    whole: dict = defaultdict(lambda: {"kills": 0, "deaths": 0, "damage": 0.0})
+    for r in rows:
+        t = whole[r["steamid"]]
+        t["kills"] += r["kills"]
+        t["deaths"] += r["deaths"]
+        t["damage"] += r["damage"]
+    coaches = {sid for sid, t in whole.items() if is_coach(t)}
+    if not coaches:
+        return []
+    ours = ours_by_round(team_id)
+    out: dict = {}
+    for r in rows:
+        if (r["steamid"] in coaches and
+                (r["match_key"], r["round_num"], r["steamid"]) in ours):
+            c = out.setdefault(r["steamid"], {"steamid": r["steamid"],
+                                              "name": r["name"], "keys": set()})
+            c["name"] = r["name"]
+            c["keys"].add(r["match_key"])
+    return sorted(({"steamid": c["steamid"], "name": c["name"],
+                    "matches": len(c["keys"])} for c in out.values()),
+                  key=lambda c: -c["matches"])
+
+
 def squad(team_id: int) -> dict:
     """Split the people in a team's demos into theirs and everyone else's.
 

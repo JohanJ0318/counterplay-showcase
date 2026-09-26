@@ -101,3 +101,23 @@ def test_links_out_of_a_shared_page_stay_inside_the_link(client, path):
              if h.startswith(("/player/", "/match/", "/stats", "/players",
                               "/matches", "/trends", "/dashboard"))]
     assert not leaks, leaks
+
+
+def test_the_coach_is_on_the_roster_as_a_coach(client):
+    """A FACEIT coach sits in a player slot on your side and never shoots.
+    They belong on the roster, named as the coach, with none of the artifact
+    numbers standing still produces, and no link to a page of them."""
+    from app import db
+    for mk in ("m1", "m2"):
+        for rn in range(1, 13):
+            db.execute("""INSERT INTO player_rounds
+                            (match_key, round_num, steamid, name, side,
+                             kills, deaths, damage)
+                          VALUES (?,?,?,?,?,?,?,?)""",
+                       mk, rn, "coachsid", "Coach Carter", "ct", 0, 0, 0.0)
+    html = _get(client, "/players")[1]
+    row = re.search(r"<tr><td class=\"name\">Coach Carter</td>.*?</tr>", html)
+    assert row, "the coach is missing from the roster"
+    assert 'class="role">Coach<' in row.group(0)
+    assert "coachsid" not in html            # no link to a player page
+    assert "and your coach" in html
