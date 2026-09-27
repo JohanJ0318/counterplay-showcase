@@ -1945,6 +1945,23 @@ def _zone_title(map_name: str, level) -> str:
 
 
 _NEUTRAL: dict | None = None
+_BENCH: dict | None = None
+
+
+def _benchmark() -> dict:
+    """map -> place -> "side,phase,buy" -> [kills, deaths, dealt, taken]
+    for a typical team, from counterplay/benchmark.json
+    (tools/place_benchmark.py). Missing means every place falls back to the
+    team's own map average."""
+    global _BENCH
+    if _BENCH is None:
+        try:
+            _BENCH = json.loads((Path(__file__).resolve().parent.parent
+                                 / "counterplay" / "benchmark.json")
+                                .read_text(encoding="utf-8")).get("maps", {})
+        except (OSError, ValueError, AttributeError):
+            _BENCH = {}
+    return _BENCH
 
 
 def _neutral_ground() -> dict:
@@ -2480,18 +2497,29 @@ def matches_page(request: Request):
 # "Where your rounds are decided": the colours, the map pills and the box a
 # hovered or tapped place opens. D is map -> place -> rows of
 # [side, phase, buy, *movement.PLACE_FIELDS]; N names the places; G lists
-# each map's neutral ground (counterplay/neutral.json).
+# each map's neutral ground (counterplay/neutral.json); B is how a typical
+# team fights in each place (counterplay/benchmark.json).
 #
-# THE COLOUR IS THE FIGHTS, TESTED. A place is green or red only when its
-# share of fights won differs from the map's under the same filters by more
-# than luck would explain for the fights behind it: an exact two-sided
-# binomial test at P, and damage dealt vs taken must not point the other
-# way. Measured 2026-09-27 before this: the old rule (12% K/D gap, 6
-# fights, and a majority of five readings) coloured 49 places on team 3 and
-# a binomial test backed 3, fewer than chance alone gives; a real team had
-# 6 fights a place. Five readings were not five votes either: K/D and
-# damage agreed 75% of the time, and control alone coloured places nobody
-# fought in. Under MIN_FIGHTS a place is clear; otherwise grey.
+# THE COLOUR IS THE FIGHTS, TESTED AGAINST A TYPICAL TEAM. A place is green
+# or red when its share of fights won differs from what a typical team wins
+# in the same place, weighted by this team's own mix of side, phase and buy
+# under the filters, by an exact two-sided binomial test at P, and damage
+# dealt vs taken does not point the other way.
+#
+# Why a typical team and not the team's own map average (2026-09-27): after
+# a loss the own average is low everywhere, so UCF lost on Anubis and
+# nothing was red; and a place that favours whoever holds it went green for
+# everyone. Against the typical team, UCF's B main (4 won of 14, where a
+# typical team with their sides wins well over half) is red.
+#
+# Why P is 0.20 (Johan's call, 2026-09-27): at 0.10 a one-match team gets
+# one or two colours, and a coach needs somewhere to look. The fight count
+# on the K/D line is what lets them judge a colour; it must stay. The first
+# measurement (team 3, own-average rule with a fixed 12% gap) coloured 49
+# places of which a binomial test backed 3, and control alone coloured
+# places nobody fought in; do not go back to a fixed gap. Under MIN_FIGHTS
+# a place is clear; otherwise grey. A place the benchmark has no fights for
+# falls back to the team's own map average.
 #
 # The box is one line per reading, "K/D 0.33 in this zone vs 1.35 across the
 # map", and nothing else (Johan's call), except the fight count on the K/D
@@ -2500,7 +2528,7 @@ def matches_page(request: Request):
 # a place is, not how a team played. "Across the map" is every place on the
 # map under the same filters, this one included.
 ZONE_JS = r"""
-var F={map:"",side:"all",phase:"all",buy:"all"},P=0.10,MIN_FIGHTS=6,LF=[0];
+var F={map:"",side:"all",phase:"all",buy:"all"},P=0.20,MIN_FIGHTS=6,LF=[0];
 var M={
  kd:{lab:"K/D",a:0,b:1,floor:function(s){return s[0]+s[1]>=6;}},
  dmg:{lab:"Damage dealt vs taken",a:3,b:4,
@@ -2535,6 +2563,8 @@ function judge(k,s,base){
 function line(k,r){
   var s=r.s,base=r.base,v=value(k,s),b=value(k,base),n=s[0]+s[1],t,cls="zl";
   if(v===null){t=M[k].lab+": nothing here under these filters";}
+  else if(k==="kd"&&r.p0!==null){t="K/D "+fmt(k,s,v)+" in this zone vs "+
+    (r.p0>=1?"all won":(r.p0/(1-r.p0)).toFixed(2))+" for a typical team here";}
   else{t=M[k].lab+" "+fmt(k,s,v)+" in this zone vs "+fmt(k,base,b)+
     " across the map";}
   if(k==="kd"){t+=", "+n+(n===1?" fight":" fights")+
@@ -2551,12 +2581,18 @@ function pval(k,n,p){if(!n||p<=0||p>=1){return 1;}
     (n-i)*Math.log(1-p)));}
   t=pk[k]*(1+1e-9);for(i=0;i<=n;i++){if(pk[i]<=t){sum+=pk[i];}}
   return Math.min(1,sum);}
-function verdict(s,base){var n=s[0]+s[1];if(n<MIN_FIGHTS){return {c:0};}
-  var p0=base[0]/((base[0]+base[1])||1),p=s[0]/n,up=p>p0,
-      dm=judge("dmg",s,base).c;
-  if(pval(s[0],n,p0)<P&&!(up?dm===-1:dm===1)){
-    return {c:up?1:-1,g:Math.abs(p-p0)};}
-  return {c:2};}
+function verdict(s,base,ex){var n=s[0]+s[1];
+  var typ=ex&&ex.n>0?ex.w/ex.n:null;
+  if(n<MIN_FIGHTS){return {c:0,p0:typ};}
+  var p0=typ!==null?typ:base[0]/((base[0]+base[1])||1),p=s[0]/n,up=p>p0,
+      dt=s[3]+s[4],back;
+  if(typ!==null&&ex.dn>0&&dt>0){
+    var pd=s[3]/dt,pd0=ex.d/ex.dn;
+    back=up?pd<pd0-0.05:pd>pd0+0.05;}
+  else{var dm=judge("dmg",s,base).c;back=up?dm===-1:dm===1;}
+  if(pval(s[0],n,p0)<P&&!back){return {c:up?1:-1,g:Math.abs(p-p0),p0:typ};}
+  return {c:2,p0:typ};}
+function share(row,a,b){return row&&row[a]+row[b]>0?row[a]/(row[a]+row[b]):null;}
 function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
   for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
 function place(fig,ev){
@@ -2577,21 +2613,29 @@ function paint(){
   var figs=document.querySelectorAll(".zonefig[data-map]");
   for(var a=0;a<figs.length;a++){
     var fig=figs[a],mp=fig.getAttribute("data-map"),d=D[mp]||{},n=N[mp]||{},
-        g=G[mp]||[];
+        g=G[mp]||[],bm=B[mp]||{};
     fig.hidden=!!F.map&&mp!==F.map;
-    var base=[0,0,0,0,0,0,0,0,0],per={};
-    for(var z in d){var s=[0,0,0,0,0,0,0,0,0],r=d[z];
+    var base=[0,0,0,0,0,0,0,0,0],per={},exp={};
+    for(var z in d){var s=[0,0,0,0,0,0,0,0,0],r=d[z],tb=bm[n[z]]||null,
+        ex={w:0,n:0,d:0,dn:0},all=[0,0,0,0];
+      if(tb){for(var kk in tb){for(var u=0;u<4;u++){all[u]+=tb[kk][u];}}}
       for(var b=0;b<r.length;b++){var q=r[b];
         if(F.side!=="all"&&q[0]!==F.side)continue;
         if(F.phase!=="all"&&q[1]!==F.phase)continue;
         if(F.buy!=="all"&&q[2]!==F.buy)continue;
-        for(var i=0;i<9;i++){s[i]+=q[3+i];}}
-      per[z]=s;for(var j=0;j<9;j++){base[j]+=s[j];}}
+        for(var i=0;i<9;i++){s[i]+=q[3+i];}
+        if(tb){var row=tb[q[0]+","+q[1]+","+q[2]],
+            w=share(row,0,1),dd=share(row,2,3);
+          if(w===null){w=share(all,0,1);}if(dd===null){dd=share(all,2,3);}
+          if(w!==null){ex.w+=(q[3]+q[4])*w;ex.n+=q[3]+q[4];}
+          if(dd!==null){ex.d+=(q[6]+q[7])*dd;ex.dn+=q[6]+q[7];}}}
+      per[z]=s;exp[z]=tb?ex:null;for(var j=0;j<9;j++){base[j]+=s[j];}}
     var ps=fig.querySelectorAll(".zfill");
     for(var p=0;p<ps.length;p++){var el=ps[p],zz=el.getAttribute("data-z");
-      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=verdict(s2,base);
+      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=verdict(s2,base,exp[zz]);
       var ttl=el.querySelector("title");if(ttl){ttl.textContent="";}
       el._r={nm:n[zz]||"This place",s:s2,base:base,c:jd.c,
+             p0:jd.p0===undefined?null:jd.p0,
              neutral:g.indexOf(n[zz])>=0};
       el.setAttribute("fill",jd.c===1?"var(--good)":jd.c===-1?"var(--bad)":
         "var(--zone-even)");
@@ -2917,12 +2961,13 @@ def _stats_body(team, user=None, share: str = ""):
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
             f'<p class="lede">Every place on the map, and how your fights '
-            f'there go against the whole map under the same filters. '
-            f'<strong>Green means you win more of your fights there, red '
-            f'means fewer</strong>, and only where the gap is too big, for '
-            f'the fights behind it, to be luck. Grey means no real '
-            f'difference; clear means too few fights to say. Hover over a '
-            f'place, or tap it, for its numbers.</p>'
+            f'there go against a typical collegiate team in the same place, '
+            f'on the same side, under the same filters. <strong>Green means '
+            f'you win more of your fights there, red means fewer</strong>, '
+            f'once the gap is big enough for the fights behind it to point '
+            f'that way. Grey means no real difference; clear means too few '
+            f'fights to say. The fight count is in the box: with a handful, '
+            f'check the demo.</p>'
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<p class="note">Kills, deaths and damage count where the player '
@@ -2933,7 +2978,8 @@ def _stats_body(team, user=None, share: str = ""):
             f'that it was you.</p>'
             f'<script>(function(){{var D={json.dumps(zdata, separators=(",", ":"))},'
             f'N={json.dumps(znames, separators=(",", ":"))},'
-            f'G={json.dumps(_neutral_ground(), separators=(",", ":"))};'
+            f'G={json.dumps(_neutral_ground(), separators=(",", ":"))},'
+            f'B={json.dumps({m: _benchmark().get(m, {}) for m in map_order}, separators=(",", ":"))};'
             + ZONE_JS + '})();</script></section>')
 
     if decided_block:
