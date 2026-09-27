@@ -2512,8 +2512,12 @@ def matches_page(request: Request):
 # everyone. Against the typical team, UCF's B main (4 won of 14, where a
 # typical team with their sides wins well over half) is red.
 #
-# Why P is 0.20 (Johan's call, 2026-09-27): at 0.10 a one-match team gets
-# one or two colours, and a coach needs somewhere to look. The fight count
+# Why P is 0.40 and MIN_FIGHTS 4 (Johan's call, 2026-09-27): at 0.20 and 6
+# fights a real team saw one or two colours a map (UCF, NCSU Red, NCSU BLK
+# measured), and a coach needs somewhere to look; at 0.40 and 4 it is two
+# to eight a map. The price: a place where a team is really average is
+# coloured about 4 times in 10, so a colour is a lead to check in the demo,
+# not a verdict. The fight count
 # on the K/D line is what lets them judge a colour; it must stay. The first
 # measurement (team 3, own-average rule with a fixed 12% gap) coloured 49
 # places of which a binomial test backed 3, and control alone coloured
@@ -2528,7 +2532,7 @@ def matches_page(request: Request):
 # a place is, not how a team played. "Across the map" is every place on the
 # map under the same filters, this one included.
 ZONE_JS = r"""
-var F={map:"",side:"all",phase:"all",buy:"all"},P=0.20,MIN_FIGHTS=6,LF=[0];
+var F={map:"",side:"all",phase:"all",buy:"all"},P=0.40,MIN_FIGHTS=4,LF=[0];
 var M={
  kd:{lab:"K/D",a:0,b:1,floor:function(s){return s[0]+s[1]>=6;}},
  dmg:{lab:"Damage dealt vs taken",a:3,b:4,
