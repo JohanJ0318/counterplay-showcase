@@ -2500,20 +2500,27 @@ def matches_page(request: Request):
 # each map's neutral ground (counterplay/neutral.json); B is how a typical
 # team fights in each place (counterplay/benchmark.json).
 #
-# THE COLOUR IS WHERE YOU WON AND LOST YOUR FIGHTS (Johan, 2026-09-27).
-# Red where the team lost more fights than it won, green where it won more,
-# grey where even, clear under MIN_FIGHTS. Strength grows with the margin.
-# It answers what a coach brings to the map, "where did we lose?", and it is
-# a fact, so it needs no test to be honest.
+# THE COLOUR IS THE FIGHTS, TESTED AGAINST A TYPICAL TEAM. A place is green
+# or red when its share of fights won differs from what a typical team wins
+# in the same place, weighted by this team's own mix of side, phase and buy
+# under the filters, by an exact two-sided binomial test at P, and damage
+# dealt vs taken does not point the other way.
 #
-# What was tried first, so nobody repeats it: colour only what a binomial
-# test said was UNUSUAL against a typical team. Sound, and useless after a
-# loss: UCF lost 7 of 11 T rounds on Anubis and the T-side map had no red,
-# because Ts lose fights at B main every match. Before that, a fixed 12% gap
-# on the team's own average coloured 49 places on team 3 of which a test
-# backed 3. The typical team (counterplay/benchmark.json) now sits in the
-# box as context: "0 kills, 5 deaths here; a typical team goes 0.16".
-
+# Why a typical team and not the team's own map average (2026-09-27): after
+# a loss the own average is low everywhere, so UCF lost on Anubis and
+# nothing was red; and a place that favours whoever holds it went green for
+# everyone. Against the typical team, UCF's B main (4 won of 14, where a
+# typical team with their sides wins well over half) is red.
+#
+# Why P is 0.20 (Johan's call, 2026-09-27): at 0.10 a one-match team gets
+# one or two colours, and a coach needs somewhere to look. The fight count
+# on the K/D line is what lets them judge a colour; it must stay. The first
+# measurement (team 3, own-average rule with a fixed 12% gap) coloured 49
+# places of which a binomial test backed 3, and control alone coloured
+# places nobody fought in; do not go back to a fixed gap. Under MIN_FIGHTS
+# a place is clear; otherwise grey. A place the benchmark has no fights for
+# falls back to the team's own map average.
+#
 # The box is one line per reading, "K/D 0.33 in this zone vs 1.35 across the
 # map", and nothing else (Johan's call), except the fight count on the K/D
 # line, which is what says whether to believe the colour. CONTROL IS PRINTED
@@ -2521,7 +2528,7 @@ def matches_page(request: Request):
 # a place is, not how a team played. "Across the map" is every place on the
 # map under the same filters, this one included.
 ZONE_JS = r"""
-var F={map:"",side:"all",phase:"all",buy:"all"},MIN_FIGHTS=4;
+var F={map:"",side:"all",phase:"all",buy:"all"},P=0.20,MIN_FIGHTS=6,LF=[0];
 var M={
  kd:{lab:"K/D",a:0,b:1,floor:function(s){return s[0]+s[1]>=6;}},
  dmg:{lab:"Damage dealt vs taken",a:3,b:4,
@@ -2556,22 +2563,35 @@ function judge(k,s,base){
 function line(k,r){
   var s=r.s,base=r.base,v=value(k,s),b=value(k,base),n=s[0]+s[1],t,cls="zl";
   if(v===null){t=M[k].lab+": nothing here under these filters";}
-  else if(k==="kd"){t="K/D "+fmt(k,s,v)+" in this zone ("+s[0]+
-    (s[0]===1?" kill, ":" kills, ")+s[1]+(s[1]===1?" death)":" deaths)")+
-    (r.p0!==null&&r.p0>0&&r.p0<1?" vs "+(r.p0/(1-r.p0)).toFixed(2)+
-    " for a typical team here":" vs "+fmt(k,base,b)+" across the map");}
+  else if(k==="kd"&&r.p0!==null){t="K/D "+fmt(k,s,v)+" in this zone vs "+
+    (r.p0>=1?"all won":(r.p0/(1-r.p0)).toFixed(2))+" for a typical team here";}
   else{t=M[k].lab+" "+fmt(k,s,v)+" in this zone vs "+fmt(k,base,b)+
     " across the map";}
-  if(k==="kd"){t+=n<MIN_FIGHTS?", too few fights to colour":"";
+  if(k==="kd"){t+=", "+n+(n===1?" fight":" fights")+
+    (n<MIN_FIGHTS?", too few to colour":"");
     cls+=r.c===1?" up":r.c===-1?" down":"";}
   return '<div class="'+cls+'">'+esc(t)+"</div>";}
 function box(r){return "<strong>"+esc(r.nm)+"</strong>"+ORDER.filter(function(k){
     return k!=="control"||r.neutral;}).map(function(k){return line(k,r);}).join("");}
-function verdict(s,ex){var n=s[0]+s[1],
-    typ=ex&&ex.n>0?ex.w/ex.n:null;
+function lf(n){while(LF.length<=n){LF.push(LF[LF.length-1]+Math.log(LF.length));}
+  return LF[n];}
+function pval(k,n,p){if(!n||p<=0||p>=1){return 1;}
+  var pk=[],i,t,sum=0;
+  for(i=0;i<=n;i++){pk.push(Math.exp(lf(n)-lf(i)-lf(n-i)+i*Math.log(p)+
+    (n-i)*Math.log(1-p)));}
+  t=pk[k]*(1+1e-9);for(i=0;i<=n;i++){if(pk[i]<=t){sum+=pk[i];}}
+  return Math.min(1,sum);}
+function verdict(s,base,ex){var n=s[0]+s[1];
+  var typ=ex&&ex.n>0?ex.w/ex.n:null;
   if(n<MIN_FIGHTS){return {c:0,p0:typ};}
-  if(s[0]===s[1]){return {c:2,p0:typ};}
-  return {c:s[0]>s[1]?1:-1,g:Math.abs(s[0]-s[1])/n,m:Math.abs(s[0]-s[1]),p0:typ};}
+  var p0=typ!==null?typ:base[0]/((base[0]+base[1])||1),p=s[0]/n,up=p>p0,
+      dt=s[3]+s[4],back;
+  if(typ!==null&&ex.dn>0&&dt>0){
+    var pd=s[3]/dt,pd0=ex.d/ex.dn;
+    back=up?pd<pd0-0.05:pd>pd0+0.05;}
+  else{var dm=judge("dmg",s,base).c;back=up?dm===-1:dm===1;}
+  if(pval(s[0],n,p0)<P&&!back){return {c:up?1:-1,g:Math.abs(p-p0),p0:typ};}
+  return {c:2,p0:typ};}
 function share(row,a,b){return row&&row[a]+row[b]>0?row[a]/(row[a]+row[b]):null;}
 function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
   for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
@@ -2612,7 +2632,7 @@ function paint(){
       per[z]=s;exp[z]=tb?ex:null;for(var j=0;j<9;j++){base[j]+=s[j];}}
     var ps=fig.querySelectorAll(".zfill");
     for(var p=0;p<ps.length;p++){var el=ps[p],zz=el.getAttribute("data-z");
-      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=verdict(s2,exp[zz]);
+      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=verdict(s2,base,exp[zz]);
       var ttl=el.querySelector("title");if(ttl){ttl.textContent="";}
       el._r={nm:n[zz]||"This place",s:s2,base:base,c:jd.c,
              p0:jd.p0===undefined?null:jd.p0,
@@ -2620,7 +2640,7 @@ function paint(){
       el.setAttribute("fill",jd.c===1?"var(--good)":jd.c===-1?"var(--bad)":
         "var(--zone-even)");
       el.setAttribute("opacity",jd.c===1||jd.c===-1?
-        String(Math.min(0.72,0.30+0.05*jd.m+0.25*jd.g)):jd.c===2?"0.6":"0");}
+        String(0.35+Math.min(0.37,1.5*jd.g)):jd.c===2?"0.6":"0");}
     if(fig._hot){show(fig,fig._hot);}}}
 var figs=document.querySelectorAll(".zonefig.reading");
 for(var i=0;i<figs.length;i++){(function(fig){
@@ -2940,13 +2960,14 @@ def _stats_body(team, user=None, share: str = ""):
         decided_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
-            f'<p class="lede">Where on the map you won and lost your '
-            f'fights. <strong>Red means you lost more fights there than you '
-            f'won, green means you won more</strong>; the stronger the '
-            f'colour, the bigger the margin. Grey is even; clear is fewer '
-            f'than four fights. Pick T side or CT side to see one half. '
-            f'Hover over a place, or tap it, for its numbers and what a '
-            f'typical collegiate team does there.</p>'
+            f'<p class="lede">Every place on the map, and how your fights '
+            f'there go against a typical collegiate team in the same place, '
+            f'on the same side, under the same filters. <strong>Green means '
+            f'you win more of your fights there, red means fewer</strong>, '
+            f'once the gap is big enough for the fights behind it to point '
+            f'that way. Grey means no real difference; clear means too few '
+            f'fights to say. The fight count is in the box: with a handful, '
+            f'check the demo.</p>'
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<p class="note">Kills, deaths and damage count where the player '
