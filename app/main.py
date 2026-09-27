@@ -2051,7 +2051,7 @@ def _draw_zones(map_name: str, show, width: int, key,
                         from counterplay import radarmask as RM
                         try:
                             msk = RM.sample(map_name, level, *Z.picture_extent(
-                                x[sel], y[sel], rad), 150, rad)
+                                x[sel], y[sel], rad), Z.BINS, rad)
                         except Exception:
                             msk = None
                     # ONE FLOOR'S PICTURE SHOWS ONLY THAT FLOOR'S PLACES. On

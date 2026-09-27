@@ -20,6 +20,7 @@ at (knowing what a place is called).
 from __future__ import annotations
 
 import html as _html
+import secrets
 
 import numpy as np
 
@@ -171,6 +172,11 @@ def picture_extent(x, y, radar):
     my = max(120.0, (dy1 - dy0) * 0.06)
     return (max(rx0, float(x.min()) - mx), min(rx1, float(x.max()) + mx),
             max(ry0, float(y.min()) - my), min(ry1, float(y.max()) + my))
+
+
+# Cells across the picture's longer side. The mask and the regions are
+# sampled on this one grid; see _keyed_regions.
+BINS = 150
 
 
 # How far the played area may grow into the map. Six cells of a 150 grid is
@@ -436,12 +442,35 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
 
     # The map itself, under everything.
     base = []
+    clip_open = clip_close = ""
     if radar is not None:
         rx0, ry0 = px(float(radar["x0"]), float(radar["y1"]))
         rx1, ry1 = px(float(radar["x1"]), float(radar["y0"]))
-        base.append(f'<image href="{radar["url"]}" x="{rx0:.1f}" y="{ry0:.1f}" '
-                    f'width="{rx1 - rx0:.1f}" height="{ry1 - ry0:.1f}" '
-                    f'opacity="0.85" preserveAspectRatio="none"/>')
+        at = (f'href="{radar["url"]}" x="{rx0:.1f}" y="{ry0:.1f}" '
+              f'width="{rx1 - rx0:.1f}" height="{ry1 - ry0:.1f}" '
+              f'preserveAspectRatio="none"')
+        base.append(f'<image {at} opacity="0.85"/>')
+        # CLIPPED TO VALVE'S OWN ART, at the image's full resolution. The
+        # regions are cells about 25 world units wide and the mask they grow
+        # into is a quarter of the image's resolution rounded outward, so
+        # every map was painted a few pixels past its walls. The image
+        # itself, alpha thresholded at half (so Nuke's lower image, which
+        # draws the upper floor as a faint ghost, clips to its own floor)
+        # and turned white, is a luminance mask over the drawing: the edge
+        # is wherever the art ends, at any grid. The page already loads the
+        # image, so this costs no request. The id is random because one
+        # cached picture can sit on several pages, never twice on one.
+        mid = "zm" + secrets.token_hex(4)
+        base.append(
+            f'<defs><filter id="{mid}f" x="0" y="0" width="1" height="1" '
+            f'color-interpolation-filters="sRGB"><feColorMatrix type="matrix" '
+            f'values="0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 1 0"/>'
+            f'<feComponentTransfer><feFuncA type="discrete" tableValues="0 1"/>'
+            f'</feComponentTransfer></filter>'
+            f'<mask id="{mid}" maskUnits="userSpaceOnUse" x="0" y="0" '
+            f'width="{width}" height="{height}">'
+            f'<image {at} filter="url(#{mid}f)"/></mask></defs>')
+        clip_open, clip_close = f'<g mask="url(#{mid})">', "</g>"
 
     if gx is not None:
         bg, xe_b, ye_b = np.histogram2d(gx, gy, bins=200,
@@ -459,7 +488,7 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     # Bin to a grid, then paint each occupied cell in the colour of the zone it
     # belongs to. A density of translucent squares reads as a smear and never
     # says which zone anything is; a filled region is a picture of the zones.
-    bins = 150
+    bins = BINS
     h, xe, ye = np.histogram2d(x, y, bins=bins,
                               range=[[x0, x1], [y0, y1]])
     occupied = h > 0
@@ -711,5 +740,6 @@ def svg(x, y, centres, counts, plant_x=None, plant_y=None,
     return (f'<svg viewBox="0 0 {width} {height}" width="100%" '
             f'style="max-width:{req}px;color:#5B21B6" '
             f'{named}xmlns="http://www.w3.org/2000/svg">{name_el}'
-            f'{"".join(base)}{"".join(dots)}{"".join(marks)}'
+            f'{"".join(base)}{clip_open}{"".join(dots)}{clip_close}'
+            f'{"".join(marks)}'
             f'{"".join(labels)}</svg>')
