@@ -145,3 +145,15 @@ def test_tab_puts_every_section_under_its_name():
     assert _tab("X", "") == ""
     # The sections come after the script, so it must wait for the page.
     assert "DOMContentLoaded" in PAGE_TABS
+
+
+def test_control_is_offered_only_on_neutral_ground():
+    """The control line is printed only for places counterplay/neutral.json
+    calls neutral: anywhere else it says whose ground a place is, not how a
+    team played there. Bombsites are never neutral."""
+    from app import main
+    main._NEUTRAL = None
+    g = main._neutral_ground()
+    assert "X box" in g.get("de_dust2", [])
+    assert not any("site" in nm.lower() for places in g.values() for nm in places)
+    assert 'return k!=="control"||r.neutral;' in main.ZONE_JS

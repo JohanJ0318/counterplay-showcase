@@ -1944,6 +1944,29 @@ def _zone_title(map_name: str, level) -> str:
             f"positions drawn as a density field and the named places numbered")
 
 
+_NEUTRAL: dict | None = None
+
+
+def _neutral_ground() -> dict:
+    """map -> the places that are neutral ground (counterplay/neutral.json).
+
+    Measured over every match by tools/neutral_ground.py and corrected by
+    hand like the zone names. Missing or unreadable means no place is
+    neutral, which only hides the control line.
+    """
+    global _NEUTRAL
+    if _NEUTRAL is None:
+        try:
+            raw = json.loads((Path(__file__).resolve().parent.parent
+                              / "counterplay" / "neutral.json")
+                             .read_text(encoding="utf-8"))
+            _NEUTRAL = {mp: [nm for nm, v in g.items() if v.get("neutral")]
+                        for mp, g in raw.get("maps", {}).items()}
+        except (OSError, ValueError, AttributeError):
+            _NEUTRAL = {}
+    return _NEUTRAL
+
+
 def zone_pictures(map_name: str, show=None, width: int = 420,
                   stat_zones: bool = False) -> list[dict]:
     """One drawing per floor: [{"level": str|None, "svg": str}, ...].
@@ -2456,19 +2479,28 @@ def matches_page(request: Request):
 
 # "Where your rounds are decided": the colours, the map pills and the box a
 # hovered or tapped place opens. D is map -> place -> rows of
-# [side, phase, buy, *movement.PLACE_FIELDS]; N names the places.
+# [side, phase, buy, *movement.PLACE_FIELDS]; N names the places; G lists
+# each map's neutral ground (counterplay/neutral.json).
+#
+# THE COLOUR IS THE FIGHTS, TESTED. A place is green or red only when its
+# share of fights won differs from the map's under the same filters by more
+# than luck would explain for the fights behind it: an exact two-sided
+# binomial test at P, and damage dealt vs taken must not point the other
+# way. Measured 2026-09-27 before this: the old rule (12% K/D gap, 6
+# fights, and a majority of five readings) coloured 49 places on team 3 and
+# a binomial test backed 3, fewer than chance alone gives; a real team had
+# 6 fights a place. Five readings were not five votes either: K/D and
+# damage agreed 75% of the time, and control alone coloured places nobody
+# fought in. Under MIN_FIGHTS a place is clear; otherwise grey.
 #
 # The box is one line per reading, "K/D 0.33 in this zone vs 1.35 across the
-# map", the picked one first and in bold (Johan, 2026-09-27: nothing else).
-# "Across the map" is every place on the map under the same filters, this
-# one included, so the copy never says "everywhere else".
-#
-# A reading is coloured only past a real gap: 12% either way on a ratio,
-# 10 points on a share. Under its floor of evidence it is left clear; with
-# enough evidence and no real gap it is grey, so "about the same" and "too
-# little to say" no longer look alike.
+# map", and nothing else (Johan's call), except the fight count on the K/D
+# line, which is what says whether to believe the colour. CONTROL IS PRINTED
+# ONLY ON NEUTRAL GROUND (Johan): anywhere else it says which side's ground
+# a place is, not how a team played. "Across the map" is every place on the
+# map under the same filters, this one included.
 ZONE_JS = r"""
-var F={map:"",m:"kd",side:"all",phase:"all",buy:"all"};
+var F={map:"",side:"all",phase:"all",buy:"all"},P=0.10,MIN_FIGHTS=6,LF=[0];
 var M={
  kd:{lab:"K/D",a:0,b:1,floor:function(s){return s[0]+s[1]>=6;}},
  dmg:{lab:"Damage dealt vs taken",a:3,b:4,
@@ -2500,15 +2532,31 @@ function judge(k,s,base){
   if(b===Infinity){return {c:-1,v:v,g:0.4};}
   d=(v-b)/(b||1);
   return {c:d>0.12?1:d<-0.12?-1:2,v:v,g:Math.abs(d)};}
-function line(k,s,base,on){
-  var v=value(k,s),b=value(k,base);
-  var t=v===null?M[k].lab+": nothing here under these filters":
-    M[k].lab+" "+fmt(k,s,v)+" in this zone vs "+fmt(k,base,b)+
-    " across the map"+(M[k].floor(s)?"":" (too little to colour)");
-  return '<div class="zl'+(on?" on":"")+'">'+esc(t)+"</div>";}
-function box(r){var ks=[F.m].concat(ORDER.filter(function(k){return k!==F.m;}));
-  return "<strong>"+esc(r.nm)+"</strong>"+ks.map(function(k){
-    return line(k,r.s,r.base,k===F.m);}).join("");}
+function line(k,r){
+  var s=r.s,base=r.base,v=value(k,s),b=value(k,base),n=s[0]+s[1],t,cls="zl";
+  if(v===null){t=M[k].lab+": nothing here under these filters";}
+  else{t=M[k].lab+" "+fmt(k,s,v)+" in this zone vs "+fmt(k,base,b)+
+    " across the map";}
+  if(k==="kd"){t+=", "+n+(n===1?" fight":" fights")+
+    (n<MIN_FIGHTS?", too few to colour":"");
+    cls+=r.c===1?" up":r.c===-1?" down":"";}
+  return '<div class="'+cls+'">'+esc(t)+"</div>";}
+function box(r){return "<strong>"+esc(r.nm)+"</strong>"+ORDER.filter(function(k){
+    return k!=="control"||r.neutral;}).map(function(k){return line(k,r);}).join("");}
+function lf(n){while(LF.length<=n){LF.push(LF[LF.length-1]+Math.log(LF.length));}
+  return LF[n];}
+function pval(k,n,p){if(!n||p<=0||p>=1){return 1;}
+  var pk=[],i,t,sum=0;
+  for(i=0;i<=n;i++){pk.push(Math.exp(lf(n)-lf(i)-lf(n-i)+i*Math.log(p)+
+    (n-i)*Math.log(1-p)));}
+  t=pk[k]*(1+1e-9);for(i=0;i<=n;i++){if(pk[i]<=t){sum+=pk[i];}}
+  return Math.min(1,sum);}
+function verdict(s,base){var n=s[0]+s[1];if(n<MIN_FIGHTS){return {c:0};}
+  var p0=base[0]/((base[0]+base[1])||1),p=s[0]/n,up=p>p0,
+      dm=judge("dmg",s,base).c;
+  if(pval(s[0],n,p0)<P&&!(up?dm===-1:dm===1)){
+    return {c:up?1:-1,g:Math.abs(p-p0)};}
+  return {c:2};}
 function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
   for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
 function place(fig,ev){
@@ -2528,7 +2576,8 @@ function reset(fig){unhot(fig);fig._hot=null;fig.querySelector(".ztip").hidden=t
 function paint(){
   var figs=document.querySelectorAll(".zonefig[data-map]");
   for(var a=0;a<figs.length;a++){
-    var fig=figs[a],mp=fig.getAttribute("data-map"),d=D[mp]||{},n=N[mp]||{};
+    var fig=figs[a],mp=fig.getAttribute("data-map"),d=D[mp]||{},n=N[mp]||{},
+        g=G[mp]||[];
     fig.hidden=!!F.map&&mp!==F.map;
     var base=[0,0,0,0,0,0,0,0,0],per={};
     for(var z in d){var s=[0,0,0,0,0,0,0,0,0],r=d[z];
@@ -2540,13 +2589,14 @@ function paint(){
       per[z]=s;for(var j=0;j<9;j++){base[j]+=s[j];}}
     var ps=fig.querySelectorAll(".zfill");
     for(var p=0;p<ps.length;p++){var el=ps[p],zz=el.getAttribute("data-z");
-      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=judge(F.m,s2,base);
+      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=verdict(s2,base);
       var ttl=el.querySelector("title");if(ttl){ttl.textContent="";}
-      el._r={nm:n[zz]||"This place",s:s2,base:base,c:jd.c};
+      el._r={nm:n[zz]||"This place",s:s2,base:base,c:jd.c,
+             neutral:g.indexOf(n[zz])>=0};
       el.setAttribute("fill",jd.c===1?"var(--good)":jd.c===-1?"var(--bad)":
-        "var(--faint)");
+        "var(--zone-even)");
       el.setAttribute("opacity",jd.c===1||jd.c===-1?
-        String(Math.min(0.72,0.30+jd.g)):jd.c===2?"0.45":"0");}
+        String(0.35+Math.min(0.37,1.5*jd.g)):jd.c===2?"0.6":"0");}
     if(fig._hot){show(fig,fig._hot);}}}
 var figs=document.querySelectorAll(".zonefig.reading");
 for(var i=0;i<figs.length;i++){(function(fig){
@@ -2849,10 +2899,7 @@ def _stats_body(team, user=None, share: str = ""):
         decided = []        # a missing picture must never break the page
 
     if decided:
-        ROWS = [("m", [("kd", "K/D"), ("dmg", "Damage dealt vs taken"),
-                       ("open", "First kills vs first deaths"),
-                       ("untraded", "Untraded deaths"), ("control", "Control")]),
-                ("side", [("all", "Overall"), ("t", "T side"), ("ct", "CT side")]),
+        ROWS = [("side", [("all", "Overall"), ("t", "T side"), ("ct", "CT side")]),
                 ("phase", [("all", "Overall"), ("pre", "Pre-plant"),
                            ("post", "Post-plant")]),
                 ("buy", [("all", "Overall"), ("pistol", "Pistol"), ("eco", "Eco"),
@@ -2869,20 +2916,24 @@ def _stats_body(team, user=None, share: str = ""):
         decided_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
-            f'<p class="lede">Every place on the map, coloured by the reading '
-            f'you pick. <strong>Green is better than you do across the whole '
-            f'map</strong> under the same filters, red is worse, grey is about '
-            f'the same, clear is too little to say. Hover over a place, or tap '
-            f'it, for all five readings.</p>'
+            f'<p class="lede">Every place on the map, and how your fights '
+            f'there go against the whole map under the same filters. '
+            f'<strong>Green means you win more of your fights there, red '
+            f'means fewer</strong>, and only where the gap is too big, for '
+            f'the fights behind it, to be luck. Grey means no real '
+            f'difference; clear means too few fights to say. Hover over a '
+            f'place, or tap it, for its numbers.</p>'
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
             f'<p class="note">Kills, deaths and damage count where the player '
             f'who was hit stood. A first kill or first death is the round&rsquo;s '
             f'opening duel. Untraded means nobody killed their killer in time. '
-            f'Control is how much of the time only one side stood in a place '
+            f'Control, shown only on neutral ground that neither side owns '
+            f'by default, is how much of the time only one side stood there '
             f'that it was you.</p>'
             f'<script>(function(){{var D={json.dumps(zdata, separators=(",", ":"))},'
-            f'N={json.dumps(znames, separators=(",", ":"))};'
+            f'N={json.dumps(znames, separators=(",", ":"))},'
+            f'G={json.dumps(_neutral_ground(), separators=(",", ":"))};'
             + ZONE_JS + '})();</script></section>')
 
     if decided_block:
