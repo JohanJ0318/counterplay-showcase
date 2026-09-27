@@ -81,6 +81,28 @@ def test_a_place_from_another_floor_is_never_drawn():
     assert max(_xs(p["5"])) > width * 0.5      # the right block is painted too
 
 
+def test_regions_are_clipped_to_the_radar_art():
+    # Cells and the coarse mask painted every map a few pixels past its
+    # walls. With a radar, everything drawn goes under a mask made of the
+    # image itself, alpha thresholded at half.
+    x, y = _square_of_samples(0, 1000, 0, 1000)
+    radar = {"url": "/radars/x.png", "x0": -500, "x1": 1500,
+             "y0": -500, "y1": 1500}
+    svg = _draw(x, y, np.full(len(x), 3), [[500, 500, 0]], centre_key=[3],
+                radar=radar)
+    mid = re.search(r'<g mask="url\(#(zm\w+)\)">', svg).group(1)
+    assert f'<mask id="{mid}"' in svg
+    assert 'tableValues="0 1"' in svg
+    # inline, because theme.py's `.zonefig svg image{filter:...}` overrides
+    # an attribute; live, that faded every place to nearly nothing
+    assert f'style="filter:url(#{mid}f)"' in svg
+    assert f'filter="url(#{mid}f)"' not in svg
+    assert svg.index(f'<g mask="url(#{mid})">') < svg.index('class="zfill"')
+    # without a radar there is nothing to clip to, and nothing is hidden
+    assert "mask=" not in _draw(x, y, np.full(len(x), 3), [[500, 500, 0]],
+                                centre_key=[3])
+
+
 def test_rows_are_as_tall_as_they_are_apart():
     # A tall narrow map, like Nuke's lower floor. Rows used to be drawn one
     # x-cell tall, which left a white stripe under every one of them.
