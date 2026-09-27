@@ -146,6 +146,10 @@ def _legend(items: list, x0: float, y0: float, max_w: float,
                        f'y2="{y - 3:.1f}" stroke="{fill}" stroke-width="1.6" '
                        f'opacity=".6"/>' + _text(x + 18, y, label, size=size,
                                                  font=BODY))
+        elif kind == "ghost":
+            out.append(f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="11" '
+                       f'height="11" rx="2" fill="{fill}" opacity=".3"/>'
+                       + _text(x + 17, y, label, size=size, font=BODY))
         elif kind == "mark":
             out.append(f'<rect x="{x:.1f}" y="{y - 9:.1f}" width="12" '
                        f'height="11" fill="{fill}" opacity=".16"/>'
@@ -194,10 +198,17 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
     when the side cannot be established; then it is drawn from the CT side and
     the ribbon is left off, because it would be a guess.
 
+    Purple and orange mean good and bad for you, and nothing else: won and
+    lost on the bars, your first kill and theirs on the strip. The side ribbon
+    was CT purple and T orange, so a T half looked like a losing streak before
+    anything was read; it is grey now, two shades, with its words.
+
     Three more things, added when the timeline moved to the top of the report:
 
-      THEIR SPEND  a tick on each bar at what the other team brought, so a
-                   "force v full" loss reads off the picture, not the table
+      THEIR SPEND  a grey block behind each bar, from the line to what the
+                   other team brought, so a "force v full" loss reads off the
+                   picture. It was a floating dash, which read as a stray
+                   mark whenever it sat past the end of your bar
       FIRST KILL   a strip of squares under the bars: purple where you got
                    the round's first kill, amber where they did. It replaced
                    a one-row table of the same thing.
@@ -212,17 +223,17 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
     # that scaled down to a phone's width every round is still on screen and
     # every label is still readable.
     fs = 1.45 if compact else 1.15
-    pad_l, pad_r, pad_t = (74 if compact else 58), 14, 24
+    pad_l, pad_r, pad_t = (58 if compact else 50), 14, 24
     score_h, gap, econ_h = 84, 18, 132
     ribbon_h, axis_h = 15, 22
     strip_h = 14 if us_is_ct else 0
     marks = set(marks or ())
+    # Four entries. The shaded column is explained by the card that names
+    # it, and the first-kill strip and the side ribbon carry their own words.
     legend_items = [("swatch", "round won", ACCENT, False),
                     ("swatch", "round lost", T_SIDE, False),
                     ("swatch", "eco or pistol", ACCENT, True),
-                    ("tick", "their spend", INK, False)]
-    if marks:
-        legend_items.append(("mark", "the first card below", ACCENT, False))
+                    ("ghost", "their spend", FAINT, False)]
     probe, lines = _legend(legend_items, pad_l, 0, width - pad_l - pad_r,
                            9.5 * fs)
     legend_h = 10 + lines * (9.5 * fs + 8)
@@ -231,7 +242,7 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
     n = len(rows)
     inner = width - pad_l - pad_r
     step = inner / n
-    bar_w = max(3.5, min(18.0, step * 0.62))
+    bar_w = max(3.5, min(18.0, step * (0.74 if compact else 0.62)))
 
     score_top = pad_t
     score_bot = pad_t + score_h
@@ -260,7 +271,7 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
             or (abs(v - first_rn) > every // 2
                 and abs(v - last_rn) > every // 2)}
 
-    parts, bars_out, ticks = [], [], []
+    parts, ghosts, bars_out, ticks = [], [], [], []
     us = them = 0
     diffs, sides = [], []
 
@@ -290,10 +301,11 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
         # heights compare directly.
         theirs = r["equip_t"] if ct else r["equip_ct"]
         th = max(2.0, (theirs / peak) * econ_half)
-        ty = econ_mid - th if won else econ_mid + th
-        bars_out.append(f'<line x1="{x - 1.5:.1f}" y1="{ty:.1f}" '
-                        f'x2="{x + bar_w + 1.5:.1f}" y2="{ty:.1f}" '
-                        f'stroke="{INK}" stroke-width="1.6" opacity=".6"/>')
+        gw = min(step - 1, bar_w + 5)
+        ghosts.append(f'<rect x="{x - (gw - bar_w) / 2:.1f}" '
+                      f'y="{econ_mid - th if won else econ_mid:.1f}" '
+                      f'width="{gw:.1f}" height="{th:.1f}" rx="1.5" '
+                      f'fill="{FAINT}" opacity=".3"></rect>')
 
         if strip_h and r.get("opening_loser"):
             ours = r["opening_loser"] != ("ct" if ct else "t")
@@ -309,7 +321,8 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
 
         if r["round_num"] in want:
             ticks.append(_text(pad_l + i * step + step / 2, axis_y,
-                               r["round_num"], anchor="middle", size=9 * fs))
+                               r["round_num"], anchor="middle", size=9 * fs,
+                               font=BODY))
 
     # ---- money grid, so a bar's height is a number and not an impression
     v = grid_at
@@ -319,17 +332,19 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
             parts.append(f'<line x1="{pad_l}" y1="{econ_mid + sign * dy:.1f}" '
                          f'x2="{width - pad_r}" y2="{econ_mid + sign * dy:.1f}" '
                          f'stroke="{LINE}" stroke-width=".5" opacity=".7"/>')
-        parts.append(_text(pad_l - 6, econ_mid - dy + 3,
-                           f"${v / 1000:.0f}k", anchor="end", size=8.5 * fs))
+        for sign in (-1, 1):
+            parts.append(_text(pad_l - 6, econ_mid + sign * dy + 3,
+                               f"${v / 1000:.0f}k", anchor="end",
+                               size=8.5 * fs, font=BODY))
         v += grid_at
     parts.append(f'<line x1="{pad_l}" y1="{econ_mid:.1f}" x2="{width - pad_r}" '
                  f'y2="{econ_mid:.1f}" stroke="{INK}" stroke-width="1" '
                  f'opacity=".35"/>')
     if strip_h:
         parts.append(_text(pad_l - 6, strip_y + strip_h / 2 + 2, "1st kill",
-                           anchor="end", size=8.5 * fs))
-    parts.append(_text(pad_l, econ_top - 6, "EQUIPMENT BROUGHT",
-                       size=8.5 * fs, weight="600"))
+                           anchor="end", size=8.5 * fs, font=BODY))
+    parts.append(_text(pad_l, econ_top - 6, "Equipment brought", size=9 * fs, fill=INK,
+                       weight="600", font=BODY))
 
     # ---- the side ribbon: one block per stretch, so the swap is a boundary
     if us_is_ct:
@@ -340,15 +355,15 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
                 j += 1
             x0 = pad_l + i * step
             x1 = pad_l + (j + 1) * step
-            col = CT if sides[i] else T_SIDE
-            parts.append(f'<rect x="{x0:.1f}" y="{ribbon_y:.1f}" '
-                         f'width="{x1 - x0:.1f}" height="{ribbon_h}" rx="2.5" '
-                         f'fill="{col}" opacity=".16"/>')
+            parts.append(f'<rect x="{x0 + 1:.1f}" y="{ribbon_y:.1f}" '
+                         f'width="{x1 - x0 - 2:.1f}" height="{ribbon_h}" '
+                         f'rx="2.5" fill="{FAINT}" '
+                         f'opacity="{".14" if sides[i] else ".26"}"/>')
             if x1 - x0 > 34:
                 parts.append(_text((x0 + x1) / 2, ribbon_y + 11,
                                    "you on CT" if sides[i] else "you on T",
-                                   size=8.5 * fs, fill=col, anchor="middle",
-                                   weight="700"))
+                                   size=8.5 * fs, fill="var(--muted)",
+                                   anchor="middle", weight="600", font=BODY))
             i = j + 1
 
     # ---- the score band
@@ -373,17 +388,24 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
                  + f'" fill="none" stroke="{ACCENT}" stroke-width="1.8" '
                    f'stroke-linejoin="round"/>')
     final = diffs[-1]
-    parts.append(_text(pad_l - 6, zero + 3, "level", anchor="end", size=8.5 * fs))
+    parts.append(_text(pad_l - 6, zero + 3, "tied", anchor="end",
+                       size=8.5 * fs, font=BODY))
     parts.append(_text(pad_l - 6, sy(span) + 3, f"+{span}", anchor="end",
-                       size=8.5 * fs))
+                       size=8.5 * fs, font=BODY))
     parts.append(_text(pad_l - 6, sy(-span) + 3, f"-{span}", anchor="end",
-                       size=8.5 * fs))
-    parts.append(_text(width - pad_r, sy(final) - 9,
-                       f'{"+" if final > 0 else ""}{final}',
-                       size=12 * fs, fill=ACCENT if final >= 0 else T_SIDE,
-                       anchor="end", weight="700"))
-    parts.append(_text(pad_l, score_top - 6, "ROUNDS AHEAD OR BEHIND",
-                       size=8.5 * fs, weight="600"))
+                       size=8.5 * fs, font=BODY))
+    # A halo in the card's own colour, so the final gap reads over the
+    # shaded column and over the line itself. Above the line when ahead,
+    # below it when behind, so it never sits on the step it labels.
+    fy = sy(final) + (-8 if final >= 0 else 8 + 12 * fs * 0.7)
+    parts.append(
+        f'<text x="{width - pad_r:.1f}" y="{fy:.1f}" text-anchor="end" '
+        f'font-size="{12 * fs:.4g}" font-family="{BODY}" font-weight="700" '
+        f'fill="{ACCENT if final >= 0 else T_SIDE}" stroke="var(--surface)" '
+        f'stroke-width="4" stroke-linejoin="round" paint-order="stroke">'
+        f'{"+" if final > 0 else ""}{final}</text>')
+    parts.append(_text(pad_l, score_top - 6, "Rounds ahead or behind",
+                       size=9 * fs, fill=INK, weight="600", font=BODY))
 
     # ---- overtime only. The half is in the ribbon, where it is a change of
     #      colour rather than a dashed line that needs a word to explain it.
@@ -394,7 +416,8 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
                          f'y2="{econ_top + econ_h:.1f}" stroke="{FAINT}" '
                          f'stroke-width="1" stroke-dasharray="3 4" opacity=".6"/>')
             if label:
-                parts.append(_text(bx + 4, score_top + 9, label, size=8.5 * fs))
+                parts.append(_text(bx + 4, score_top + 9, label,
+                                   size=8.5 * fs, font=BODY))
 
     legend, _ = _legend(legend_items, pad_l, axis_y + 10 + 9.5 * fs + 6,
                         width - pad_l - pad_r, 9.5 * fs)
@@ -402,10 +425,12 @@ def round_timeline(rows: list[dict], us_is_ct, width: int = 680,
     return (_open(width, height, "Round timeline",
                   "Top band: rounds ahead or behind. Bottom band: one bar per "
                   "round, up if you won it, height is the equipment you "
-                  "brought, purple won and orange lost. The ribbon under the "
-                  "axis is the side you were on.",
+                  "brought, purple won and orange lost, with what they "
+                  "brought as a grey block behind it. The grey ribbon under "
+                  "the axis is the side you were on.",
                   max_w=420 if compact else None)
-            + "".join(parts) + "".join(bars_out) + "".join(ticks)
+            + "".join(parts) + "".join(ghosts) + "".join(bars_out)
+            + "".join(ticks)
             + legend + "</svg>")
 
 

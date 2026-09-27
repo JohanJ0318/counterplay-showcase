@@ -1694,8 +1694,8 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   <section data-tab="Rounds">
     <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
     <p class="lede">One bar per round: above the line you won it, below you
-      lost it. Height is what you spent, and the tick is what they spent.
-      The line on top is the score gap.</p>
+      lost it. Height is what you spent; the grey block behind it is what
+      they spent. The line on top is the score gap.</p>
     <div class="chart">{timeline_chart}</div>
     {open_line}
     <details><summary>Every round as a table</summary>
