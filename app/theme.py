@@ -771,12 +771,15 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
 .zfill.hot.even{fill:var(--muted);opacity:.4}
 .zonefig.reading{position:relative}
 /* The box a hovered or tapped place opens beside the pointer. */
-.ztip{position:absolute;z-index:5;max-width:240px;padding:9px 11px;
+.ztip{position:absolute;z-index:5;max-width:300px;padding:9px 11px;
   background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);
   backdrop-filter:var(--glass-blur);border:1px solid var(--border);
   border-radius:var(--r);box-shadow:var(--glass-shadow);font-size:.82rem;
   line-height:1.45;color:var(--ink);pointer-events:none}
 .ztip strong{color:var(--ink)}
+/* One line per reading; the one the map is coloured by comes first, bold. */
+.ztip .zl{margin-top:3px;color:var(--muted)}
+.ztip .zl.on{color:var(--ink);font-weight:600}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:460px}

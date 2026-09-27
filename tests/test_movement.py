@@ -83,3 +83,60 @@ def test_a_death_placed_nowhere_falls_back_to_the_last_live_sample():
     on_our_side = np.array([[0], [0]], dtype=bool)
     gid = np.array([[5], [0]])          # the dead sample reads (0, 0, 0)
     assert list(_fights(alive, on_our_side, gid)) == [(0, 5, False)]
+
+
+# ---- what each place reads, for "Where your rounds are decided"
+
+from app.movement import PLACE_FIELDS, _place_readings  # noqa: E402
+
+
+def _read(alive, ours, gid, health, traded=False, post=None, nz=3):
+    alive = np.array(alive, dtype=bool)
+    n = len(alive)
+    secs = np.arange(n, dtype=float)            # one second a sample
+    post = np.zeros(n, dtype=bool) if post is None else np.array(post, bool)
+    got = _place_readings(alive, np.array(ours, dtype=bool), np.array(gid),
+                          np.array(health, dtype=np.uint8), secs, post, nz,
+                          lambda _p: traded)
+    return {k: dict(zip(PLACE_FIELDS, v)) for k, v in got.items()}
+
+
+def test_damage_is_health_lost_where_the_victim_stood():
+    # Ours (column 0) in place 1 throughout. Theirs (column 1) in place 2,
+    # hit for 30, then killed: 100 dealt in place 2, and it was the opening.
+    got = _read(alive=[[1, 1], [1, 1], [1, 1], [1, 0]],
+                ours=[[1, 0]] * 4,
+                gid=[[1, 2]] * 4,
+                health=[[100, 100], [100, 70], [100, 70], [100, 0]])
+    p2 = got[(2, False)]
+    assert (p2["dealt"], p2["kills"], p2["first_kills"]) == (100, 1, 1)
+    assert got[(1, False)]["taken"] == 0
+
+
+def test_a_missing_sample_is_not_a_death_or_damage():
+    # Theirs vanishes for one sample (written all zero) and comes back.
+    got = _read(alive=[[1, 1], [1, 0], [1, 1]],
+                ours=[[1, 0]] * 3,
+                gid=[[1, 2], [1, 0], [1, 2]],
+                health=[[100, 100], [100, 0], [100, 100]])
+    assert all(v["kills"] == 0 and v["dealt"] == 0 for v in got.values())
+
+
+def test_an_untraded_death_and_who_held_the_place():
+    # Ours dies in place 1, not traded. Before that, ours stood alone in
+    # place 1 for two seconds and theirs alone in place 2.
+    got = _read(alive=[[1, 1], [1, 1], [0, 1]],
+                ours=[[1, 0]] * 3,
+                gid=[[1, 2], [1, 2], [1, 2]],
+                health=[[100, 100], [100, 100], [0, 100]])
+    p1, p2 = got[(1, False)], got[(2, False)]
+    assert (p1["deaths"], p1["traded"], p1["first_deaths"]) == (1, 0, 1)
+    assert p1["taken"] == 100
+    assert p1["held"] == 2 and p1["held_by_them"] == 0
+    assert p2["held_by_them"] == 3 and p2["held"] == 0
+
+
+def test_a_place_both_sides_stand_in_is_nobody_s():
+    got = _read(alive=[[1, 1], [1, 1]], ours=[[1, 0]] * 2,
+                gid=[[1, 1], [1, 1]], health=[[100, 100]] * 2)
+    assert (1, False) not in got

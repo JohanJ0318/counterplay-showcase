@@ -231,6 +231,94 @@ def _fights(alive, on_our_side, gid):
             yield int(t_i), z, bool(on_our_side[t_i, p_i])
 
 
+# What "Where your rounds are decided" reads for each place, in this order.
+# Kills, deaths and damage are placed where the VICTIM stood, like every kill
+# on the map: "damage dealt here" is damage your opponents took here.
+PLACE_FIELDS = ("kills", "deaths", "traded", "dealt", "taken",
+                "first_kills", "first_deaths", "held", "held_by_them")
+
+
+def _place_readings(alive, on_our_side, gid, health, secs, post, nz,
+                    was_traded) -> dict:
+    """One round's contribution to PLACE_FIELDS: {(place, is_post): [...]}.
+
+    DAMAGE IS READ OFF HEALTH. Damage is stored per player per round with no
+    location, but every position sample carries each player's health, so a
+    drop between two samples is damage taken where that player stood. A
+    player missing from a tick is written all-zero, which reads as dead at
+    zero health; a drop to a "death" the player comes back from is that, and
+    is not counted.
+
+    CONTROL is time, not presence: of the seconds when exactly one side stood
+    in a place, the share it was you. Seconds with both sides in it are the
+    fight, not control of it, and are left out.
+
+    `was_traded(p)` says whether our player in column p had their death
+    traded (player_rounds.traded_deaths).
+    """
+    out: dict = {}
+    n_t = len(secs)
+
+    def cell(z, is_post):
+        return out.setdefault((int(z), bool(is_post)), [0] * len(PLACE_FIELDS))
+
+    def where(t_i, p_i):
+        return int(gid[t_i + 1, p_i]) or int(gid[t_i, p_i])
+
+    # The last sample each player is alive, so a gap in the samples is not
+    # read as a death.
+    idx = np.where(alive, np.arange(n_t)[:, None], -1)
+    last_alive = idx.max(axis=0)
+
+    fell = (alive[:-1] & ~alive[1:]
+            & (np.arange(1, n_t)[:, None] > last_alive[None, :]))
+    for n, (t_i, p_i) in enumerate(np.argwhere(fell)):
+        z = where(t_i, p_i)
+        if not z:
+            continue
+        c = cell(z, post[t_i + 1])
+        ours = bool(on_our_side[t_i, p_i])
+        if ours:
+            c[1] += 1
+            c[2] += int(bool(was_traded(int(p_i))))
+        else:
+            c[0] += 1
+        if n == 0:                       # the round's opening duel
+            c[6 if ours else 5] += 1
+
+    hp = health.astype(np.int16)
+    drop = np.clip(hp[:-1] - hp[1:], 0, None)
+    drop = np.where(alive[:-1] & (alive[1:] | fell), drop, 0)
+    for t_i, p_i in zip(*np.nonzero(drop)):
+        z = where(t_i, p_i)
+        if z:
+            cell(z, post[t_i + 1])[4 if on_our_side[t_i, p_i] else 3] += int(
+                drop[t_i, p_i])
+
+    if n_t > 1:
+        dt = np.diff(secs, append=secs[-1] + np.median(np.diff(secs)))
+        rowi = np.repeat(np.arange(n_t), gid.shape[1])
+        occ = []
+        for mine in (True, False):
+            m = alive & (on_our_side if mine else ~on_our_side)
+            o = np.zeros((n_t, nz + 1), dtype=np.int32)
+            np.add.at(o, (rowi, np.where(m, gid, 0).ravel()), 1)
+            occ.append(o)
+        only_us = (occ[0] > 0) & (occ[1] == 0)
+        only_them = (occ[1] > 0) & (occ[0] == 0)
+        for is_post in (False, True):
+            sel = post == is_post
+            if not sel.any():
+                continue
+            us = (only_us[sel] * dt[sel, None]).sum(axis=0)
+            them = (only_them[sel] * dt[sel, None]).sum(axis=0)
+            for z in np.nonzero((us + them)[1:])[0] + 1:
+                c = cell(z, is_post)
+                c[7] += float(us[z])
+                c[8] += float(them[z])
+    return out
+
+
 @memo.by_team
 def scan(team_id: int) -> dict:
     """Walk every round once, collecting the counts every pattern needs.
@@ -247,8 +335,8 @@ def scan(team_id: int) -> dict:
 
     commit: dict = {}
     setup: dict = {}
-    # map -> zone -> (side, phase, buy) -> [kills, deaths]
-    duels: dict = {}
+    # map -> place -> (side, phase, buy) -> PLACE_FIELDS
+    places: dict = {}
     death: dict = {}
     seen: dict = {}
     # Rounds WON per map and side, so a row can be read against the rest of
@@ -358,19 +446,26 @@ def scan(team_id: int) -> dict:
                 d["won"] += won
                 d["players"] += int(occ[at, z_i])
 
-        # ---- every kill and death, bucketed for the filters
+        # ---- every place's readings, bucketed for the filters
         #
-        # Same walk as the opening duel below, without stopping at the first
-        # transition. Ours are deaths, theirs are kills.
+        # Kills, deaths, trades, damage, the opening duel and who held it:
+        # see _place_readings. Phase is read per sample against the plant.
         plant_at = plants.get((r["match_key"], r["round_num"]))
         buy = classify_round(
             r["equip_ct"] if side == "ct" else r["equip_t"], r["round_num"])
-        for t_i, z_d, was_ours in _fights(alive, on_our_side, gid):
-            phase = ("post" if plant_at is not None
-                     and secs[t_i + 1] >= plant_at else "pre")
-            rec = duels.setdefault(mp, {}).setdefault(z_d, {}).setdefault(
-                (side, phase, buy), [0, 0])
-            rec[1 if was_ours else 0] += 1
+        post = (secs >= plant_at if plant_at is not None
+                else np.zeros(len(secs), dtype=bool))
+        mk, rn = r["match_key"], r["round_num"]
+        got_places = _place_readings(
+            alive, on_our_side, gid, sm["health"], secs, post, nz,
+            lambda p: traded.get((mk, rn, str(int(_sids[p]))), False))
+        zm = places.setdefault(mp, {})
+        for (z_p, is_post), vals in got_places.items():
+            acc = zm.setdefault(z_p, {}).setdefault(
+                (side, "post" if is_post else "pre", buy),
+                [0] * len(PLACE_FIELDS))
+            for i, v in enumerate(vals):
+                acc[i] += v
 
         # ---- the opening duel: the first death on EITHER side
         #
@@ -419,7 +514,7 @@ def scan(team_id: int) -> dict:
                     (r["match_key"], r["round_num"], sid), False))
 
     return {"commit": commit, "setup": setup, "death": death,
-            "opening": opening, "duels": duels, "seen": seen,
+            "opening": opening, "places": places, "seen": seen,
             "seen_won": seen_won, "answered": answered,
             "names": {m: (cache[m][2] if cache.get(m) else {}) for m in cache}}
 

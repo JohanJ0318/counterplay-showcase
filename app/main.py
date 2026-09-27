@@ -2454,26 +2454,61 @@ def matches_page(request: Request):
                                        label="Match reports"), body, user)
 
 
-# What hovering a place on "Where your rounds are decided" says. The map used
-# to answer a hover with the browser's own tooltip, after a delay, and only
-# the counts: nothing said WHY a place was green, red or clear, and a phone
-# has no hover at all. Now a hover or a tap shades the place and opens a box
-# beside it: the reason first, then the K/D, then the kills and deaths.
+# "Where your rounds are decided": the colours, the map pills and the box a
+# hovered or tapped place opens. D is map -> place -> rows of
+# [side, phase, buy, *movement.PLACE_FIELDS]; N names the places.
+#
+# The box is one line per reading, "K/D 0.33 in this zone vs 1.35 across the
+# map", the picked one first and in bold (Johan, 2026-09-27: nothing else).
+# "Across the map" is every place on the map under the same filters, this
+# one included, so the copy never says "everywhere else".
+#
+# A reading is coloured only past a real gap: 12% either way on a ratio,
+# 10 points on a share. Under its floor of evidence it is left clear; with
+# enough evidence and no real gap it is grey, so "about the same" and "too
+# little to say" no longer look alike.
 ZONE_JS = r"""
-var F={side:"all",phase:"all",buy:"all"},MIN=6;
-function pl(n,w){return n+" "+w+(n===1?"":"s");}
+var F={map:"",m:"kd",side:"all",phase:"all",buy:"all"};
+var M={
+ kd:{lab:"K/D",a:0,b:1,floor:function(s){return s[0]+s[1]>=6;}},
+ dmg:{lab:"Damage dealt vs taken",a:3,b:4,
+   floor:function(s){return s[3]+s[4]>=400;}},
+ open:{lab:"First kills vs first deaths",a:5,b:6,
+   floor:function(s){return s[5]+s[6]>=5;}},
+ untraded:{lab:"Untraded deaths",share:true,low:true,
+   val:function(s){return s[1]?(s[1]-s[2])/s[1]:null;},
+   floor:function(s){return s[1]>=6;}},
+ control:{lab:"Control",share:true,
+   val:function(s){var t=s[7]+s[8];return t?s[7]/t:null;},
+   floor:function(s){return s[7]+s[8]>=30;}}};
+var ORDER=["kd","dmg","open","untraded","control"];
 function esc(t){return String(t).replace(/[&<>"]/g,function(c){
   return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c];});}
-function why(r){
-  var f=r.k+r.x,nm="<strong>"+esc(r.nm)+"</strong><br>",
-      tail=" "+pl(r.k,"kill")+", "+pl(r.x,"death")+".";
-  if(f<MIN){return nm+"Too few fights here under this filter to read "+
-    "anything into, so it is left clear."+tail;}
-  var head=r.good?"You win more of your fights here than across the map. ":
-    r.bad?"You lose more of your fights here than across the map. ":
-    "About the same as across the map, so it is left clear. ";
-  return nm+head+"K/D "+r.kd.toFixed(2)+" here, "+r.base.toFixed(2)+
-    " across the map."+tail;}
+function value(k,s){var m=M[k];if(m.share){return m.val(s);}
+  return s[m.b]>0?s[m.a]/s[m.b]:(s[m.a]>0?Infinity:null);}
+function fmt(k,s,v){var m=M[k];if(v===null){return "none";}
+  if(m.share){return Math.round(v*100)+"%";}
+  if(v===Infinity){return Math.round(s[m.a])+" to 0";}
+  return v.toFixed(2);}
+function judge(k,s,base){
+  var m=M[k],v=value(k,s),b=value(k,base);
+  if(v===null||b===null||!m.floor(s)){return {c:0,v:v};}
+  var d;
+  if(m.share){d=v-b;if(m.low){d=-d;}
+    return {c:d>=0.10?1:d<=-0.10?-1:2,v:v,g:Math.abs(d)*2};}
+  if(v===Infinity){return {c:b===Infinity?2:1,v:v,g:0.4};}
+  if(b===Infinity){return {c:-1,v:v,g:0.4};}
+  d=(v-b)/(b||1);
+  return {c:d>0.12?1:d<-0.12?-1:2,v:v,g:Math.abs(d)};}
+function line(k,s,base,on){
+  var v=value(k,s),b=value(k,base);
+  var t=v===null?M[k].lab+": nothing here under these filters":
+    M[k].lab+" "+fmt(k,s,v)+" in this zone vs "+fmt(k,base,b)+
+    " across the map"+(M[k].floor(s)?"":" (too little to colour)");
+  return '<div class="zl'+(on?" on":"")+'">'+esc(t)+"</div>";}
+function box(r){var ks=[F.m].concat(ORDER.filter(function(k){return k!==F.m;}));
+  return "<strong>"+esc(r.nm)+"</strong>"+ks.map(function(k){
+    return line(k,r.s,r.base,k===F.m);}).join("");}
 function unhot(fig){var h=fig.querySelectorAll(".zfill.hot");
   for(var i=0;i<h.length;i++){h[i].classList.remove("hot","even");}}
 function place(fig,ev){
@@ -2485,33 +2520,33 @@ function place(fig,ev){
   if(y+h>fr.height){y=ev.clientY-fr.top-h-14;}
   tip.style.left=Math.max(0,x)+"px";tip.style.top=Math.max(0,y)+"px";}
 function show(fig,el,ev){unhot(fig);if(!el._r){return;}
-  el.classList.add("hot");if(!el._r.good&&!el._r.bad){el.classList.add("even");}
+  el.classList.add("hot");if(!el._r.c){el.classList.add("even");}
   fig._hot=el;var tip=fig.querySelector(".ztip");
-  tip.innerHTML=why(el._r);tip.hidden=false;if(ev){fig._ev=ev;}
+  tip.innerHTML=box(el._r);tip.hidden=false;if(ev){fig._ev=ev;}
   place(fig,fig._ev);}
 function reset(fig){unhot(fig);fig._hot=null;fig.querySelector(".ztip").hidden=true;}
 function paint(){
   var figs=document.querySelectorAll(".zonefig[data-map]");
   for(var a=0;a<figs.length;a++){
     var fig=figs[a],mp=fig.getAttribute("data-map"),d=D[mp]||{},n=N[mp]||{};
-    var tk=0,td=0,per={};
-    for(var z in d){var k=0,x=0,r=d[z];
+    fig.hidden=!!F.map&&mp!==F.map;
+    var base=[0,0,0,0,0,0,0,0,0],per={};
+    for(var z in d){var s=[0,0,0,0,0,0,0,0,0],r=d[z];
       for(var b=0;b<r.length;b++){var q=r[b];
         if(F.side!=="all"&&q[0]!==F.side)continue;
         if(F.phase!=="all"&&q[1]!==F.phase)continue;
         if(F.buy!=="all"&&q[2]!==F.buy)continue;
-        k+=q[3];x+=q[4];}
-      per[z]=[k,x];tk+=k;td+=x;}
-    var base=td>0?tk/td:1;
+        for(var i=0;i<9;i++){s[i]+=q[3+i];}}
+      per[z]=s;for(var j=0;j<9;j++){base[j]+=s[j];}}
     var ps=fig.querySelectorAll(".zfill");
     for(var p=0;p<ps.length;p++){var el=ps[p],zz=el.getAttribute("data-z");
-      var v=per[zz]||[0,0],kk=v[0],xx=v[1],tot=kk+xx;
+      var s2=per[zz]||[0,0,0,0,0,0,0,0,0],jd=judge(F.m,s2,base);
       var ttl=el.querySelector("title");if(ttl){ttl.textContent="";}
-      var kd=xx>0?kk/xx:kk,rel=(kd-base)/(base||1);
-      var good=tot>=MIN&&rel>0.12,bad=tot>=MIN&&rel<-0.12;
-      el._r={nm:n[zz]||"This place",k:kk,x:xx,kd:kd,base:base,good:good,bad:bad};
-      el.setAttribute("fill",good?"var(--good)":bad?"var(--bad)":"var(--faint)");
-      el.setAttribute("opacity",(good||bad)?String(Math.min(0.72,0.30+Math.abs(rel))):"0");}
+      el._r={nm:n[zz]||"This place",s:s2,base:base,c:jd.c};
+      el.setAttribute("fill",jd.c===1?"var(--good)":jd.c===-1?"var(--bad)":
+        "var(--faint)");
+      el.setAttribute("opacity",jd.c===1||jd.c===-1?
+        String(Math.min(0.72,0.30+jd.g)):jd.c===2?"0.45":"0");}
     if(fig._hot){show(fig,fig._hot);}}}
 var figs=document.querySelectorAll(".zonefig.reading");
 for(var i=0;i<figs.length;i++){(function(fig){
@@ -2523,9 +2558,10 @@ for(var i=0;i<figs.length;i++){(function(fig){
   fig.addEventListener("mouseleave",function(){reset(fig);});})(figs[i]);}
 var rows=document.querySelectorAll(".zfilters .zrow");
 for(var i2=0;i2<rows.length;i2++){(function(row){
-  var bs=row.querySelectorAll(".zpill");
+  var bs=row.querySelectorAll(".zpill"),f=row.getAttribute("data-f");
+  if(f==="map"&&bs.length){F.map=bs[0].getAttribute("data-v");}
   for(var j2=0;j2<bs.length;j2++){bs[j2].addEventListener("click",function(){
-    F[row.getAttribute("data-f")]=this.getAttribute("data-v");
+    F[f]=this.getAttribute("data-v");
     for(var m=0;m<bs.length;m++){bs[m].classList.toggle("on",bs[m]===this);}
     paint();});}})(rows[i2]);}
 paint();
@@ -2763,216 +2799,44 @@ def _stats_body(team, user=None, share: str = ""):
     else:
         utility_block = ""
 
-    # ---- positional patterns: where they actually play
-    #
-    # Grouped by what the pattern is ABOUT rather than sorted into one list.
-    # "Where your group ends up" and "where your first death happens" are
-    # different questions and a coach reads them differently.
-    pos = movement.positional_patterns(team["id"])
-    POS_SECTIONS = (
-        ("death", "Where your first death happens",
-         "Where the first of you dies, and whether it was traded. Untraded "
-         "means playing 4 against 5. The bar is how often it happens, out of "
-         "your rounds on that map and side."),
-    )
-    # Five rows, not twenty.
-    #
-    # "Where your first death happens" ran to twenty rows with seventeen of
-    # them marked thin, which buried the one line worth acting on — mirage T,
-    # top mid, first death in 8 of 32 rounds and one round won from them — at
-    # position three of twenty. A table nobody reads to the bottom of should
-    # not have a bottom.
-    POS_TOP_N = 5
-
-    # A row needs rounds on BOTH sides to be worth comparing. Under this many
-    # in the rest of the map and side there is nothing to compare it to, and
-    # "62% against 0% of two rounds" is not a finding.
-    #
-    # The same floor `rate()` uses, deliberately: a number too thin to print
-    # as a percentage is too thin to rank a table by. At the pattern floor of
-    # six, a seven-round row rendering as "2 / 7 thin" outranked comparable
-    # rows with real denominators and a smaller gap.
-    MIN_COMPARE = report_mod.MIN_CHANCES
-
-    pos_blocks = []
-    # Held back rather than appended, because it renders AFTER the first-death
-    # table below it. A coach opens this part of the page to find out where
-    # rounds are being lost; that is the death table. Where the group stands
-    # twelve seconds in is the context for it, not the preface to it.
-    early_block = ""
-    # ---- where you are early: one section, one row per place
-    #
-    # The setup reading is the spine because it covers more rounds and is the
-    # easier one to picture: two of you standing somewhere twelve seconds in.
-    # The commit reading rides on the row as "this is as far as the group
-    # got", which is the same place seen from the other end.
-    early: dict = {}
-    for q in pos:
-        if q["kind"] not in ("setup", "commit"):
-            continue
-        early.setdefault((q["map"], q["side"], q["zone"]), {})[q["kind"]] = q
-
-    rows_early = []
-    for (mp, side, zone), pair in early.items():
-        spine = pair.get("setup") or pair["commit"]
-        com = pair.get("commit")
-        # Rounds the difference is worth: how far apart the two groups are,
-        # times the smaller of them. A 50-point gap over 8 rounds and a
-        # 15-point gap over 30 are both real, and this weighs them the way a
-        # coach would rather than letting the widest gap on the fewest rounds
-        # win.
-        cmp_ok = spine["hit"] >= MIN_COMPARE and spine["other"] >= MIN_COMPARE
-        worth = (abs(spine["gap"]) / 100.0 * min(spine["hit"], spine["other"])
-                 if cmp_ok else -1.0)
-        rows_early.append({"q": spine, "commit": com, "cmp": cmp_ok,
-                           "worth": worth, "map": mp, "side": side,
-                           "zone": zone})
-    rows_early.sort(key=lambda r: (-r["worth"], -r["q"]["hit"]))
-
-    if rows_early:
-        top = rows_early[:POS_TOP_N]
-        hidden = len(rows_early) - len(top)
-        trs = []
-        for r in top:
-            q = r["q"]
-            how_often = report_mod.pct(q["hit"], q["of"]) or 0
-            side_up = r["side"].upper()
-            trs.append(
-                f'<div class="op"><p class="op-head"><span class="pill '
-                f'{r["side"]}">{side_up}</span> <strong>{esc(r["zone"])}'
-                f'</strong> <span class="den" title="{q["hit"]} of {q["of"]}">'
-                f'{esc(r["map"].replace("de_", ""))} &middot; {how_often:.0f}% '
-                f'of your {side_up} rounds there</span></p>'
-                + charts.versus([
-                    ("Went there", report_mod.pct(q["won"], q["hit"]),
-                     f'won {q["won"]} of {q["hit"]}'),
-                    ("Didn't", report_mod.pct(q["other_won"], q["other"])
-                     if r["cmp"] else None,
-                     f'won {q["other_won"]} of {q["other"]}')])
-                + '</div>')
-        note = ""
-        if hidden:
-            note = (f'<p class="note">The {len(top)} of {len(rows_early)} '
-                    f'places with the widest gap.</p>')
-        # A round where three of you never held anything together is not a
-        # round where you went somewhere else, so it is not in the denominator
-        # of a row about how far the group got. How often that happens is
-        # itself worth printing: it is most of them.
-        pairs = {(q["map"], q["side"]): (q["side_rounds"], q["answered"])
-                 for q in pos}
-        all_r = sum(v[0] for v in pairs.values())
-        ans = sum(v[1] for v in pairs.values())
-        if all_r and ans < all_r:
-            note += (f'<p class="note">In {all_r - ans} of {all_r} rounds '
-                     f'three of you never stood together anywhere. Those '
-                     f'rounds are left out.</p>')
-        early_block = (
-            f'<section><div class="sec-head"><span class="label">From position '
-            f'data</span><h2>Where you are in the opening</h2></div>'
-            f'<p class="lede">Where two or more of you stand '
-            f'{int(movement.SETUP_AT)} seconds in, and how often you win from '
-            f'there. Each place is compared with your other rounds on the '
-            f'same map and side.</p>'
-            f'<div class="chart op-list">{"".join(trs)}</div>{note}</section>')
-
-    # Every place the three tables name, gathered BEFORE any of them render,
-    # because the maps are drawn once from the union of all three. In map
-    # order of first appearance, which is ranked order: the table rows arrive
-    # worst-first, so the map that matters most is drawn first.
-    shown_zones: dict[str, set] = {}
-    for r in rows_early[:POS_TOP_N]:
-        shown_zones.setdefault(r["map"], set()).add(r["zone"])
-    chosen = []
-    for kind, title, lede in POS_SECTIONS:
-        sel = [q for q in pos if q["kind"] == kind]
-        if not sel:
-            continue
-        hidden = max(0, len(sel) - POS_TOP_N)
-        sel = sel[:POS_TOP_N]
-        for q in sel:
-            shown_zones.setdefault(q["map"], set()).add(q["zone"])
-        chosen.append((kind, title, lede, sel, hidden))
-
-    for kind, title, lede, sel, hidden in chosen:
-        # Only a first death can be traded, so the column exists in that one
-        # section rather than sitting empty in the other two.
-        trades = kind == "death"
-        rws = []
-        for q in sel:
-            # The place is already named in the row, so repeating "traded 3 of
-            # 10" in the sub-line would print the same denominator twice.
-            extra = "" if trades else q["extra"]
-            sub = f' &middot; {esc(extra)}' if extra else ""
-            traded_cell = (f'<td class="num">{rate(q["traded"], q["hit"])}</td>'
-                           if trades else "")
-            rws.append(
-                f'<tr><td class="name"><span class="pill {q["side"]}">'
-                f'{q["side"].upper()}</span> {esc(q["zone"])}'
-                f'<span class="den" style="font-weight:400;margin-left:7px">'
-                f'{esc(q["map"].replace("de_", ""))}{sub}</span></td>'
-                f'<td class="num">{rate(q["hit"], q["of"])}</td>'
-                f'{traded_cell}'
-                f'<td class="num">{rate(q["won"], q["hit"])}</td></tr>')
-        more = (f'<p class="note">The top {POS_TOP_N} of '
-                f'{POS_TOP_N + hidden} places.</p>' if hidden else "")
-        if trades:
-            fig = charts.first_deaths([{
-                "side": q["side"], "place": q["zone"],
-                "map": q["map"].replace("de_", ""),
-                "share": report_mod.pct(q["hit"], q["of"]) or 0,
-                "traded": report_mod.pct(q["traded"], q["hit"]),
-                "won": report_mod.pct(q["won"], q["hit"]),
-                "title": f'{q["hit"]} of {q["of"]} {q["side"].upper()} rounds',
-                "traded_title": f'{q["traded"]} of {q["hit"]}',
-                "won_title": f'{q["won"]} of {q["hit"]}'} for q in sel])
-            table = f'<div class="chart">{fig}</div>'
-        else:
-            table = (f'<div class="tbl-wrap"><table><thead><tr><th>Place</th>'
-                     f'<th class="num">Rounds</th><th class="num">Of those, won'
-                     f'</th></tr></thead><tbody>{"".join(rws)}</tbody></table>'
-                     f'</div>')
-        pos_blocks.append(
-            f'<section><div class="sec-head"><span class="label">'
-            f'From position data</span><h2>{title}</h2></div>'
-            f'<p class="lede">{lede}</p>{table}{more}</section>')
-
-    if early_block:
-        pos_blocks.append(early_block)
-
-    # ---- where the rounds are decided
-    #
-    # Four questions on ONE base drawing, switched by the pill row, in the
-    # order they decide a round. See the note in movement.scan on why the
-    # opening duel and its trade come first.
-    #
-    # The base is expensive (a map's round_positions, clustered, plus the
-    # radar mask) and the readings on top are a few hundred bytes, so three
-    # extra layers cost almost nothing. Flipping between them on a map that
-    # does not move is also the point: it is how you see that the place you
-    # set up is the place you lose the opening.
     # ---- where your rounds are decided
     #
-    # See the note on the patch that wrote this: one drawing per map, thirty
-    # filter combinations, summed in the browser.
-    decided, zdata, znames = [], {}, {}
+    # The one positional section. It used to share the tab with "The maps you
+    # play", "Where your first death happens" and "Where you are in the
+    # opening"; Johan cut all three on 2026-09-27, and their readings live
+    # on here as a place's first kills and first deaths.
+    #
+    # One drawing per map, shown one map at a time behind the map pills.
+    # Every place carries movement.PLACE_FIELDS per (side, phase, buy), so the
+    # filters and the reading picked are summed in the browser: nothing is
+    # fetched when a pill is pressed.
+    decided, zdata, znames, map_order = [], {}, {}, []
     decided_block = ""
     try:
         raw = movement.scan(team["id"])
-        duels = raw.get("duels", {})
-        for mp in sorted(duels, key=lambda m: -sum(
-                sum(v[0] + v[1] for v in z.values())
-                for z in duels[m].values())):
+        places = raw.get("places", {})
+
+        def _fights_on(m):
+            return sum(v[0] + v[1] for z in places[m].values()
+                       for v in z.values())
+
+        for mp in sorted(places, key=lambda m: -_fights_on(m)):
             rows = {}
-            for z, buckets in duels[mp].items():
-                rows[str(z)] = [[sd, ph, by, kd[0], kd[1]]
-                                for (sd, ph, by), kd in sorted(buckets.items())]
+            for z, buckets in places[mp].items():
+                rows[str(z)] = [
+                    [sd, ph, by, *[round(v, 1) if isinstance(v, float) else v
+                                   for v in vals]]
+                    for (sd, ph, by), vals in sorted(buckets.items())]
             if not rows:
+                continue
+            pics = zone_pictures(mp, show=set(), width=420, stat_zones=True)
+            if not pics:
                 continue
             zdata[mp] = rows
             znames[mp] = {str(k): v
                           for k, v in raw.get("names", {}).get(mp, {}).items()}
-            for pic in zone_pictures(mp, show=set(), width=420,
-                                     stat_zones=True):
+            map_order.append(mp)
+            for pic in pics:
                 floor = (f' <span class="pill">{esc(pic["level"])}</span>'
                          if pic["level"] else "")
                 decided.append(
@@ -2985,56 +2849,44 @@ def _stats_body(team, user=None, share: str = ""):
         decided = []        # a missing picture must never break the page
 
     if decided:
-        ROWS = [("side", [("all", "Overall"), ("t", "T side"), ("ct", "CT side")]),
+        ROWS = [("m", [("kd", "K/D"), ("dmg", "Damage dealt vs taken"),
+                       ("open", "First kills vs first deaths"),
+                       ("untraded", "Untraded deaths"), ("control", "Control")]),
+                ("side", [("all", "Overall"), ("t", "T side"), ("ct", "CT side")]),
                 ("phase", [("all", "Overall"), ("pre", "Pre-plant"),
                            ("post", "Post-plant")]),
                 ("buy", [("all", "Overall"), ("pistol", "Pistol"), ("eco", "Eco"),
                          ("force", "Force buy"), ("full", "Full buy")])]
+        if len(map_order) > 1:
+            ROWS.insert(0, ("map", [(mp, mp.replace("de_", ""))
+                                    for mp in map_order]))
         filters = "".join(
             f'<div class="zrow" data-f="{f}">' + "".join(
                 f'<button type="button" class="pill zpill{" on" if i == 0 else ""}" '
-                f'data-v="{v}">{esc(lab)}</button>'
+                f'data-v="{esc(v)}">{esc(lab)}</button>'
                 for i, (v, lab) in enumerate(opts)) + '</div>'
             for f, opts in ROWS)
-        # Its own block, placed straight under "What to work on": where on
-        # the map you win and lose fights is what the first real coach asked
-        # for before anything else, and it sat below four other sections.
         decided_block = (
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>Where your rounds are decided</h2></div>'
-            f'<p class="lede">Your kills and deaths in every place on the map. '
-            f'<strong>Green means you win more fights there than you do '
-            f'across the whole map</strong> under the same filter, red means fewer, '
-            f'clear means the same or too little to say. Hover over a place, '
-            f'or tap it, to see why it has its colour.</p>'
+            f'<p class="lede">Every place on the map, coloured by the reading '
+            f'you pick. <strong>Green is better than you do across the whole '
+            f'map</strong> under the same filters, red is worse, grey is about '
+            f'the same, clear is too little to say. Hover over a place, or tap '
+            f'it, for all five readings.</p>'
             f'<div class="zfilters">{filters}</div>'
             f'<div class="zonerow">{"".join(decided)}</div>'
+            f'<p class="note">Kills, deaths and damage count where the player '
+            f'who was hit stood. A first kill or first death is the round&rsquo;s '
+            f'opening duel. Untraded means nobody killed their killer in time. '
+            f'Control is how much of the time only one side stood in a place '
+            f'that it was you.</p>'
             f'<script>(function(){{var D={json.dumps(zdata, separators=(",", ":"))},'
             f'N={json.dumps(znames, separators=(",", ":"))};'
             + ZONE_JS + '})();</script></section>')
 
-    # ---- the maps, once each, at the head of the three tables
-    figs = []
-    for mp, places in shown_zones.items():
-        for pic in zone_pictures(mp, show=places, width=420):
-            floor = (f' <span class="pill">{esc(pic["level"])}</span>'
-                     if pic["level"] else "")
-            figs.append(
-                f'<figure class="zonefig">{pic["svg"]}'
-                f'<figcaption class="den"><strong>'
-                f'{esc(mp.replace("de_", ""))}</strong>{floor}</figcaption>'
-                f'</figure>')
-    if figs and pos_blocks:
-        n = len(pos_blocks)
-        pos_blocks.insert(0, (
-            f'<section><div class="sec-head"><span class="label">From position '
-            f'data</span><h2>The maps you play</h2></div>'
-            f'<p class="lede">The places named below, drawn from your own '
-            f'rounds.</p>'
-            f'<div class="zonerow">{"".join(figs)}</div></section>'))
-
-    if pos_blocks or decided_block:
-        positional_block = "".join(pos_blocks)
+    if decided_block:
+        positional_block = ""
     elif db.one("SELECT COUNT(*) n FROM zone_names")["n"] == 0:
         positional_block = (
             '<section><div class="sec-head"><span class="label">From position '
