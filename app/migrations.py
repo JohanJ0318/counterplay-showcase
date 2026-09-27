@@ -578,6 +578,19 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         ALTER TABLE player_rounds ADD COLUMN equip_value INTEGER;
         ALTER TABLE player_rounds ADD COLUMN loadout     TEXT;
     """),
+
+    (24, "anubis mid in three: CT mid, Mid, T mid", """
+        -- Zones 3, 5 and 13 were all "Mid", so one place ran from CT spawn to
+        -- T spawn and every reading on it averaged the two ends of the map.
+        -- Split on Johan's call, 2026-09-27. CT spawn is north (y 2125), T
+        -- spawn south (y -1457); zone 3 sits at (111, 1414) by CT spawn,
+        -- 5 at (137, 715) is the middle and keeps the name, 13 at
+        -- (-223, -273) is the T end. Same indices on the box and locally.
+        UPDATE zone_names SET name = 'CT mid'
+         WHERE map_name = 'de_anubis' AND zone_index = 3 AND name = 'Mid';
+        UPDATE zone_names SET name = 'T mid'
+         WHERE map_name = 'de_anubis' AND zone_index = 13 AND name = 'Mid';
+    """),
 ]
 
 
