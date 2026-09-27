@@ -238,6 +238,30 @@ def team_roster(team_id: int) -> list[sqlite3.Row]:
                                      ELSE 2 END, u.name""", team_id)
 
 
+def create_team(name: str, league: str, user_id: int, plan: str,
+                faceit_url: str = "") -> int:
+    """A new team, owned by `user_id`. Signup and the admin's New team both
+    come through here, so a team is made one way."""
+    team_id = execute(
+        """INSERT INTO teams (name, slug, league, faceit_url, plan, created_at,
+                              created_by)
+           VALUES (?,?,?,?,?,?,?)""",
+        name.strip(), slugify(name), league, faceit_url.strip(), plan,
+        utcnow(), user_id)
+    execute("""INSERT INTO team_members (team_id, user_id, member_role, created_at)
+               VALUES (?,?,?,?)""", team_id, user_id, "owner", utcnow())
+    return team_id
+
+
+def team_by_claim_token(token: str):
+    """The team a handover link names, or None. An empty token names nothing."""
+    token = (token or "").strip()
+    if not token:
+        return None
+    return one("SELECT * FROM teams WHERE claim_token = ? AND claim_token != ''",
+               token)
+
+
 def slugify(name: str, taken=None) -> str:
     base = "".join(c if c.isalnum() else "-" for c in name.lower()).strip("-")
     base = "-".join(p for p in base.split("-") if p) or "team"

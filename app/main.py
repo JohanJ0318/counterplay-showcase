@@ -169,9 +169,17 @@ SIGNUP_INTRO = (
     "Free this season. One person reads every sign-up, so a human will reply.")
 
 
-def signup_form(values: dict | None = None, error: str = "") -> str:
+def signup_form(values: dict | None = None, error: str = "",
+                claim: str = "") -> str:
+    """The signup form. With `claim` (a live handover token) it asks for no
+    team name: the coach is signing up to take over a team already built
+    for them, and a name field there made them an empty second team."""
     v = values or {}
     warn = f'<p class="warn">{esc(error)}</p>' if error else ""
+    team_field = (f'<input type="hidden" name="claim" value="{esc(claim)}">'
+                  if claim else
+                  form_field("team", "Team or program", value=v.get("team", "")))
+    login = (f'/login?next=/claim/{esc(claim)}' if claim else "/login")
     return f"""
   <section>
     <div class="card">
@@ -182,22 +190,31 @@ def signup_form(values: dict | None = None, error: str = "") -> str:
           <input type="text" id="homepage" name="homepage" value=""
                  autocomplete="off" tabindex="-1">
         </div>
-        {form_field("team", "Team or program", value=v.get("team", ""))}
+        {team_field}
         {form_field("email", "Email", "email", v.get("email", ""), autocomplete="email")}
         {form_field("password", "Password", "password", required=True,
                     autocomplete="new-password", minlength="10")}
         <button type="submit">Create the account</button>
         <p class="den">Ten characters minimum. Already have one?
-          <a href="/login">Log in</a>.</p>
+          <a href="{login}">Log in</a>.</p>
       </form>
     </div>
   </section>"""
 
 
 @app.get("/signup", response_class=HTMLResponse)
-def signup_get(request: Request):
+def signup_get(request: Request, claim: str = ""):
+    claimed = db.team_by_claim_token(claim)
     if current(request):
-        return see_other("/dashboard")
+        return see_other(f"/claim/{claim}" if claimed else "/dashboard")
+    if claimed:
+        return html_page(
+            "Make an account | Counterplay",
+            banner("Make an account", label=f"To take over {claimed['name']}"),
+            f'<section><p class="lede">{esc(claimed["name"])} is waiting for you. '
+            f'Make an account and you go straight to the page that hands it '
+            f'over. Free this season.</p></section>'
+            + signup_form(claim=claim))
     return html_page("Add your team | Counterplay",
                      banner("Add your team", label="Free this season"),
                      f'<section><p class="lede">{SIGNUP_INTRO}</p></section>'
@@ -208,14 +225,20 @@ def signup_get(request: Request):
 def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
                 role: str = Form("other"), name: str = Form(""),
                 email: str = Form(""), password: str = Form(""),
-                faceit_url: str = Form(""), homepage: str = Form("")):
+                faceit_url: str = Form(""), homepage: str = Form(""),
+                claim: str = Form("")):
     values = {"team": team, "league": league, "role": role, "name": name,
               "email": email, "faceit_url": faceit_url}
+    # Signing up to take over a team built for you. No team is made here; the
+    # handover itself still happens only on the confirm page's button.
+    claimed = db.team_by_claim_token(claim)
 
     def fail(msg):
         return HTMLResponse(page("Add your team | Counterplay",
                                  banner("Add your team", label="Free this season"),
-                                 signup_form(values, msg)), status_code=400)
+                                 signup_form(values, msg,
+                                             claim=claim if claimed else "")),
+                            status_code=400)
 
     # The honeypot, checked before anything else so a bot costs us no work.
     # `homepage` is invisible to a person and irresistible to a form filler.
@@ -227,8 +250,13 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
     problem = auth.email_problem(email) or auth.password_problem(password)
     if problem:
         return fail(problem)
-    if not team.strip():
+    if claimed is None and claim.strip():
+        return fail("That handover link has already been used or cancelled. "
+                    "Add your own team below, or ask for a new link.")
+    if claimed is None and not team.strip():
         return fail("A team or program name is needed.")
+    if claimed is not None:
+        team = claimed["name"]
     # The form no longer asks for a name, so the team stands in for one. It is
     # printed in the corner of the nav and nowhere else, and a team name there
     # is more use to the person reading it than their own email address.
@@ -251,37 +279,50 @@ def signup_post(request: Request, team: str = Form(""), league: str = Form(""),
         email.strip(), key, auth.hash_password(password), name.strip(), role,
         DEFAULT_USER_PLAN, secrets.token_urlsafe(24), db.utcnow())
 
-    slug = db.slugify(team)
-    team_id = db.execute(
-        """INSERT INTO teams (name, slug, league, faceit_url, plan, created_at,
-                              created_by)
-           VALUES (?,?,?,?,?,?,?)""",
-        team.strip(), slug, league, faceit_url.strip(), DEFAULT_TEAM_PLAN,
-        db.utcnow(), user_id)
-    db.execute("""INSERT INTO team_members (team_id, user_id, member_role, created_at)
-                  VALUES (?,?,?,?)""", team_id, user_id, "owner", db.utcnow())
-    db.audit(user_id, "signup", f"team={slug} league={league}")
-    alert.signup(team.strip(), email.strip(), league, role)
+    if claimed is None:
+        team_id = db.create_team(team, league, user_id, DEFAULT_TEAM_PLAN,
+                                 faceit_url)
+        slug = db.one("SELECT slug FROM teams WHERE id = ?", team_id)["slug"]
+        db.audit(user_id, "signup", f"team={slug} league={league}")
+        alert.signup(team.strip(), email.strip(), league, role)
+    else:
+        db.audit(user_id, "signup_to_claim", f"team={claimed['id']}")
+        alert.signup(f"{claimed['name']} (taking over)", email.strip(),
+                     claimed["league"] or league, role)
 
     token, _ = auth.start_session(user_id, request.headers.get("user-agent", ""))
-    response = see_other("/dashboard")
+    response = see_other(f"/claim/{claim.strip()}" if claimed else "/dashboard")
     set_session_cookie(response, token)
     return response
 
 
 # ---------------------------------------------------------------- login
 
-def login_form(email: str = "", error: str = "") -> str:
+def safe_next(nxt: str) -> str:
+    """Where a login may send you afterwards: a handover page, or nowhere.
+    Anything wider is an open redirect, which a phishing link can use to
+    borrow the site's address."""
+    nxt = (nxt or "").strip()
+    if nxt.startswith("/claim/") and "//" not in nxt and "\\" not in nxt:
+        return nxt
+    return ""
+
+
+def login_form(email: str = "", error: str = "", nxt: str = "") -> str:
     warn = f'<p class="warn">{esc(error)}</p>' if error else ""
+    nxt = safe_next(nxt)
+    keep = f'<input type="hidden" name="next" value="{esc(nxt)}">' if nxt else ""
+    signup = (f'/signup?claim={esc(nxt[len("/claim/"):])}' if nxt else "/signup")
     return f"""
   <section>
     <div class="card">
       {warn}
       <form class="stack" method="post" action="/login">
+        {keep}
         {form_field("email", "Email", "email", email, autocomplete="email")}
         {form_field("password", "Password", "password", autocomplete="current-password")}
         <button type="submit">Log in</button>
-        <p class="den">No account? <a href="/signup">Add your team</a>.
+        <p class="den">No account? <a href="{signup}">{"Make one" if nxt else "Add your team"}</a>.
           Forgotten it? <a href="/forgot">Reset your password</a>.</p>
       </form>
     </div>
@@ -289,17 +330,19 @@ def login_form(email: str = "", error: str = "") -> str:
 
 
 @app.get("/login", response_class=HTMLResponse)
-def login_get(request: Request):
+def login_get(request: Request, next: str = ""):
     if current(request):
-        return see_other("/dashboard")
-    return html_page("Log in | Counterplay", banner("Log in"), login_form())
+        return see_other(safe_next(next) or "/dashboard")
+    return html_page("Log in | Counterplay", banner("Log in"),
+                     login_form(nxt=next))
 
 
 @app.post("/login")
-def login_post(request: Request, email: str = Form(""), password: str = Form("")):
+def login_post(request: Request, email: str = Form(""), password: str = Form(""),
+               next: str = Form("")):
     def fail(msg, code=400):
         return HTMLResponse(page("Log in | Counterplay", banner("Log in"),
-                                 login_form(email, msg)), status_code=code)
+                                 login_form(email, msg, next)), status_code=code)
 
     if auth.too_many_attempts(email):
         return fail("Too many attempts for that address. Wait a few minutes.", 429)
@@ -316,7 +359,7 @@ def login_post(request: Request, email: str = Form(""), password: str = Form("")
     auth.clear_attempts(email)
     token, _ = auth.start_session(row["id"], request.headers.get("user-agent", ""))
     db.audit(row["id"], "login")
-    response = see_other("/dashboard")
+    response = see_other(safe_next(next) or "/dashboard")
     set_session_cookie(response, token)
     return response
 
@@ -3394,6 +3437,27 @@ def team_switch(request: Request, team_id: str = Form(""), csrf: str = Form(""))
     return see_other("/dashboard")
 
 
+@app.post("/team/new")
+def team_new(request: Request, name: str = Form(""), league: str = Form("NECC"),
+             csrf: str = Form("")):
+    """Build a team for a coach who has no account yet: the master account
+    only. Outreach runs on this: their public demos go into a team made for
+    them, the share link goes in a DM, and the handover link makes it theirs.
+    Before this, each such team was made by hand in the database."""
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    if not auth.check_csrf(user, csrf) or not user["is_admin"]:
+        return see_other("/account")
+    if not name.strip():
+        return see_other("/account")
+    team_id = db.create_team(name[:80], (league or "NECC")[:40], user["id"],
+                             DEFAULT_TEAM_PLAN)
+    db.set_active_team(user["id"], team_id)
+    db.audit(user["id"], "team_new", f"team={team_id}")
+    return see_other("/dashboard")
+
+
 @app.post("/claim/new")
 def claim_new(request: Request, csrf: str = Form("")):
     """Make a one-time link that hands this team to whoever opens it.
@@ -3452,9 +3516,10 @@ def claim_page(request: Request, token: str):
       <h3>{esc(team["name"])} is being handed to you</h3>
       <p class="lede">Whoever built this team wants it to be yours: the
         season, the demos already in it, and the link you send your roster.</p>
-      <p>Sign in first, or make an account, and then open this link again.</p>
-      <p><a class="btn" href="/login">Log in</a>
-         <a class="btn ghost" href="/signup">Make an account</a></p>
+      <p>Make an account, or log in, and you come straight back here to
+        accept it.</p>
+      <p><a class="btn" href="/signup?claim={esc(token)}">Make an account</a>
+         <a class="btn ghost" href="/login?next=/claim/{esc(token)}">Log in</a></p>
       <p class="den">Nothing has changed yet.</p>
     </div>
   </section>"""
@@ -3642,6 +3707,22 @@ def account(request: Request):
     </div>
   </section>"""
 
+    # The master account builds teams for coaches before they sign up.
+    new_team_block = f"""
+  <section>
+    <div class="card">
+      <h3>Build a team for a coach</h3>
+      <p class="lede">A new team on this account, for a coach who has no
+        account yet. Upload their demos into it, send the roster link, and
+        make a handover link when they want it to be theirs.</p>
+      <form class="stack" method="post" action="/team/new">{csrf_input(user)}
+        {form_field("name", "Team name")}
+        {form_field("league", "League", value="NECC")}
+        <button class="btn" type="submit">Make the team and switch to it</button>
+      </form>
+    </div>
+  </section>""" if user["is_admin"] else ""
+
     body = f"""
   <section>
     <div class="card">
@@ -3653,6 +3734,7 @@ def account(request: Request):
   {switch_block}
   {share_block}
   {claim_block}
+  {new_team_block}
   <section>
     <form method="post" action="/logout">{csrf_input(user)}
       <button class="btn ghost" type="submit">Log out</button></form>
