@@ -18,6 +18,10 @@ import pandas as pd
 
 from . import db
 
+# Every match once: the `corpus_matches` view (migration 25) drops a second
+# team's parse of bytes already parsed for another team.
+CORPUS_KEYS = "SELECT match_key FROM corpus_matches"
+
 
 def load_frames(tier: str | None = None, team_id: int | None = None,
                 match_keys: list[str] | None = None) -> tuple[pd.DataFrame, pd.DataFrame]:
@@ -39,6 +43,10 @@ def load_frames(tier: str | None = None, team_id: int | None = None,
         marks = ",".join("?" * len(match_keys))
         where.append(f"r.match_key IN ({marks})")
         args.extend(match_keys)
+    elif team_id is None:
+        # Across every team, a match two teams both uploaded is one match.
+        # Twice in the corpus it could sit in train and in test at once.
+        where.append(f"r.match_key IN ({CORPUS_KEYS})")
     clause = (" WHERE " + " AND ".join(where)) if where else ""
 
     rounds = pd.DataFrame(
@@ -70,13 +78,14 @@ def load_frames(tier: str | None = None, team_id: int | None = None,
 
 def summary() -> dict:
     """What the corpus currently holds. For the CLI and the dashboard."""
-    row = db.one("""SELECT COUNT(DISTINCT match_key) matches,
-                           COUNT(*) rounds FROM rounds""")
-    ev = db.one("SELECT COUNT(*) n FROM events")
-    by_tier = db.query("""SELECT tier, COUNT(DISTINCT match_key) m, COUNT(*) r
-                            FROM rounds GROUP BY tier ORDER BY r DESC""")
-    by_map = db.query("""SELECT map_name, COUNT(*) r FROM rounds
-                       GROUP BY map_name ORDER BY r DESC""")
+    once = f"WHERE match_key IN ({CORPUS_KEYS})"
+    row = db.one(f"""SELECT COUNT(DISTINCT match_key) matches,
+                            COUNT(*) rounds FROM rounds {once}""")
+    ev = db.one(f"SELECT COUNT(*) n FROM events {once}")
+    by_tier = db.query(f"""SELECT tier, COUNT(DISTINCT match_key) m, COUNT(*) r
+                             FROM rounds {once} GROUP BY tier ORDER BY r DESC""")
+    by_map = db.query(f"""SELECT map_name, COUNT(*) r FROM rounds {once}
+                        GROUP BY map_name ORDER BY r DESC""")
     status = db.query("""SELECT status, COUNT(*) n FROM demos
                        GROUP BY status ORDER BY n DESC""")
     return {

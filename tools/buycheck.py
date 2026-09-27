@@ -37,7 +37,7 @@ def main() -> int:
     from app import buys, db
 
     keys = [r["match_key"] for r in db.query(
-        "SELECT m.match_key FROM matches m JOIN demos d ON d.id = m.demo_id "
+        "SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id "
         "WHERE d.tier = 'league' AND d.status = 'parsed'")]
     rows, flagged, notes, eco_spend = [], [], Counter(), []
     ev = defaultdict(lambda: [0, 0])          # (spot, call) -> [won, rounds]

@@ -50,14 +50,14 @@ def benchmark(map_name: str) -> dict:
     centres, group_of, names, _g = got
     nz = len(names)
     keys = [r["match_key"] for r in db.query(
-        "SELECT match_key FROM matches WHERE map_name = ? AND tier = ?",
+        "SELECT match_key FROM corpus_matches WHERE map_name = ? AND tier = ?",
         map_name, TIER)]
     plants = movement._plant_lookup(keys)
     out: dict = {}
     for r in db.query("""SELECT rp.match_key, rp.round_num, rp.data,
                                 r.equip_ct, r.equip_t
                            FROM round_positions rp
-                           JOIN matches m ON m.match_key = rp.match_key
+                           JOIN corpus_matches m ON m.match_key = rp.match_key
                            JOIN rounds  r ON r.match_key = rp.match_key
                                          AND r.round_num = rp.round_num
                           WHERE m.map_name = ? AND m.tier = ?""", map_name, TIER):
@@ -91,9 +91,9 @@ def benchmark(map_name: str) -> dict:
 
 def main() -> int:
     maps = [r["map_name"] for r in db.query(
-        "SELECT DISTINCT map_name FROM matches WHERE tier = ? ORDER BY map_name",
+        "SELECT DISTINCT map_name FROM corpus_matches WHERE tier = ? ORDER BY map_name",
         TIER)]
-    n = db.one("SELECT COUNT(*) n FROM matches WHERE tier = ?", TIER)["n"]
+    n = db.one("SELECT COUNT(*) n FROM corpus_matches WHERE tier = ?", TIER)["n"]
     result = {mp: b for mp in maps if (b := benchmark(mp))}
     json.dump({"_how": "tools/place_benchmark.py: every collegiate (tier league) team, per "
                        "place and 'side,phase,buy': [kills, deaths, damage "

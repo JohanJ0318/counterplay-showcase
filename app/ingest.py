@@ -452,6 +452,30 @@ def should_keep(demo_row) -> bool:
 
 # ---------------------------------------------------------------- the pipeline
 
+def twin_of(demo_id: int, sha: str, team_id: int | None):
+    """A parsed demo with these bytes that makes parsing this one pointless.
+
+    Every reading is scoped to a team through demos.team_id, so only a twin
+    the SAME team can see counts. The guard used to match any team: when
+    North Georgia uploaded their placement against UCF on 2026-09-27, UCF had
+    sent it first, so demo 123 was marked a duplicate and North Georgia's
+    season never got the match. Two teams who played each other now get a
+    parse each, and league-wide readings count it once through the
+    `corpus_matches` view (migration 25).
+
+    A demo with no team (the corpus, a folder of league matches) is visible
+    to no report, so any parsed twin covers it.
+    """
+    if team_id is None:
+        return db.one("""SELECT id, tier FROM demos
+                          WHERE sha256 = ? AND id != ? AND status = 'parsed'
+                          LIMIT 1""", sha, demo_id)
+    return db.one("""SELECT id, tier FROM demos
+                      WHERE sha256 = ? AND id != ? AND status = 'parsed'
+                        AND team_id = ?
+                      LIMIT 1""", sha, demo_id, team_id)
+
+
 def process(demo_row) -> tuple[bool, str]:
     """Take one demo row from pending to parsed or failed.
 
@@ -516,9 +540,7 @@ def process(demo_row) -> tuple[bool, str]:
         # The bytes are known now, so this is the first moment the real
         # question can be asked: have we already parsed this exact demo,
         # whatever it was called or wherever it came from?
-        twin = db.one("""SELECT id, tier FROM demos
-                          WHERE sha256 = ? AND id != ? AND status = 'parsed'
-                          LIMIT 1""", sha, demo_id)
+        twin = twin_of(demo_id, sha, demo_row["team_id"])
         if twin is not None:
             db.execute("""UPDATE demos SET status='duplicate', status_note=?
                            WHERE id = ?""",
@@ -705,8 +727,14 @@ def forget_team(team_id: int, actor_id: int | None = None) -> dict:
     demos = db.query("SELECT id, sha256 FROM demos WHERE team_id = ?", team_id)
     removed = 0
     for d in demos:
+        # The store is keyed by content, so the other team in a match both
+        # uploaded holds the same file. Deleting it would leave their demo
+        # with nothing to re-parse from; their copy is theirs, not ours.
+        shared = db.one("""SELECT 1 FROM demos WHERE sha256 = ?
+                            AND (team_id IS NULL OR team_id != ?) LIMIT 1""",
+                        d["sha256"], team_id)
         p = stored_path(d["sha256"])
-        if p is not None:
+        if p is not None and shared is None:
             p.unlink(missing_ok=True)
             removed += 1
         keys = db.query("SELECT match_key FROM matches WHERE demo_id = ?", d["id"])

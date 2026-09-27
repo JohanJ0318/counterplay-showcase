@@ -2027,7 +2027,7 @@ def _draw_zones(map_name: str, show, width: int, key,
         names = ZM.names(map_name)
         if zs and names:
             rows = db.query("""SELECT rp.data FROM round_positions rp
-                                 JOIN matches m ON m.match_key = rp.match_key
+                                 JOIN corpus_matches m ON m.match_key = rp.match_key
                                 WHERE m.map_name = ?""", map_name)
             x, y, z = Z.collect([r["data"] for r in rows], thin=2, alive_only=False)
             # In stat mode every shape is a place the kills and deaths were

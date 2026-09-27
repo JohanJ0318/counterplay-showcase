@@ -52,7 +52,7 @@ def main() -> int:
     from app import buys, db
     from counterplay import economy as E
     keys = [r["match_key"] for r in db.query(
-        "SELECT m.match_key FROM matches m JOIN demos d ON d.id = m.demo_id "
+        "SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id "
         "WHERE d.tier = 'league' AND d.status = 'parsed'")]
     print(f"{len(keys)} collegiate matches\n")
     print(f"{'horizon':>7s} {'future slope':>12s} {'slope':>6s} {'bias':>7s} {'calls':>6s}")

@@ -40,7 +40,7 @@ def _cards(team_id: int | None = None) -> list[str]:
             continue
 
         rows = db.query("""SELECT rp.data FROM round_positions rp
-                             JOIN matches m ON m.match_key = rp.match_key
+                             JOIN corpus_matches m ON m.match_key = rp.match_key
                             WHERE m.map_name = ?""", mp)
         x, y, z = Z.collect([r["data"] for r in rows], thin=2, alive_only=False)
         if len(x) == 0:

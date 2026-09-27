@@ -206,7 +206,7 @@ def build(out_path: str = "site/zones.html", rounds_per_map: int = ROUNDS_PER_MA
         if not zs:
             continue
         rows = db.query("""SELECT rp.data FROM round_positions rp
-                             JOIN matches m ON m.match_key = rp.match_key
+                             JOIN corpus_matches m ON m.match_key = rp.match_key
                             WHERE m.map_name = ? LIMIT ?""", mp, rounds_per_map)
         if len(rows) < 20:
             continue

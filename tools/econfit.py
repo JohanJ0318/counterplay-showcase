@@ -58,7 +58,7 @@ def load(tier: str | None):
     rows = db.query(
         "SELECT r.match_key, r.round_num, r.map_name, r.equip_ct, r.equip_t, "
         "       r.ct_won "
-        "FROM rounds r JOIN matches m ON m.match_key = r.match_key "
+        "FROM rounds r JOIN corpus_matches m ON m.match_key = r.match_key "
         "JOIN demos d ON d.id = m.demo_id "
         "WHERE d.status = 'parsed'" + (" AND d.tier = ?" if tier else ""),
         *([tier] if tier else []))

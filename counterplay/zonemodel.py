@@ -67,7 +67,7 @@ def build(map_name: str, rounds_sampled: int = ROUNDS_SAMPLED) -> list[dict]:
     from app import db
 
     rows = db.query("""SELECT rp.data FROM round_positions rp
-                         JOIN matches m ON m.match_key = rp.match_key
+                         JOIN corpus_matches m ON m.match_key = rp.match_key
                         WHERE m.map_name = ? LIMIT ?""", map_name, rounds_sampled)
     if len(rows) < 20:
         return []
@@ -134,7 +134,7 @@ def label_anchors(map_name: str, rounds_sampled: int = 300) -> dict[int, tuple]:
     if not zs:
         return {}
     rows = db.query("""SELECT rp.data FROM round_positions rp
-                         JOIN matches m ON m.match_key = rp.match_key
+                         JOIN corpus_matches m ON m.match_key = rp.match_key
                         WHERE m.map_name = ? LIMIT ?""", map_name, rounds_sampled)
     x, y, z = Z.collect([r["data"] for r in rows], thin=3, alive_only=False)
     if len(x) == 0:
@@ -305,7 +305,7 @@ def find_split_zones(map_name: str, only: list[int] | None = None) -> list[dict]
     if not zs:
         return []
     rows = db.query("""SELECT rp.data FROM round_positions rp
-                         JOIN matches m ON m.match_key = rp.match_key
+                         JOIN corpus_matches m ON m.match_key = rp.match_key
                         WHERE m.map_name = ?""", map_name)
     x, y, z = Z.collect([r["data"] for r in rows], thin=2, alive_only=False)
     if len(x) == 0:
@@ -377,7 +377,7 @@ def split_zones(map_name: str, only: list[int] | None = None) -> list[dict]:
 
     zs = load(map_name)
     rows = db.query("""SELECT rp.data FROM round_positions rp
-                         JOIN matches m ON m.match_key = rp.match_key
+                         JOIN corpus_matches m ON m.match_key = rp.match_key
                         WHERE m.map_name = ?""", map_name)
     x, y, z = Z.collect([r["data"] for r in rows], thin=2, alive_only=False)
     total_samples = len(x)
@@ -696,7 +696,7 @@ def walk(map_name: str, zs: list[dict]) -> dict | None:
     if sig in _WALKS:
         return _WALKS[sig]
     rows = db.query("""SELECT rp.data FROM round_positions rp
-                         JOIN matches m ON m.match_key = rp.match_key
+                         JOIN corpus_matches m ON m.match_key = rp.match_key
                         WHERE m.map_name = ?""", map_name)
     x, y, z = Z.collect([r["data"] for r in rows], thin=WALK_THIN,
                         alive_only=True)

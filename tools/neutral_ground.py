@@ -53,14 +53,14 @@ def ground(map_name: str) -> dict:
     centres, group_of, names, _g = got
     nz = len(names)
     keys = [r["match_key"] for r in db.query(
-        "SELECT match_key FROM matches WHERE map_name = ? AND tier = ?",
+        "SELECT match_key FROM corpus_matches WHERE map_name = ? AND tier = ?",
         map_name, TIER)]
     plants = movement._plant_lookup(keys)
     t_only = np.zeros(nz + 1)
     ct_only = np.zeros(nz + 1)
     for r in db.query("""SELECT rp.match_key, rp.round_num, rp.data
                            FROM round_positions rp
-                           JOIN matches m ON m.match_key = rp.match_key
+                           JOIN corpus_matches m ON m.match_key = rp.match_key
                           WHERE m.map_name = ? AND m.tier = ?""", map_name, TIER):
         u = unpack_round(r["data"])
         if u is None:
@@ -100,7 +100,7 @@ def ground(map_name: str) -> dict:
 
 def main() -> int:
     maps = [r["map_name"] for r in db.query(
-        "SELECT DISTINCT map_name FROM matches WHERE tier = ? ORDER BY map_name",
+        "SELECT DISTINCT map_name FROM corpus_matches WHERE tier = ? ORDER BY map_name",
         TIER)]
     result = {}
     for mp in maps:

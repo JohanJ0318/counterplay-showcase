@@ -591,6 +591,26 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         UPDATE zone_names SET name = 'T mid'
          WHERE map_name = 'de_anubis' AND zone_index = 13 AND name = 'Mid';
     """),
+
+    (25, "one match per demo file, for league-wide readings", """
+        -- Two teams who played each other now each get a parse of the same
+        -- file (ingest.twin_of), because every report is scoped to a team
+        -- through demos.team_id. A reading over EVERY team (the zone model,
+        -- the typical-team benchmark, neutral ground, the econ fits) must
+        -- still count that match once, or it weighs double. This is matches
+        -- with every later parse of the same bytes dropped: the earliest
+        -- demo row wins. A match with no demo row has nothing to repeat.
+        CREATE INDEX IF NOT EXISTS idx_demos_sha ON demos(sha256);
+        CREATE INDEX IF NOT EXISTS idx_matches_demo ON matches(demo_id);
+        DROP VIEW IF EXISTS corpus_matches;
+        CREATE VIEW corpus_matches AS
+        SELECT m.* FROM matches m
+          LEFT JOIN demos d ON d.id = m.demo_id
+         WHERE d.id IS NULL
+            OR NOT EXISTS (SELECT 1 FROM demos d2
+                             JOIN matches m2 ON m2.demo_id = d2.id
+                            WHERE d2.sha256 = d.sha256 AND d2.id < d.id);
+    """),
 ]
 
 

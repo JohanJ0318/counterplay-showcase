@@ -33,7 +33,7 @@ def rows(tier: str = "league"):
     os.environ.setdefault("COUNTERPLAY_DB", str(ROOT / "data" / "counterplay.db"))
     from app import buys, db
     keys = [r["match_key"] for r in db.query(
-        "SELECT m.match_key FROM matches m JOIN demos d ON d.id = m.demo_id "
+        "SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id "
         "WHERE d.tier = ? AND d.status = 'parsed'", tier)]
     out = []
     for mk in keys:
