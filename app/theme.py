@@ -131,6 +131,10 @@ CSS = """
   }
 }
 html{color-scheme:light dark}
+/* A hidden info tip still takes up room, and one near the right edge of a
+   phone let the whole page scroll sideways. clip, not hidden: hidden makes
+   a scroll container and breaks every sticky bar. */
+body{overflow-x:clip}
 
 *{box-sizing:border-box}
 html{-webkit-text-size-adjust:100%}
@@ -293,6 +297,9 @@ header.page{background:
 section{background:var(--surface);border:1px solid var(--border);
   border-radius:8px;padding:15px 17px 17px;margin-top:14px;
   display:flex;flex-direction:column;gap:11px}
+/* The hidden attribute is only the browser's display:none, which any
+   display rule beats, so the flex above kept a hidden tab on screen. */
+[hidden]{display:none !important}
 /* No double chrome. A table or a card that is a section's own content should
    not draw a second border inside the first one. */
 section>.tbl-wrap,section>.tbl-plain,section>.card,section>.note{
@@ -715,7 +722,9 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
 }
 /* The long page's own table of contents. Sticky, because a list that
    scrolls away is a list you have to scroll back for. */
-.pagenav{position:sticky;top:0;z-index:5;display:flex;gap:4px;flex-wrap:wrap;
+/* top is the site header's height: both are sticky, and at 0 the header
+   (z-index 50) sat on top of this bar and hid it. */
+.pagenav{position:sticky;top:56px;z-index:5;display:flex;gap:4px;flex-wrap:wrap;
   padding:10px 0;margin-bottom:4px;background:var(--glass);
   -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
   border-bottom:1px solid var(--border)}
@@ -724,7 +733,16 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
   text-decoration:none}
 .pagenav a:hover{color:var(--ink);background:var(--surface)}
 .pagenav a.on{color:var(--purple);background:var(--purple-soft)}
-@media (max-width:640px){.pagenav{overflow-x:auto;flex-wrap:nowrap}}
+/* As tabs: a little larger, since they are now how you move around. */
+.pagenav.tabs{margin-bottom:18px}
+.pagenav.tabs a{font-size:.9rem;font-weight:600;padding:7px 13px}
+@media (max-width:640px){
+  .pagenav{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none;
+    -webkit-mask-image:linear-gradient(90deg,#000 85%,transparent);
+    mask-image:linear-gradient(90deg,#000 85%,transparent)}
+  .pagenav::-webkit-scrollbar{display:none}
+  .pagenav.tabs a:last-child{margin-right:28px}
+}
 
 /* A ROW OF MAPS IS LEVELLED BY HEIGHT, NOT BY WIDTH. Four maps of four
    shapes given equal widths cannot look like a set; whichever axis you
@@ -901,6 +919,7 @@ footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);
   /* The parts of the page that only work under a cursor. The hints go too:
      nothing scrolls on paper, so both of them would be instructions to do
      something impossible. */
+  section[data-tab][hidden]{display:flex !important}
   nav.top, .pagenav, .themebtn, .navbtn, .navchk, button, .btn,
   input, select, textarea, .howto,
   .tbl-wrap.over::after, .chart::after{display:none !important}

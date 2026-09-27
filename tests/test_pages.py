@@ -136,3 +136,12 @@ def test_the_zone_map_script_is_one_statement_list():
     join = join[:join.index("ZONE_JS")]
     assert "))};'" in join, join
     assert main.ZONE_JS.lstrip().startswith("var ")
+
+
+def test_tab_puts_every_section_under_its_name():
+    from app.main import _tab, PAGE_TABS
+    out = _tab("Positions", '<section class="lead">a</section><section>b</section>')
+    assert out.count('<section data-tab="Positions"') == 2
+    assert _tab("X", "") == ""
+    # The sections come after the script, so it must wait for the page.
+    assert "DOMContentLoaded" in PAGE_TABS

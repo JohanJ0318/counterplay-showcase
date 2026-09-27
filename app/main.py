@@ -887,48 +887,78 @@ DEMO_HELP = """
       </details>"""
 
 
-# A table of contents for a page that is eleven sections long.
+# The long pages are split into tabs. Every section that belongs to one
+# carries data-tab="<name>"; a section without it (the stat tiles, the
+# notes that qualify every number) shows under every tab. The script builds
+# the bar from the sections in page order, so a tab whose sections are all
+# empty for this team simply does not appear.
 #
-# Built from the rendered headings rather than from a list maintained here,
-# because the two would drift the first time somebody added a section. Empty
-# and invisible without JavaScript, which is correct: with no script there is
-# no smooth way to jump anyway, and an inert row of dead links is worse than
-# no row.
-#
-# The highlight follows whichever heading is nearest the top of the viewport,
-# recomputed on scroll rather than by IntersectionObserver, because sections
-# here differ in height by a factor of twenty and an observer threshold that
-# suits Coverage does not suit Players.
-PAGE_NAV = """
-  <nav class="pagenav" id="pagenav" hidden></nav>
+# Without JavaScript nothing is hidden and the bar never shows: the page is
+# the old long page. Print shows every section (theme.py). The tab is in the
+# address as #slug, so a link can open a page on a given tab and the back
+# button is not hijacked (replaceState, not pushState).
+PAGE_TABS = """
+  <div id="tabtop"></div>
+  <nav class="pagenav tabs" id="pagenav" aria-label="Sections of this page" hidden></nav>
   <script>
-  (function () {
+  // Run once the page has loaded: the sections come after this script, so
+  // run inline it finds none. The table of contents this replaced ran inline
+  // and so never appeared at all.
+  document.addEventListener('DOMContentLoaded', function () {
     var nav = document.getElementById('pagenav');
-    if (!nav) return;
-    var heads = [].slice.call(document.querySelectorAll('section .sec-head h2'));
-    if (heads.length < 4) return;
-    var links = [];
-    heads.forEach(function (h, i) {
-      var sec = h.closest('section');
-      if (!sec.id) sec.id = 'sec' + i;
-      var a = document.createElement('a');
-      a.href = '#' + sec.id;
-      a.textContent = h.textContent.trim();
-      nav.appendChild(a);
-      links.push({a: a, sec: sec});
+    var secs = [].slice.call(document.querySelectorAll('section[data-tab]'));
+    var names = [];
+    secs.forEach(function (s) {
+      if (names.indexOf(s.dataset.tab) < 0) names.push(s.dataset.tab);
     });
-    function mark() {
-      var best = 0, top = nav.getBoundingClientRect().bottom + 8;
-      links.forEach(function (l, i) {
-        if (l.sec.getBoundingClientRect().top <= top) best = i;
+    if (names.length < 2) return;
+    function slug(n) { return n.toLowerCase().replace(/[^a-z0-9]+/g, '-'); }
+    var links = names.map(function (n) {
+      var a = document.createElement('a');
+      a.href = '#' + slug(n);
+      a.textContent = n;
+      a.addEventListener('click', function (e) {
+        e.preventDefault();
+        show(n);
+        try { history.replaceState(null, '', '#' + slug(n)); } catch (x) {}
+        var top = document.getElementById('tabtop').getBoundingClientRect().top;
+        if (top < 0) scrollBy(0, top);
       });
-      links.forEach(function (l, i) { l.a.className = i === best ? 'on' : ''; });
+      nav.appendChild(a);
+      return a;
+    });
+    function show(n) {
+      secs.forEach(function (s) { s.hidden = s.dataset.tab !== n; });
+      links.forEach(function (a, i) {
+        var on = names[i] === n;
+        a.className = on ? 'on' : '';
+        if (on) {
+          a.setAttribute('aria-current', 'page');
+          nav.scrollLeft = a.offsetLeft - 16;
+        }
+        else a.removeAttribute('aria-current');
+      });
     }
-    addEventListener('scroll', mark, {passive: true});
+    function fromHash() {
+      var h = location.hash.slice(1);
+      for (var i = 0; i < names.length; i++) if (slug(names[i]) === h) return names[i];
+      return names[0];
+    }
+    addEventListener('hashchange', function () { show(fromHash()); });
+    // Stick just under the site header, whatever height it wraps to.
+    var hd = document.querySelector('nav.top');
+    function stick() { if (hd) nav.style.top = hd.offsetHeight + 'px'; }
+    addEventListener('resize', stick);
     nav.hidden = false;
-    mark();
-  })();
+    stick();
+    show(fromHash());
+  });
   </script>"""
+
+
+def _tab(name: str, html: str) -> str:
+    """Put every section in `html` under the tab called `name`."""
+    return re.sub(r"<section(?=[\s>])", f'<section data-tab="{name}"', html or "")
 
 
 # ---------------------------------------------------------------- upload
@@ -1649,6 +1679,19 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   {match_nav}
 
   <section>
+    <div class="stat-row">
+      <div class="stat"><span class="stat-n">{r["n_rounds"]}</span>
+        <span class="label">rounds</span></div>
+      {tiles_by_side}
+      <div class="stat"><span class="stat-n">{r["plants"]}</span>
+        <span class="label">bombs planted</span>
+        <span class="den">of {r["n_rounds"]} rounds</span></div>
+    </div>
+  </section>
+
+  {PAGE_TABS}
+
+  <section data-tab="Rounds">
     <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
     <p class="lede">One bar per round: above the line you won it, below you
       lost it. Height is what you spent, and the tick is what they spent.
@@ -1664,24 +1707,14 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     </details>
   </section>
 
-  {notes_block}
+  {_tab("Rounds", notes_block)}
 
-  <section>
-    <div class="stat-row">
-      <div class="stat"><span class="stat-n">{r["n_rounds"]}</span>
-        <span class="label">rounds</span></div>
-      {tiles_by_side}
-      <div class="stat"><span class="stat-n">{r["plants"]}</span>
-        <span class="label">bombs planted</span>
-        <span class="den">of {r["n_rounds"]} rounds</span></div>
-    </div>
-  </section>
 
-  {scoreboard_section}
+  {_tab("Scoreboard", scoreboard_section)}
 
-  {open_block}
+  {_tab("Positions", open_block)}
 
-  <section>
+  <section data-tab="Buys">
     <div class="sec-head"><span class="label">By what they could afford</span>
       <h2>Buys</h2></div>
     {calls_block}
@@ -1695,7 +1728,7 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
       <tbody>{"".join(br)}</tbody></table></div>
   </section>
 
-  {where_block}
+  {_tab("Positions", where_block)}
 
   <section>
     <p class="note">One match is small, so this page shows counts, with your
@@ -3141,8 +3174,16 @@ def _stats_body(team, user=None, share: str = ""):
                    f'<div class="stat"><span class="stat-n">{st["rounds"]}</span>'
                    f'<span class="label">rounds</span></div>')
 
+    patterns_section = f"""
+  <section>
+    <div class="sec-head"><span class="label">What repeats across your matches</span>
+      <h2>Recurring patterns</h2></div>
+    <p class="lede">Counted, never predicted. A line needs
+      {report_mod.MIN_PATTERN_CHANCES} chances to appear.</p>
+    {patterns_block}
+  </section>"""
+
     body = f"""
-  {PAGE_NAV}
   <section>
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{st["matches"]}</span>
@@ -3155,25 +3196,17 @@ def _stats_body(team, user=None, share: str = ""):
     </div>
   </section>
 
-  {monday_block}
+  {PAGE_TABS}
 
-  {decided_block}
+  {_tab("Overview", monday_block + form_block)}
 
-  {form_block}
+  {_tab("Positions", decided_block + positional_block)}
 
-  <section>
-    <div class="sec-head"><span class="label">What repeats across your matches</span>
-      <h2>Recurring patterns</h2></div>
-    <p class="lede">Counted, never predicted. A line needs
-      {report_mod.MIN_PATTERN_CHANCES} chances to appear.</p>
-    {patterns_block}
-  </section>
+  {_tab("Map pool", pool_block)}
 
-  {utility_block}
+  {_tab("Patterns", patterns_section)}
 
-  {positional_block}
-
-  {pool_block}
+  {_tab("Utility", utility_block)}
 
   {roster_note}"""
     body = shared_note + body

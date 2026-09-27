@@ -35,3 +35,10 @@ def test_every_css_token_used_is_defined():
     used = set(re.findall(r"var\(--([\w-]+)", src))
     defined = set(re.findall(r"--([\w-]+)\s*:", src))
     assert not used - defined, sorted(used - defined)
+
+
+def test_hidden_attribute_always_hides():
+    """Sections are display:flex, which beats the browser's own [hidden]
+    rule, so the tabs on /stats and the match report hid nothing."""
+    from app import theme
+    assert "[hidden]{display:none !important}" in theme.CSS
