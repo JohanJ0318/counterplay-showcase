@@ -1,0 +1,569 @@
+{
+ "_how": "tools/neutral_ground.py: pre-plant T share of one-side time, neutral within 0.3-0.7, bombsites never",
+ "maps": {
+  "de_ancient": {
+   "Alley": {
+    "t_share": 0.039,
+    "seconds": 8381,
+    "neutral": false
+   },
+   "Connector": {
+    "t_share": 0.057,
+    "seconds": 7168,
+    "neutral": false
+   },
+   "CT lane": {
+    "t_share": 0.065,
+    "seconds": 4050,
+    "neutral": false
+   },
+   "B Long": {
+    "t_share": 0.067,
+    "seconds": 7747,
+    "neutral": false
+   },
+   "Big Box": {
+    "t_share": 0.095,
+    "seconds": 5841,
+    "neutral": false
+   },
+   "Red room": {
+    "t_share": 0.156,
+    "seconds": 6809,
+    "neutral": false
+   },
+   "Donut": {
+    "t_share": 0.179,
+    "seconds": 6756,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.195,
+    "seconds": 11627,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.256,
+    "seconds": 4123,
+    "neutral": false
+   },
+   "Mid": {
+    "t_share": 0.436,
+    "seconds": 9953,
+    "neutral": true
+   },
+   "A main": {
+    "t_share": 0.519,
+    "seconds": 5593,
+    "neutral": true
+   },
+   "Cave": {
+    "t_share": 0.544,
+    "seconds": 10643,
+    "neutral": true
+   },
+   "A stairs": {
+    "t_share": 0.782,
+    "seconds": 4336,
+    "neutral": false
+   },
+   "B main": {
+    "t_share": 0.9,
+    "seconds": 12498,
+    "neutral": false
+   },
+   "Elbow": {
+    "t_share": 0.954,
+    "seconds": 9521,
+    "neutral": false
+   },
+   "Tunnel": {
+    "t_share": 0.961,
+    "seconds": 2928,
+    "neutral": false
+   }
+  },
+  "de_anubis": {
+   "Street": {
+    "t_share": 0.011,
+    "seconds": 1590,
+    "neutral": false
+   },
+   "Palace": {
+    "t_share": 0.013,
+    "seconds": 1586,
+    "neutral": false
+   },
+   "A heaven": {
+    "t_share": 0.053,
+    "seconds": 1640,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.083,
+    "seconds": 5585,
+    "neutral": false
+   },
+   "A approach": {
+    "t_share": 0.106,
+    "seconds": 2962,
+    "neutral": false
+   },
+   "CT mid": {
+    "t_share": 0.111,
+    "seconds": 4206,
+    "neutral": false
+   },
+   "E box": {
+    "t_share": 0.129,
+    "seconds": 5192,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.132,
+    "seconds": 4214,
+    "neutral": false
+   },
+   "Mid": {
+    "t_share": 0.328,
+    "seconds": 4443,
+    "neutral": true
+   },
+   "A main": {
+    "t_share": 0.353,
+    "seconds": 2422,
+    "neutral": true
+   },
+   "Water": {
+    "t_share": 0.765,
+    "seconds": 5516,
+    "neutral": false
+   },
+   "B main": {
+    "t_share": 0.868,
+    "seconds": 5747,
+    "neutral": false
+   },
+   "T mid": {
+    "t_share": 0.936,
+    "seconds": 2992,
+    "neutral": false
+   },
+   "Alley": {
+    "t_share": 0.962,
+    "seconds": 3118,
+    "neutral": false
+   },
+   "Carpet": {
+    "t_share": 0.965,
+    "seconds": 1968,
+    "neutral": false
+   }
+  },
+  "de_cache": {
+   "Truck": {
+    "t_share": 0.019,
+    "seconds": 1930,
+    "neutral": false
+   },
+   "B Heaven": {
+    "t_share": 0.037,
+    "seconds": 3196,
+    "neutral": false
+   },
+   "Electro": {
+    "t_share": 0.091,
+    "seconds": 3490,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.116,
+    "seconds": 2638,
+    "neutral": false
+   },
+   "White box": {
+    "t_share": 0.196,
+    "seconds": 3518,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.198,
+    "seconds": 3018,
+    "neutral": false
+   },
+   "Vents": {
+    "t_share": 0.335,
+    "seconds": 1723,
+    "neutral": true
+   },
+   "Mid": {
+    "t_share": 0.443,
+    "seconds": 4044,
+    "neutral": true
+   },
+   "Forklift": {
+    "t_share": 0.506,
+    "seconds": 3030,
+    "neutral": true
+   },
+   "B main": {
+    "t_share": 0.559,
+    "seconds": 4020,
+    "neutral": true
+   },
+   "A Main": {
+    "t_share": 0.613,
+    "seconds": 695,
+    "neutral": true
+   },
+   "Squeaky": {
+    "t_share": 0.701,
+    "seconds": 2038,
+    "neutral": false
+   },
+   "Boost": {
+    "t_share": 0.821,
+    "seconds": 3153,
+    "neutral": false
+   },
+   "Outside A": {
+    "t_share": 0.948,
+    "seconds": 3795,
+    "neutral": false
+   },
+   "A Long": {
+    "t_share": 0.95,
+    "seconds": 1473,
+    "neutral": false
+   }
+  },
+  "de_dust2": {
+   "B site": {
+    "t_share": 0.061,
+    "seconds": 18362,
+    "neutral": false
+   },
+   "B doors": {
+    "t_share": 0.069,
+    "seconds": 11345,
+    "neutral": false
+   },
+   "Mid Doors": {
+    "t_share": 0.076,
+    "seconds": 21214,
+    "neutral": false
+   },
+   "Cross": {
+    "t_share": 0.128,
+    "seconds": 18757,
+    "neutral": false
+   },
+   "B boost": {
+    "t_share": 0.131,
+    "seconds": 16246,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.209,
+    "seconds": 12341,
+    "neutral": false
+   },
+   "A long": {
+    "t_share": 0.227,
+    "seconds": 15068,
+    "neutral": false
+   },
+   "A short": {
+    "t_share": 0.236,
+    "seconds": 15027,
+    "neutral": false
+   },
+   "Pit": {
+    "t_share": 0.343,
+    "seconds": 6774,
+    "neutral": true
+   },
+   "Cat": {
+    "t_share": 0.474,
+    "seconds": 16769,
+    "neutral": true
+   },
+   "Long doors": {
+    "t_share": 0.545,
+    "seconds": 13495,
+    "neutral": true
+   },
+   "X box": {
+    "t_share": 0.673,
+    "seconds": 16992,
+    "neutral": true
+   },
+   "Lower tuns": {
+    "t_share": 0.83,
+    "seconds": 7996,
+    "neutral": false
+   },
+   "Top mid": {
+    "t_share": 0.845,
+    "seconds": 12966,
+    "neutral": false
+   },
+   "Upper tuns": {
+    "t_share": 0.899,
+    "seconds": 14545,
+    "neutral": false
+   },
+   "Outside Long": {
+    "t_share": 0.916,
+    "seconds": 15619,
+    "neutral": false
+   },
+   "T plat": {
+    "t_share": 0.954,
+    "seconds": 4650,
+    "neutral": false
+   },
+   "Suicide": {
+    "t_share": 0.969,
+    "seconds": 11055,
+    "neutral": false
+   },
+   "Outside Tuns": {
+    "t_share": 0.97,
+    "seconds": 5082,
+    "neutral": false
+   }
+  },
+  "de_inferno": {
+   "CT": {
+    "t_share": 0.023,
+    "seconds": 6352,
+    "neutral": false
+   },
+   "Church": {
+    "t_share": 0.047,
+    "seconds": 4269,
+    "neutral": false
+   },
+   "Library": {
+    "t_share": 0.053,
+    "seconds": 8168,
+    "neutral": false
+   },
+   "Pit": {
+    "t_share": 0.086,
+    "seconds": 5978,
+    "neutral": false
+   },
+   "CT boost": {
+    "t_share": 0.096,
+    "seconds": 11826,
+    "neutral": false
+   },
+   "Arches": {
+    "t_share": 0.097,
+    "seconds": 10428,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.116,
+    "seconds": 11851,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.175,
+    "seconds": 7435,
+    "neutral": false
+   },
+   "Balcony": {
+    "t_share": 0.234,
+    "seconds": 6931,
+    "neutral": false
+   },
+   "Car": {
+    "t_share": 0.386,
+    "seconds": 13404,
+    "neutral": true
+   },
+   "Top mid": {
+    "t_share": 0.46,
+    "seconds": 11040,
+    "neutral": true
+   },
+   "Apps": {
+    "t_share": 0.7,
+    "seconds": 6273,
+    "neutral": true
+   },
+   "Banana": {
+    "t_share": 0.83,
+    "seconds": 9291,
+    "neutral": false
+   },
+   "Mid": {
+    "t_share": 0.877,
+    "seconds": 6488,
+    "neutral": false
+   },
+   "T ramp": {
+    "t_share": 0.942,
+    "seconds": 14919,
+    "neutral": false
+   },
+   "2nd mid": {
+    "t_share": 0.947,
+    "seconds": 9702,
+    "neutral": false
+   }
+  },
+  "de_mirage": {
+   "Ticket": {
+    "t_share": 0.031,
+    "seconds": 11315,
+    "neutral": false
+   },
+   "B window": {
+    "t_share": 0.052,
+    "seconds": 8729,
+    "neutral": false
+   },
+   "Mid Window": {
+    "t_share": 0.054,
+    "seconds": 16345,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.097,
+    "seconds": 13869,
+    "neutral": false
+   },
+   "Stairs": {
+    "t_share": 0.14,
+    "seconds": 14072,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.177,
+    "seconds": 10992,
+    "neutral": false
+   },
+   "Apps": {
+    "t_share": 0.235,
+    "seconds": 13228,
+    "neutral": false
+   },
+   "Cat": {
+    "t_share": 0.289,
+    "seconds": 8672,
+    "neutral": false
+   },
+   "Con": {
+    "t_share": 0.481,
+    "seconds": 10186,
+    "neutral": true
+   },
+   "A main": {
+    "t_share": 0.695,
+    "seconds": 16054,
+    "neutral": true
+   },
+   "Palace": {
+    "t_share": 0.725,
+    "seconds": 10665,
+    "neutral": false
+   },
+   "Underpass": {
+    "t_share": 0.827,
+    "seconds": 5233,
+    "neutral": false
+   },
+   "Top mid": {
+    "t_share": 0.895,
+    "seconds": 11565,
+    "neutral": false
+   },
+   "Back Alley": {
+    "t_share": 0.9,
+    "seconds": 9267,
+    "neutral": false
+   },
+   "Side Alley": {
+    "t_share": 0.93,
+    "seconds": 8581,
+    "neutral": false
+   }
+  },
+  "de_nuke": {
+   "A Heaven": {
+    "t_share": 0.068,
+    "seconds": 10327,
+    "neutral": false
+   },
+   "Ramp": {
+    "t_share": 0.135,
+    "seconds": 15681,
+    "neutral": false
+   },
+   "Mini": {
+    "t_share": 0.137,
+    "seconds": 14558,
+    "neutral": false
+   },
+   "Double door": {
+    "t_share": 0.276,
+    "seconds": 2279,
+    "neutral": false
+   },
+   "Single Door": {
+    "t_share": 0.276,
+    "seconds": 1631,
+    "neutral": false
+   },
+   "Garage": {
+    "t_share": 0.337,
+    "seconds": 8058,
+    "neutral": true
+   },
+   "Vent": {
+    "t_share": 0.343,
+    "seconds": 4191,
+    "neutral": true
+   },
+   "Control room": {
+    "t_share": 0.344,
+    "seconds": 1660,
+    "neutral": true
+   },
+   "B site": {
+    "t_share": 0.425,
+    "seconds": 2294,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.474,
+    "seconds": 10469,
+    "neutral": false
+   },
+   "Secret": {
+    "t_share": 0.514,
+    "seconds": 3905,
+    "neutral": true
+   },
+   "Lobby": {
+    "t_share": 0.895,
+    "seconds": 12798,
+    "neutral": false
+   },
+   "Outside": {
+    "t_share": 0.914,
+    "seconds": 9549,
+    "neutral": false
+   },
+   "Hut": {
+    "t_share": 0.969,
+    "seconds": 4937,
+    "neutral": false
+   }
+  }
+ }
+}
