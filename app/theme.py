@@ -61,6 +61,12 @@ CSS = """
   --r:8px;
   --shadow:0 1px 2px rgba(25,19,37,.05);
   --radar-dim:none;
+  /* Frosted glass, for what floats over the page: the zone box, the
+     sticky bars, the menu, the info tips. See-through, but blurred
+     behind so the text on it stays readable over a map. */
+  --glass:rgba(255,255,255,.74);
+  --glass-blur:blur(12px) saturate(1.4);
+  --glass-shadow:0 8px 24px rgba(25,19,37,.14);
 }
 
 /* ---- dark ----
@@ -107,6 +113,8 @@ CSS = """
   /* Valve's radar images are bright PNGs and cannot be recoloured, so they
      are dimmed instead of left glowing on a dark page. */
   --radar-dim:brightness(.72) contrast(1.05);
+  --glass:rgba(28,24,35,.72);
+  --glass-shadow:0 8px 24px rgba(0,0,0,.45);
 }
 @media(prefers-color-scheme:dark){
   :root:not([data-theme="light"]){
@@ -119,6 +127,7 @@ CSS = """
     --good:#4ADE80; --bad:#F87171; --bad-soft:#341D1F;
     --shadow:0 1px 2px rgba(0,0,0,.45);
     --radar-dim:brightness(.72) contrast(1.05);
+    --glass:rgba(28,24,35,.72); --glass-shadow:0 8px 24px rgba(0,0,0,.45);
   }
 }
 html{color-scheme:light dark}
@@ -181,7 +190,8 @@ a:hover{color:var(--purple-deep);text-decoration:underline}
    Below 720px the links go behind a menu instead of wrapping. It is a
    <details> element: a real disclosure with no JavaScript, keyboard
    accessible for free, and on desktop the summary is simply not displayed. */
-nav.top{background:var(--surface);border-bottom:1px solid var(--border);
+nav.top{background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);border-bottom:1px solid var(--border);
   position:sticky;top:0;z-index:50}
 .nav-in{max-width:1160px;margin:0 auto;padding:0 24px;height:56px;
   display:flex;gap:16px;align-items:center}
@@ -252,8 +262,10 @@ nav.top{background:var(--surface);border-bottom:1px solid var(--border);
   .nav-menu .nav-links{display:none}
   .navchk:checked~.nav-links{display:flex;flex-direction:column;
     align-items:stretch;position:absolute;right:0;top:calc(100% + 8px);
-    min-width:190px;background:var(--surface);border:1px solid var(--border);
-    border-radius:var(--r);box-shadow:0 10px 26px rgba(25,19,37,.16);
+    min-width:190px;background:var(--glass);
+    -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+    border:1px solid var(--border);
+    border-radius:var(--r);box-shadow:var(--glass-shadow);
     padding:6px;z-index:60}
   .nav-side{padding-left:10px}
   .nav-side a.who{max-width:6.5rem}
@@ -366,15 +378,17 @@ table.dense th:last-child,table.dense td:last-child{padding-right:16px}
    exactly where you hover after scrolling to a section. */
 .info .tip{position:absolute;left:0;top:calc(100% + 9px);
   width:max-content;max-width:min(320px,74vw);
-  background:var(--ink);color:#fff;
+  background:var(--glass);color:var(--ink);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
+  border:1px solid var(--border);
   font-size:.78rem;font-weight:400;font-style:normal;line-height:1.5;
   letter-spacing:0;text-align:left;text-transform:none;
   padding:9px 11px;border-radius:var(--r);
-  box-shadow:0 8px 22px rgba(25,19,37,.28);
+  box-shadow:var(--glass-shadow);
   opacity:0;visibility:hidden;transition:opacity .12s ease;
   pointer-events:none;z-index:50}
 .info .tip::after{content:"";position:absolute;bottom:100%;left:5px;
-  border:5px solid transparent;border-bottom-color:var(--ink)}
+  border:5px solid transparent;border-bottom-color:var(--border)}
 .info:hover .tip,.info:focus .tip{opacity:1;visibility:visible}
 /* Near the right edge the balloon would run off the page, so rows can flip it. */
 .info.left .tip{left:auto;right:0}
@@ -547,12 +561,12 @@ details.drop>.tbl-plain{margin-top:10px}
 /* Win and loss, as a coach scans a season: the letter carries it, the colour
    only reinforces it, so it still reads without colour vision. */
 .pager{display:flex;align-items:center;justify-content:space-between;gap:12px;
-  padding:12px 0;border-bottom:1px solid var(--line);font-size:.9rem;
+  padding:12px 0;border-bottom:1px solid var(--border);font-size:.9rem;
   flex-wrap:wrap}
 .pager span{min-width:0}
 .formrow{display:flex;gap:10px;flex-wrap:wrap}
 .formcard{display:flex;align-items:center;gap:8px;padding:10px 14px;
-  background:var(--card);border:1px solid var(--line);border-radius:var(--r);
+  background:var(--surface);border:1px solid var(--border);border-radius:var(--r);
   text-decoration:none;color:var(--ink)}
 .formcard:hover{border-color:var(--purple-line);text-decoration:none}
 /* A recommendation is the one card that should read as an instruction, so it
@@ -702,7 +716,8 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
 /* The long page's own table of contents. Sticky, because a list that
    scrolls away is a list you have to scroll back for. */
 .pagenav{position:sticky;top:0;z-index:5;display:flex;gap:4px;flex-wrap:wrap;
-  padding:10px 0;margin-bottom:4px;background:var(--bg);
+  padding:10px 0;margin-bottom:4px;background:var(--glass);
+  -webkit-backdrop-filter:var(--glass-blur);backdrop-filter:var(--glass-blur);
   border-bottom:1px solid var(--border)}
 .pagenav a{font-size:.83rem;font-weight:500;color:var(--muted);
   padding:6px 10px;border-radius:var(--r);white-space:nowrap;
@@ -738,17 +753,18 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
 .zfill.hot.even{fill:var(--muted);opacity:.4}
 .zonefig.reading{position:relative}
 /* The box a hovered or tapped place opens beside the pointer. */
-.ztip{position:absolute;z-index:5;max-width:240px;padding:8px 10px;
-  background:var(--card);border:1px solid var(--border);
-  border-radius:var(--r);box-shadow:var(--shadow);font-size:.82rem;
-  line-height:1.4;color:var(--muted);pointer-events:none}
+.ztip{position:absolute;z-index:5;max-width:240px;padding:9px 11px;
+  background:var(--glass);-webkit-backdrop-filter:var(--glass-blur);
+  backdrop-filter:var(--glass-blur);border:1px solid var(--border);
+  border-radius:var(--r);box-shadow:var(--glass-shadow);font-size:.82rem;
+  line-height:1.45;color:var(--ink);pointer-events:none}
 .ztip strong{color:var(--ink)}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:460px}
 .zonefig svg{display:block;height:250px;width:auto;max-width:100%;
   border:1px solid var(--border);
-  border-radius:var(--r);background:var(--card)}
+  border-radius:var(--r);background:var(--surface)}
 .zonefig figcaption{margin-top:6px}
 /* One map per row on a phone, at the full width, rather than four small
    ones sharing it. */
@@ -769,7 +785,7 @@ details.howto code{font-family:var(--f-mono);font-size:.82em;
   border-radius:4px;padding:1px 5px;white-space:nowrap}
 .res{display:inline-block;min-width:1.15rem;text-align:center;font-weight:700;
   font-size:.72rem;letter-spacing:.04em;padding:2px 6px;border-radius:5px;
-  border:1px solid var(--line);color:var(--muted);margin-right:5px}
+  border:1px solid var(--border);color:var(--muted);margin-right:5px}
 .res.win{background:var(--purple-soft);color:var(--purple);
   border-color:var(--purple-line)}
 .res.loss{background:var(--t-soft);color:var(--t);border-color:#F0DCBC}
@@ -875,7 +891,7 @@ footer{margin-top:52px;padding-top:20px;border-top:1px solid var(--border);
     --purple-soft:#F2EEFA; --purple-line:#C9BCE8; --on-purple:#FFFFFF;
     --ct:#3F1178; --ct-soft:#F2EEFA; --t:#7A4208; --t-soft:#FBF3E6;
     --good:#04543C; --bad:#8B1616; --bad-soft:#FBF0F0;
-    --shadow:none;
+    --shadow:none; --glass:#FFFFFF; --glass-shadow:none;
   }
   @page{margin:14mm}
   html{color-scheme:light}

@@ -24,3 +24,14 @@ def test_dropdown_arrows_survive_python():
 def test_every_css_content_escape_is_intact():
     for value in re.findall(r'content:"([^"]*)"', theme.CSS):
         assert not re.search(r"[\x00-\x1f]", value), value
+
+
+def test_every_css_token_used_is_defined():
+    """An undefined var() is silently empty: --card left the zone box
+    see-through and --line left borders undrawn, with no error anywhere."""
+    import glob
+    import re
+    src = "".join(open(f, encoding="utf-8").read() for f in glob.glob("app/*.py"))
+    used = set(re.findall(r"var\(--([\w-]+)", src))
+    defined = set(re.findall(r"--([\w-]+)\s*:", src))
+    assert not used - defined, sorted(used - defined)
