@@ -18,7 +18,7 @@
 <meta property="og:site_name" content="Counterplay">
 <meta property="og:url" content="https://counterplaycs.com/">
 <meta property="og:title" content="Your matches, actually read.">
-<meta property="og:description" content="Upload your team's demos and get back player stats, team stats, a report per match, and the patterns you repeat without noticing. Every number is printed with the rounds it came from.">
+<meta property="og:description" content="Upload your team's demos and get back player stats, team stats, a report per match, and the patterns you repeat without noticing. Every number carries the rounds it came from.">
 <meta property="og:image" content="https://counterplaycs.com/media/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -33,7 +33,7 @@
  "applicationCategory":"SportsApplication",
  "applicationSubCategory":"Esports match analysis",
  "operatingSystem":"Any, in a web browser",
- "description":"Counterplay reads a team's Counter-Strike 2 match demos and returns player stats, team stats, a report per match and the patterns the team repeats, every number printed with the rounds it came from.",
+ "description":"Counterplay reads a team's Counter-Strike 2 match demos and returns player stats, team stats, a report per match and the patterns the team repeats, every number carrying the rounds it came from.",
  "image":"https://counterplaycs.com/media/og.png",
  "offers":{"@type":"Offer","price":"0","priceCurrency":"USD",
            "description":"Free for the collegiate season"},
@@ -654,7 +654,7 @@ footer a{color:var(--muted)}
     <h1>Your matches, actually read.</h1>
     <p class="sub">Upload your match demos. Get player stats, team stats, a report for
       every match, and the habits your team repeats without noticing. Measured against
-      your own rounds, never against pros.</p>
+      your own rounds and other college teams, never against pros.</p>
     <div class="hero-cta">
       <a class="btn" href="/signup">Add your team, free this season</a>
       <a class="btn btn-ghost" href="sample-report">See a real report</a>
@@ -665,23 +665,23 @@ footer a{color:var(--muted)}
     <div class="receipt-body">
     <div class="receipt-top">
       <span class="label">Real lines, real matches</span>
-      <span class="label">observed / chances</span>
+      <span class="label">hover for the rounds</span>
     </div>
     <div class="rline fade" style="animation-delay:.05s">
       <span class="what">Flashes that got somebody killed<span class="rbar" style="--f:10%"></span></span>
-      <span class="fig"><span class="pct">10%</span><span class="den">38 / 374</span></span>
+      <span class="fig" title="38 of 374"><span class="pct">10%</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.13s">
       <span class="what">Rounds won after winning the opening duel<span class="rbar" style="--f:65%"></span></span>
-      <span class="fig"><span class="pct">65%</span><span class="den">84 / 130</span></span>
+      <span class="fig" title="84 of 130"><span class="pct">65%</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.21s">
       <span class="what">Rounds won after losing the opening duel<span class="rbar" style="--f:32%"></span></span>
-      <span class="fig"><span class="pct">32%</span><span class="den">39 / 120</span></span>
+      <span class="fig" title="39 of 120"><span class="pct">32%</span></span>
     </div>
     <div class="rline fade" style="animation-delay:.29s">
       <span class="what">Your first death is in A main, T-side Mirage<span class="rbar" style="--f:29%"></span></span>
-      <span class="fig"><span class="pct">29%</span><span class="den">10 / 34</span></span>
+      <span class="fig" title="10 of 34"><span class="pct">29%</span></span>
     </div>
     <div class="receipt-foot">From one team's real season.</div>
     </div>
@@ -700,8 +700,8 @@ footer a{color:var(--muted)}
   <div class="scrim" aria-hidden="true"></div>
   <div class="wrap film-copy">
     <h2>The rounds you played, not the ones you remember.</h2>
-    <p class="under">Your own demos, read round by round, with every number
-      printed beside the rounds it came from.</p>
+    <p class="under">Your own demos, read round by round, and every number
+      carries the rounds it came from.</p>
   </div>
 </section>
 
@@ -751,7 +751,8 @@ footer a{color:var(--muted)}
     <div class="notyet" style="margin-top:26px">
       <span class="label">On purpose</span>
       <p>There is no ranking of you against professional teams here, and there will not
-        be. Every number on this site is your rounds measured against your rounds.</p>
+        be. Every number on this site is measured against college rounds: your own, or,
+        for a buy call, other college teams in the same spot.</p>
     </div>
   </section>
 
@@ -768,8 +769,9 @@ footer a{color:var(--muted)}
         <span class="label">No predictions</span>
         <div class="rule-body">
           <h3>Counted, not modelled</h3>
-          <p>Tendencies come from parsing demos and counting what happened. There is no
-            estimate anywhere in the scouting section, so there is nothing to be wrong about.</p>
+          <p>Your stats and patterns are counts of what happened. The one modelled part
+            is the buy call, and beside it the page shows how real college teams did in
+            that spot.</p>
         </div>
       </div>
       <div class="rule">
@@ -783,8 +785,8 @@ footer a{color:var(--muted)}
       <div class="rule">
         <span class="label">Auditable</span>
         <div class="rule-body">
-          <h3>Round numbers printed</h3>
-          <p>Every claim lists the rounds it came from. Open the demo, watch round 14, and
+          <h3>Round numbers listed</h3>
+          <p>Every match report lists its rounds. Open the demo, watch round 14, and
             check us. If a line is wrong you can see that it is wrong.</p>
         </div>
       </div>
@@ -807,9 +809,9 @@ footer a{color:var(--muted)}
           Demos expire, so save the ones worth keeping now: FACEIT and Valve both
           delete match demos after a few weeks.</p></div></li>
       <li><span class="n">03</span><div class="body">
-        <h3>You get a link, and it stays current</h3>
-        <p>Stats, patterns and a report per match, updating as you add matches. Send the link
-          to your roster; no accounts for them to make, nothing for anyone to install.</p></div></li>
+        <h3>Your season, and a link for your roster</h3>
+        <p>Stats, patterns and a report per match, updating as you add matches. Make a share
+          link for your roster; no accounts for them to make, nothing for anyone to install.</p></div></li>
     </ol>
     <p style="margin-top:22px"><a class="btn btn-ghost" href="sample-report">See a full report &rarr;</a></p>
   </section>

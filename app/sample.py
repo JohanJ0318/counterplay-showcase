@@ -32,7 +32,7 @@ from .movement import COMMIT_TO, SETUP_AT
 from .report import (MIN_CHANCES, MIN_PATTERN_CHANCES, PATTERNS, buy_pattern,
                      pct)
 from .theme import banner, esc, map_chip, page
-from .utility import FLASH_ROUND_PATTERN, MIN_BLIND_SECONDS
+from .utility import FLASH_ROUND_PATTERN, KILL_GRACE_SECONDS, MIN_BLIND_SECONDS
 
 # The fictional team. Named so nobody mistakes it for a real program.
 TEAM = "Northlake University"
@@ -123,8 +123,8 @@ UTILITY = [
      "Counted per flash, not per player blinded. A blind counts if it lasts "
      f"{MIN_BLIND_SECONDS} seconds or more."),
     ("9%", "of your flashes get somebody killed", "13 of 144 thrown",
-     "An opponent it blinded died to one of you before the flash wore off. "
-     "14 opponents in all."),
+     "An opponent it blinded died to one of you before the flash wore off, "
+     f"or within {KILL_GRACE_SECONDS:.0f} second after. 14 opponents in all."),
     ("26%", "of your molotovs deny space", "34 of 131 thrown",
      "An opponent had to stand in it, walk out of it or go round it. 97 "
      "burned with nobody near them."),
@@ -163,18 +163,15 @@ POSITIONS = {
 # Setup and commit, already merged the way /stats merges them: one row per
 # place, the commit reading folded into the sub-line as "also as far as the
 # group got". `other` and `other_won` are the same map and side in the rounds
-# it did not happen, and two rows deliberately fall under MIN_CHANCES there so
-# the column is seen declining to print a rate.
+# it did not happen. Five rows, as /stats shows (POS_TOP_N): a place with
+# fewer than MIN_CHANCES other rounds sorts last there, so it never makes the
+# five and none appears here.
 #
 # (side, map, zone, rounds it happened in, rounds of that map and side,
 #  rounds won of those, other, other won, sub-line)
 EARLY = [
-    ("t", "de_inferno", "T ramp", 19, 25, 11, 6, 2,
-     "2.9 players on average &middot; also as far as the group got in 11 of 25"),
     ("t", "de_mirage", "A main", 17, 31, 7, 14, 8,
      "3.7 players on average &middot; also as far as the group got in 14 of 31"),
-    ("ct", "de_nuke", "Ramp", 12, 18, 9, 6, 2,
-     "2.1 players on average &middot; also as far as the group got in 9 of 18"),
     ("ct", "de_mirage", "A default", 8, 32, 7, 24, 13,
      "2.4 players on average"),
     ("t", "de_nuke", "Trophy", 7, 16, 3, 9, 5,
@@ -184,7 +181,7 @@ EARLY = [
     ("t", "de_mirage", "top mid", 5, 31, 1, 26, 11,
      "the furthest the group got together"),
 ]
-EARLY_HIDDEN = 6
+EARLY_HIDDEN = 8
 
 POS_SECTIONS = (
     ("death", "Where your first death happens",
@@ -205,14 +202,16 @@ MAP_POOL = [
 PLACE_OF = {"Keep the A default setup": "A default",
             "Change how you take top mid": "top mid"}
 
-# (name, role, opening duels won, of, rounds with an AWP, of)
+# (name, role, opening duels won, of, ADR). Roles are the ones
+# report.role_of() can observe: AWP, Entry, Support, Rifle. No "IGL": calling
+# is not in a demo.
 # No "where they stood at freeze-end" table: the product does not show one,
 # and a preview must not promise what the real report lacks.
 PLAYERS = [
-    ("Player A", "IGL", 21, 62, 2, 148),
-    ("Player B", "AWP", 34, 61, 96, 148),
-    ("Player C", "Entry", 29, 66, 1, 148),
-    ("Player D", "Rifle", 4, 12, 0, 148),
+    ("Player A", "Support", 21, 62, 71),
+    ("Player B", "AWP", 34, 61, 84),
+    ("Player C", "Entry", 29, 66, 91),
+    ("Player D", "Rifle", 4, 12, 58),
 ]
 ROLE_CLASS = {"AWP": "role awp", "Entry": "role entry"}
 
@@ -227,8 +226,9 @@ NOT_CLAIMED = [
      "Hover a figure for the rounds behind it. A rate off four rounds is noise "
      "wearing a percent sign, and you can see when it is one."),
     ("Every figure is auditable.",
-     "The rounds behind a claim are printed so you can open the demo and check "
-     "it yourself. If a line is wrong, it is wrong in a way you can see."),
+     "Hover a figure for its count. Every match report lists its rounds, so you "
+     "can open the demo and check it yourself. If a line is wrong, it is wrong "
+     "in a way you can see."),
 ]
 
 
@@ -395,13 +395,12 @@ def render(user=None, pictures=None) -> str:
         f'<h3>{esc(name)}</h3>'
         f'<span class="{ROLE_CLASS.get(role, "role")}">{esc(role)}</span></div>'
         f'<div class="stat-row">'
-        f'<div class="stat"><span class="stat-n">{pct(ow, od):.0f}%</span>'
-        f'<span class="label">opening duels won</span>'
-        f'<span class="den">{ow} / {od}</span></div>'
-        f'<div class="stat"><span class="stat-n">{pct(aw, ad):.0f}%</span>'
-        f'<span class="label">rounds with an AWP</span>'
-        f'<span class="den">{aw} / {ad}</span></div></div></div>'
-        for name, role, ow, od, aw, ad in PLAYERS)
+        f'<div class="stat" title="{ow} of {od}">'
+        f'<span class="stat-n">{pct(ow, od):.0f}%</span>'
+        f'<span class="label">opening duels won</span></div>'
+        f'<div class="stat"><span class="stat-n">{adr}</span>'
+        f'<span class="label">ADR</span></div></div></div>'
+        for name, role, ow, od, adr in PLAYERS)
 
     cov_rows = "".join(
         f'<tr><td class="mono">{esc(d)}</td><td class="name">{map_chip(m)}</td>'
@@ -428,9 +427,8 @@ def render(user=None, pictures=None) -> str:
     <div class="stat-row">
       <div class="stat"><span class="stat-n">{DEMOS}</span>
         <span class="label">matches</span></div>
-      <div class="stat"><span class="stat-n">{BASELINE}%</span>
-        <span class="label">rounds you won</span>
-        <span class="den">71 / {ROUNDS}</span></div>
+      <div class="stat" title="77 of {ROUNDS}"><span class="stat-n">{pct(77, ROUNDS):.0f}%</span>
+        <span class="label">opening duels won</span></div>
       <div class="stat"><span class="stat-n">{MAPS}</span>
         <span class="label">maps played</span></div>
       <div class="stat"><span class="stat-n">{n_items}</span>
@@ -492,8 +490,7 @@ def render(user=None, pictures=None) -> str:
   <section>
     <div class="sec-head"><span class="label">What this is built from</span>
       <h2>Coverage</h2></div>
-    <p class="lede">Everything above is counted from these {DEMOS} demos. Nothing
-      is estimated, predicted, or compared against teams outside this list.</p>
+    <p class="lede">Everything above is counted from these {DEMOS} demos.</p>
     <div class="tbl-wrap"><table>
       <thead><tr><th>Date</th><th>Map</th><th>Event</th><th>Versus</th></tr></thead>
       <tbody>{cov_rows}</tbody></table></div>

@@ -69,6 +69,34 @@ FEATURE_LINKS = {"match_reports": "/matches", "player_stats": "/players",
 app = FastAPI(title="Counterplay", docs_url=None, redoc_url=None)
 
 
+class HeadAsGet:
+    """Answer HEAD as the GET it asks about, without the body.
+
+    FastAPI does not add HEAD to a GET route, so every page answered HEAD
+    with 405. Browsers never send it, but uptime monitors and link checkers
+    do, and a monitor pointed at the site read it as down. No GET route here
+    changes anything, so running one for a HEAD is safe; the headers,
+    Content-Length included, are the GET's, which is what HEAD means.
+    """
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope.get("type") != "http" or scope.get("method") != "HEAD":
+            return await self.app(scope, receive, send)
+
+        async def no_body(message):
+            if message.get("type") == "http.response.body":
+                message = {**message, "body": b""}
+            await send(message)
+
+        return await self.app({**scope, "method": "GET"}, receive, no_body)
+
+
+app.add_middleware(HeadAsGet)
+
+
 @app.on_event("startup")
 def _startup() -> None:
     db.init()
@@ -2658,19 +2686,19 @@ def _stats_body(team, user=None, share: str = ""):
                 f'<span class="label">{esc(label)}{info}</span>'
                 f'<span class="den">{den}</span></div>')
 
-        hit_pct = 100.0 * uf["hit_enemy"] / uf["thrown"] if uf["thrown"] else 0
+        hit_pct = report_mod.pct(uf["hit_enemy"], uf["thrown"]) or 0
         ucard(f"{hit_pct:.0f}%", "of your flashes blind an opponent",
               f'{uf["hit_enemy"]} of {uf["thrown"]} thrown',
               f'Counted per flash, not per player blinded. A blind counts '
               f'if it lasts {utility.MIN_BLIND_SECONDS} seconds or more.')
-        kill_pct = 100.0 * uf["got_a_kill"] / uf["thrown"] if uf["thrown"] else 0
+        kill_pct = report_mod.pct(uf["got_a_kill"], uf["thrown"]) or 0
         ucard(f"{kill_pct:.0f}%", "of your flashes get somebody killed",
               f'{uf["got_a_kill"]} of {uf["thrown"]} thrown',
               f'An opponent it blinded died to one of you before the flash '
               f'wore off, or within {utility.KILL_GRACE_SECONDS:.0f} second '
               f'after. {uf["kills_from"]} opponents in all.')
         if us and us["molotovs"]:
-            deny_pct = 100.0 * us["denied"] / us["molotovs"]
+            deny_pct = report_mod.pct(us["denied"], us["molotovs"])
             ucard(f"{deny_pct:.0f}%", "of your molotovs deny space",
                   f'{us["denied"]} of {us["molotovs"]} thrown',
                   f'An opponent had to stand in it, walk out of it or go '

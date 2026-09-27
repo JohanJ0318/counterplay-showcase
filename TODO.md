@@ -7,15 +7,8 @@ Ordered by what it costs you if it does not get done.
 
 ## Before emailing coaches
 
-- [ ] **A postal address for the outreach email footer.** US law on commercial
-      email requires a real mailing address inside the message, so a stranger
-      can tell who actually sent it. Not required on the website, not required
-      in a password reset, which is transactional and exempt. A home address
-      is legal and publishes where you live to every coach on the list; a PO
-      box or a virtual mailbox is the normal way round that. The template is
-      ready apart from this one placeholder. See `deploy/outreach-email.md`.
-
-      **This is the only thing standing between here and sending.**
+- [x] **A postal address for the outreach email footer.** Filled in; the
+      first five emails went out with it on 2026-09-23 (`outreach/send.txt`).
 
 - [ ] **Check the send list against the `unsubscribes` table.** Query is in the
       same file. The table is empty today, so there is nothing to strike off
@@ -235,48 +228,81 @@ true on purpose.
       2026-09-24 every rate prints as a percentage with its rounds in the
       `title`. What the first real coach was sold was "every number has the
       rounds under it". See the `rate()` note in CLAUDE.md before changing it.
+      The zone map's tap-to-open box (2026-09-26) is the pattern to copy.
+- [ ] **Buy notes are per match only.** "saved alone in round 14" is a note;
+      "saved alone six times this season" is coaching. A season roll-up on
+      each player's page, and on Team stats.
 - [x] **Zone map: kept as it is** (Johan, 2026-09-25): kills filed where the
       victim fell, open ground split in straight lines. Not up for redesign.
-- [ ] **Review the whole site with the `frontend-design` skill**: plainer
-      copy, less text and fewer big tables, figures where they read faster,
-      and a check of the existing charts. Audit first, then batches. The
-      brief is in HANDOFF.md.
+- [x] **Review the whole site with the `frontend-design` skill.** Done
+      2026-09-25, audit then batches, on every page at both widths.
 
 ## Engineering
 
-- [ ] **`main.py` is 2,243 lines**, a quarter of it embedded HTML.
+- [ ] **`main.py` is about 4,000 lines**, a quarter of it embedded HTML.
+      Split it by page (auth, season, match, player, account, admin) into
+      modules that register their routes, with no behaviour change. Between
+      seasons, not during one: the page tests cover the shared pages and
+      the outreach flow, not every signed-in page.
 - [ ] **Thin tests for** `report.py` and `movement.py` (the coach filter,
       walked zones and the kill/death direction only), and none for either
-      `utility.py`, `charts.py`, or page rendering. 191 tests in all. A
+      `utility.py` or `charts.py`. Page rendering is covered for the shared
+      pages (`tests/test_pages.py`). 232 tests in all. A
       rendering test would have caught the "gap of 19 points across 745200
       rounds" bug before it shipped, and the "be"/"b4" arrows.
-- [ ] **The server is not a git checkout.** Deploys are file copies and drift
-      has already happened twice: a stale `build.py`, and the whole database
-      still on the pre-collision-fix `match_key` scheme. Now that there is a
-      remote, `git pull` on the box is a possible deploy instead.
+- [x] **The server is not a git checkout, and drift is now caught.** The
+      `/deploy` skill refuses to overwrite any file on the box that matches
+      no committed version, and a hook blocks `git pull` aimed at the box.
+      See CLAUDE.md, Deploy.
 - [ ] **The bundle on the server is a snapshot, not a mirror.**
       `/srv/counterplay/data/repo/counterplay-*.bundle` holds the whole history
       as of the day it was written and is not in `backup.sh`, which copies the
       database only. GitHub is the real backup; that file is a second copy that
       ages.
-- [ ] **The server holds two demo files**, so no schema change can be replayed
-      there. Every one needs hand-shipped SQL. That has happened three times.
-- [ ] **`app/sample.py` says thin rates show raw counts** (lines near 234, 468
-      and 508), which stopped being true on 2026-09-24. The sample report is
-      the only public proof, so its copy is Johan's call.
+- [ ] **Only three demo files are on the server**, UCF's two and one of
+      team 3's, so the other old matches can never gain a new column (the
+      buy check reaches none of them). Every upload IS kept from here on:
+      `COUNTERPLAY_RETAIN` defaults to all and `tests/test_retention.py`
+      holds it, and `tools/pull-backup.ps1` copies each file to Johan's PC.
+- [x] **Stale claims on the homepage and the sample report.** Fixed
+      2026-09-26 after a claim-checker sweep: counts are "carried" (hover),
+      not "printed"; the buy call is the one modelled part and says so; the
+      sample's second tile is opening duels won; no "IGL" role or "rounds
+      with an AWP"; five places in the opening, as /stats shows. The hero's
+      four figures are real (J-Crazy's season, checked on the box).
+- [ ] **The sample report has no zone map.** "Where your rounds are decided"
+      is the second section on /stats and what the first real coach asked
+      for first; the sample skips it. Needs an invented but plausible
+      reading drawn on a real map.
+- [ ] **The sample's Players section is not a real /stats section.** The
+      roster is /players (a table, with a Coach row). Either mirror that or
+      cut the section.
+- [ ] **The homepage feature cards do not mention the zone map or the buy
+      calls**, the two things the first real coach asked for.
 - [ ] **The walked-zone model is built from every position on a map at the
       first request after a restart**, about a second per map. Fine today;
       store it if maps or corpus grow a lot.
 
 ## Interface
 
-- [ ] **HEAD returns 405 everywhere.** FastAPI's `APIRoute` does not add HEAD
-      to a GET route the way plain Starlette does. Link unfurlers use GET so
-      nothing on the outreach path is affected; uptime monitors and link
-      checkers use HEAD, so a monitor pointed at the site would read it as
-      down.
+- [x] **HEAD returns 405 everywhere.** Fixed 2026-09-26: `HeadAsGet` in
+      `main.py` answers HEAD as the GET without the body
+      (`tests/test_head.py`), so an uptime monitor can watch the site.
+- [ ] **An uptime monitor.** Now possible. A free one (UptimeRobot or
+      similar) pointed at https://counterplaycs.com/ every 5 minutes, alerting
+      Johan's email. Needs an account, so it is Johan's to set up.
 
 ## Done
+
+2026-09-26: **backups leave the box.** A Windows scheduled task on Johan's
+PC ("Counterplay backup pull", daily 9am, catches up if the PC was off)
+runs `tools/pull-backup.ps1`: every nightly database backup, checked on
+arrival with SQLite's integrity_check and kept 30 days, and every demo
+file, never deleted, into `C:\Users\Johan\counterplay-backups`. First run
+pulled all 25 backups and 3 demos, all ok. Also: the outreach flow (a
+team built for a coach from `/account`, and a handover link that carries
+the coach through signup), the coach named on the roster, the junk
+wvgnusrolu signup deleted, cvs renamed J-Crazy.
 
 Password reset and mail, zone naming locked to admins, privacy and terms,
 unsubscribe, verified nightly backups, dark mode across all three surfaces,
