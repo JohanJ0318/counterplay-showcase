@@ -28,7 +28,9 @@ too if you extend this:
     yields the round's roster for free — no second pass, no extra cost.
   * `player_hurt` carries `dmg_health` per hit with both steamids, which is
     where ADR comes from. Self-damage and team damage are excluded; counting
-    them would flatter anyone who eats their own molotov.
+    them would flatter anyone who eats their own molotov. `dmg_health` is the
+    RAW hit, not capped at the victim's health (an AWP on 30 HP reads ~110),
+    so `_hurt_credits` tracks health per victim and caps each hit.
   * WARMUP ROUNDS SHARE AN OFFICIAL END. A FACEIT match began with three
     freeze-ends before the first `round_officially_ended`, every one of them
     reporting `total_rounds_played = 0`. Only the last freeze before a given
@@ -168,6 +170,41 @@ def _plant_ticks(parser, bounds) -> dict[int, int]:
                 out[rn] = int(tick)
                 break
     return out
+
+
+def _hurt_credits(hurt, round_of, tainted, side_of):
+    """(round, attacker, damage, weapon) for every hit that counts toward ADR.
+
+    `dmg_health` is the raw hit, NOT what the victim lost: an AWP body shot on
+    a player with 30 left reports about 110. Summed as it came, one
+    player-round read 1,417 and ADR ran about a third high. So each victim's
+    health is tracked through the round, starting at 100, and a hit is worth
+    at most what they had before it.
+
+    Every hit moves the victim's health, including the ones that earn nobody
+    credit (world, self and team damage), or the next enemy hit would be
+    capped against health the victim no longer had. `health` on the event is
+    what is left after the hit; a demo without it falls back to subtracting.
+    """
+    health: dict[tuple[int, str], float] = {}
+    rows = sorted(hurt.itertuples(index=False), key=lambda h: h.tick)
+    for h in rows:
+        rn = round_of(h.tick)
+        if rn is None or rn in tainted:
+            continue
+        att, vic = getattr(h, "attacker_steamid", None), getattr(h, "user_steamid", None)
+        raw = float(getattr(h, "dmg_health", 0) or 0)
+        key = (rn, str(vic))
+        before = health.get(key, 100.0)
+        dmg = max(0.0, min(raw, before))
+        after = getattr(h, "health", None)
+        health[key] = (float(after) if after is not None and after == after
+                       else before - dmg)
+        if att is None or att != att or str(att) == str(vic):
+            continue                      # world damage, or your own molotov
+        if side_of.get((rn, str(att))) == side_of.get((rn, str(vic))):
+            continue                      # team damage does not count as ADR
+        yield rn, att, dmg, str(getattr(h, "weapon", "")).lower()
 
 
 def _trades_and_clutches(deaths, round_of, tainted, roster, credit,
@@ -703,21 +740,12 @@ def parse_demo(path: str, tier: str = "premier"):
     # leave it undefined.
     side_of = {(rn, sid): r["side"] for (rn, sid), r in roster.items()}
     if hasattr(hurt, "itertuples"):
-        for h in hurt.itertuples(index=False):
-            rn = round_of(h.tick)
-            if rn is None or rn in tainted:
-                continue
-            att, vic = getattr(h, "attacker_steamid", None), getattr(h, "user_steamid", None)
-            if att is None or att != att or str(att) == str(vic):
-                continue                      # world damage, or your own molotov
-            if side_of.get((rn, str(att))) == side_of.get((rn, str(vic))):
-                continue                      # team damage does not count as ADR
-            dmg = float(getattr(h, "dmg_health", 0) or 0)
+        for rn, att, dmg, weapon in _hurt_credits(hurt, round_of, tainted, side_of):
             credit(rn, att, "damage", dmg)
             # Utility damage is a SUBSET of damage, not a separate total: a
             # nade doing 60 counts once toward ADR and once here, so the two
             # stay comparable without anything being counted twice.
-            if str(getattr(h, "weapon", "")).lower() in UTIL_WEAPONS:
+            if weapon in UTIL_WEAPONS:
                 credit(rn, att, "util_damage", dmg)
 
     # --- utility -----------------------------------------------------------
