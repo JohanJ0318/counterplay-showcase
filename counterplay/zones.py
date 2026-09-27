@@ -224,8 +224,11 @@ def _keyed_regions(occupied, grid_owner, x, y, sample_key, centre_key,
     sample_key = np.asarray(sample_key, dtype=np.int64)
     ix = ((x - x0) / (x1 - x0) * bins).astype(np.int64)
     iy = ((y - y0) / (y1 - y0) * bins).astype(np.int64)
-    ok = (ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
-    k_n = int(sample_key.max()) + 1 if len(sample_key) else 1
+    # A negative key is a sample that takes no part in the vote: on a map
+    # drawn a floor at a time, one counted under a place on the other floor.
+    ok = ((ix >= 0) & (ix < bins) & (iy >= 0) & (iy < bins)
+          & (sample_key >= 0))
+    k_n = max(int(sample_key.max()) + 1, 1) if len(sample_key) else 1
     tally = np.bincount((ix[ok] * bins + iy[ok]) * k_n + sample_key[ok],
                         minlength=bins * bins * k_n).reshape(bins * bins, k_n)
     key = np.where(tally.sum(1) > 0, tally.argmax(1), -1).reshape(bins, bins)

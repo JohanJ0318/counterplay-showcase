@@ -53,6 +53,14 @@ MASK_FILE = MASK_DIR / "masks.json"
 # Alpha below this is the transparent surround rather than faint map art.
 ALPHA_FLOOR = 8
 
+# NUKE'S LOWER IMAGE DRAWS THE UPPER FLOOR AS A GHOST, at alpha ~41, around
+# the lower floor at 255. Counted as map, it let the drawing grow GROW_PASSES
+# cells past every wall of the lower floor into the ghost. Measured
+# 2026-09-27: 72.5% of that image's visible pixels are faint (alpha 9 to
+# 127), at most 4% on any other radar, and no player position lands on one.
+# An image whose faint pixels are the majority is read at SOLID_FLOOR.
+SOLID_FLOOR = 128
+
 _CACHE: dict | None = None
 
 
@@ -134,6 +142,8 @@ def build() -> dict:
         xs = np.array_split(np.arange(w), MASK_N)
         grid = np.zeros((MASK_N, MASK_N), dtype=bool)
         opaque = alpha > ALPHA_FLOOR
+        if (alpha[opaque] < SOLID_FLOOR).mean() > 0.5:
+            opaque = alpha >= SOLID_FLOOR
         for r, yy in enumerate(ys):
             band = opaque[yy[0]:yy[-1] + 1, :]
             for c, xx in enumerate(xs):

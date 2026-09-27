@@ -66,6 +66,21 @@ def test_uncounted_ground_is_drawn_but_never_painted():
     assert 'class="zedge"' in svg
 
 
+def test_a_place_from_another_floor_is_never_drawn():
+    # Nuke's lower floor painted a Garage shape on the stairs up from Secret.
+    # A sample keyed -1 (counted on the other floor) sits out the vote, and
+    # its ground goes to the nearest place this floor has.
+    lx, ly = _square_of_samples(0, 900, 0, 900)
+    rx, ry = _square_of_samples(1100, 2000, 0, 900)
+    key = np.array([5] * len(lx) + [-1] * len(rx))
+    svg = _draw(np.concatenate([lx, rx]), np.concatenate([ly, ry]), key,
+                [[450, 450, 0]], centre_key=[5])
+    p = _paths(svg)
+    assert set(p) == {"5"}
+    width = float(re.search(r'viewBox="0 0 ([\d.]+)', svg).group(1))
+    assert max(_xs(p["5"])) > width * 0.5      # the right block is painted too
+
+
 def test_rows_are_as_tall_as_they_are_apart():
     # A tall narrow map, like Nuke's lower floor. Rows used to be drawn one
     # x-cell tall, which left a white stripe under every one of them.

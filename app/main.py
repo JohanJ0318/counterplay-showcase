@@ -2054,6 +2054,18 @@ def _draw_zones(map_name: str, show, width: int, key,
                                 x[sel], y[sel], rad), 150, rad)
                         except Exception:
                             msk = None
+                    # ONE FLOOR'S PICTURE SHOWS ONLY THAT FLOOR'S PLACES. On
+                    # the stairs from Nuke's Secret up to Garage a player a
+                    # few units under the split is counted under Garage, the
+                    # nearest place on foot, and that painted a Garage shape
+                    # on the lower floor. Such samples sit out the vote, so
+                    # the cell takes the nearest place this floor has.
+                    keyed = None
+                    if grouped:
+                        keyed = grouped[0][sel]
+                        if level is not None:
+                            here = [int(grouped[1][i + 1]) for i in idx]
+                            keyed = np.where(np.isin(keyed, here), keyed, -1)
                     out.append({"level": level, "credit": rad and rad["credit"],
                                 "svg": Z.svg(x[sel], y[sel], centres, counts,
                                              width=width,
@@ -2063,8 +2075,7 @@ def _draw_zones(map_name: str, show, width: int, key,
                                              title=_zone_title(map_name, level),
                                              mask=msk,
                                              stat_zones=stat_zones,
-                                             sample_key=(grouped[0][sel]
-                                                         if grouped else None),
+                                             sample_key=keyed,
                                              # Only on a map drawn as ONE
                                              # floor. A split map (Nuke) is
                                              # already a picture per floor,
