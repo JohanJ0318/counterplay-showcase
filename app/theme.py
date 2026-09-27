@@ -61,6 +61,10 @@ CSS = """
   --r:8px;
   --shadow:0 1px 2px rgba(25,19,37,.05);
   --radar-dim:none;
+  /* A place on the zone map that is about the same as the rest of the map.
+     A true grey, not the purple-grey --faint, which over Valve's art read
+     as a tint rather than as a colour. */
+  --zone-even:#6E6E6E;
   /* Frosted glass, for what floats over the page: the zone box, the
      sticky bars, the menu, the info tips. See-through, but blurred
      behind so the text on it stays readable over a map. */
@@ -113,6 +117,7 @@ CSS = """
   /* Valve's radar images are bright PNGs and cannot be recoloured, so they
      are dimmed instead of left glowing on a dark page. */
   --radar-dim:brightness(.72) contrast(1.05);
+  --zone-even:#A3A3A3;
   --glass:rgba(28,24,35,.72);
   --glass-shadow:0 8px 24px rgba(0,0,0,.45);
 }
@@ -126,7 +131,7 @@ CSS = """
     --ct:#A78BFA; --ct-soft:#241C38; --t:#E0A458; --t-soft:#2E2415;
     --good:#4ADE80; --bad:#F87171; --bad-soft:#341D1F;
     --shadow:0 1px 2px rgba(0,0,0,.45);
-    --radar-dim:brightness(.72) contrast(1.05);
+    --radar-dim:brightness(.72) contrast(1.05); --zone-even:#A3A3A3;
     --glass:rgba(28,24,35,.72); --glass-shadow:0 8px 24px rgba(0,0,0,.45);
   }
 }
@@ -777,9 +782,11 @@ tr.grp td{background:var(--surface-2);font-size:.76rem;padding-top:6px;
   border-radius:var(--r);box-shadow:var(--glass-shadow);font-size:.82rem;
   line-height:1.45;color:var(--ink);pointer-events:none}
 .ztip strong{color:var(--ink)}
-/* One line per reading; the one the map is coloured by comes first, bold. */
+/* One line per reading, tinted by its own verdict, so the colour of the
+   place can be read off the lines that made it. */
 .ztip .zl{margin-top:3px;color:var(--muted)}
-.ztip .zl.on{color:var(--ink);font-weight:600}
+.ztip .zl.up{color:var(--good);font-weight:600}
+.ztip .zl.down{color:var(--bad);font-weight:600}
 .zpills{display:flex;gap:7px;flex-wrap:wrap;margin:0 0 14px}
 .zpills .zpill{cursor:pointer;font-family:inherit}
 .zonefig.reading svg{height:460px}
