@@ -35,6 +35,13 @@ from counterplay.positions import (FLAG_ALIVE, FLAG_CT,  # noqa: E402
                                    sample_seconds, unpack_round)
 from counterplay.schema import classify_round  # noqa: E402
 
+# COLLEGIATE ONLY. The first build counted every match in the database, and
+# on the box that is 104 pro matches to 10 collegiate ones, so the page's
+# "typical collegiate team" was a pro team. tier = 'league' is the collegiate
+# corpus (tools/corpus.py puts every NECC demo there); it lives on Johan's PC
+# (138 matches on 2026-09-27), so build there and ship the JSON.
+TIER = "league"
+
 
 def benchmark(map_name: str) -> dict:
     got = movement._centres(map_name)
@@ -43,7 +50,8 @@ def benchmark(map_name: str) -> dict:
     centres, group_of, names, _g = got
     nz = len(names)
     keys = [r["match_key"] for r in db.query(
-        "SELECT match_key FROM matches WHERE map_name = ?", map_name)]
+        "SELECT match_key FROM matches WHERE map_name = ? AND tier = ?",
+        map_name, TIER)]
     plants = movement._plant_lookup(keys)
     out: dict = {}
     for r in db.query("""SELECT rp.match_key, rp.round_num, rp.data,
@@ -52,7 +60,7 @@ def benchmark(map_name: str) -> dict:
                            JOIN matches m ON m.match_key = rp.match_key
                            JOIN rounds  r ON r.match_key = rp.match_key
                                          AND r.round_num = rp.round_num
-                          WHERE m.map_name = ?""", map_name):
+                          WHERE m.map_name = ? AND m.tier = ?""", map_name, TIER):
         u = unpack_round(r["data"])
         if u is None:
             continue
@@ -83,10 +91,11 @@ def benchmark(map_name: str) -> dict:
 
 def main() -> int:
     maps = [r["map_name"] for r in db.query(
-        "SELECT DISTINCT map_name FROM matches ORDER BY map_name")]
-    n = db.one("SELECT COUNT(*) n FROM matches")["n"]
+        "SELECT DISTINCT map_name FROM matches WHERE tier = ? ORDER BY map_name",
+        TIER)]
+    n = db.one("SELECT COUNT(*) n FROM matches WHERE tier = ?", TIER)["n"]
     result = {mp: b for mp in maps if (b := benchmark(mp))}
-    json.dump({"_how": "tools/place_benchmark.py: every team on the box, per "
+    json.dump({"_how": "tools/place_benchmark.py: every collegiate (tier league) team, per "
                        "place and 'side,phase,buy': [kills, deaths, damage "
                        f"dealt, damage taken]. Built over {n} matches.",
                "maps": result}, sys.stdout, separators=(",", ":"))

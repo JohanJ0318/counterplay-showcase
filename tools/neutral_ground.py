@@ -38,6 +38,13 @@ NEUTRAL_LO, NEUTRAL_HI = 0.30, 0.70
 # Under this many seconds of one-side time a place's share is not measured.
 MIN_SECONDS = 120
 
+# COLLEGIATE ONLY. The first build counted every match in the database, and
+# on the box that is 104 pro matches to 10 collegiate ones, so the page's
+# "typical collegiate team" was a pro team. tier = 'league' is the collegiate
+# corpus (tools/corpus.py puts every NECC demo there); it lives on Johan's PC
+# (138 matches on 2026-09-27), so build there and ship the JSON.
+TIER = "league"
+
 
 def ground(map_name: str) -> dict:
     got = movement._centres(map_name)
@@ -46,14 +53,15 @@ def ground(map_name: str) -> dict:
     centres, group_of, names, _g = got
     nz = len(names)
     keys = [r["match_key"] for r in db.query(
-        "SELECT match_key FROM matches WHERE map_name = ?", map_name)]
+        "SELECT match_key FROM matches WHERE map_name = ? AND tier = ?",
+        map_name, TIER)]
     plants = movement._plant_lookup(keys)
     t_only = np.zeros(nz + 1)
     ct_only = np.zeros(nz + 1)
     for r in db.query("""SELECT rp.match_key, rp.round_num, rp.data
                            FROM round_positions rp
                            JOIN matches m ON m.match_key = rp.match_key
-                          WHERE m.map_name = ?""", map_name):
+                          WHERE m.map_name = ? AND m.tier = ?""", map_name, TIER):
         u = unpack_round(r["data"])
         if u is None:
             continue
@@ -92,7 +100,8 @@ def ground(map_name: str) -> dict:
 
 def main() -> int:
     maps = [r["map_name"] for r in db.query(
-        "SELECT DISTINCT map_name FROM matches ORDER BY map_name")]
+        "SELECT DISTINCT map_name FROM matches WHERE tier = ? ORDER BY map_name",
+        TIER)]
     result = {}
     for mp in maps:
         g = ground(mp)

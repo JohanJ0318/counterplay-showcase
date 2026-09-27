@@ -3,565 +3,565 @@
  "maps": {
   "de_ancient": {
    "Alley": {
-    "t_share": 0.039,
-    "seconds": 8381,
+    "t_share": 0.033,
+    "seconds": 10611,
     "neutral": false
    },
    "Connector": {
-    "t_share": 0.057,
-    "seconds": 7168,
-    "neutral": false
-   },
-   "CT lane": {
-    "t_share": 0.065,
-    "seconds": 4050,
+    "t_share": 0.062,
+    "seconds": 9629,
     "neutral": false
    },
    "B Long": {
-    "t_share": 0.067,
-    "seconds": 7747,
+    "t_share": 0.07,
+    "seconds": 12000,
+    "neutral": false
+   },
+   "CT lane": {
+    "t_share": 0.09,
+    "seconds": 6540,
     "neutral": false
    },
    "Big Box": {
-    "t_share": 0.095,
-    "seconds": 5841,
+    "t_share": 0.158,
+    "seconds": 10256,
     "neutral": false
    },
    "Red room": {
-    "t_share": 0.156,
-    "seconds": 6809,
+    "t_share": 0.168,
+    "seconds": 9683,
     "neutral": false
    },
    "Donut": {
-    "t_share": 0.179,
-    "seconds": 6756,
+    "t_share": 0.176,
+    "seconds": 11274,
     "neutral": false
    },
    "B site": {
-    "t_share": 0.195,
-    "seconds": 11627,
+    "t_share": 0.206,
+    "seconds": 16634,
     "neutral": false
    },
    "A site": {
-    "t_share": 0.256,
-    "seconds": 4123,
+    "t_share": 0.286,
+    "seconds": 7306,
     "neutral": false
    },
    "Mid": {
-    "t_share": 0.436,
-    "seconds": 9953,
-    "neutral": true
-   },
-   "A main": {
-    "t_share": 0.519,
-    "seconds": 5593,
+    "t_share": 0.42,
+    "seconds": 16611,
     "neutral": true
    },
    "Cave": {
-    "t_share": 0.544,
-    "seconds": 10643,
+    "t_share": 0.499,
+    "seconds": 14150,
+    "neutral": true
+   },
+   "A main": {
+    "t_share": 0.589,
+    "seconds": 7417,
     "neutral": true
    },
    "A stairs": {
-    "t_share": 0.782,
-    "seconds": 4336,
+    "t_share": 0.868,
+    "seconds": 6316,
     "neutral": false
    },
    "B main": {
-    "t_share": 0.9,
-    "seconds": 12498,
+    "t_share": 0.886,
+    "seconds": 16650,
     "neutral": false
    },
    "Elbow": {
-    "t_share": 0.954,
-    "seconds": 9521,
+    "t_share": 0.95,
+    "seconds": 14002,
     "neutral": false
    },
    "Tunnel": {
-    "t_share": 0.961,
-    "seconds": 2928,
+    "t_share": 0.96,
+    "seconds": 4275,
     "neutral": false
    }
   },
   "de_anubis": {
    "Street": {
-    "t_share": 0.011,
-    "seconds": 1590,
+    "t_share": 0.017,
+    "seconds": 1768,
     "neutral": false
    },
    "Palace": {
-    "t_share": 0.013,
-    "seconds": 1586,
-    "neutral": false
-   },
-   "A heaven": {
-    "t_share": 0.053,
-    "seconds": 1640,
-    "neutral": false
-   },
-   "B site": {
-    "t_share": 0.083,
-    "seconds": 5585,
-    "neutral": false
-   },
-   "A approach": {
-    "t_share": 0.106,
-    "seconds": 2962,
+    "t_share": 0.073,
+    "seconds": 2022,
     "neutral": false
    },
    "CT mid": {
-    "t_share": 0.111,
-    "seconds": 4206,
+    "t_share": 0.086,
+    "seconds": 5874,
+    "neutral": false
+   },
+   "A heaven": {
+    "t_share": 0.091,
+    "seconds": 1987,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.094,
+    "seconds": 6891,
+    "neutral": false
+   },
+   "A approach": {
+    "t_share": 0.097,
+    "seconds": 3888,
     "neutral": false
    },
    "E box": {
-    "t_share": 0.129,
-    "seconds": 5192,
+    "t_share": 0.174,
+    "seconds": 5561,
     "neutral": false
    },
    "A site": {
-    "t_share": 0.132,
-    "seconds": 4214,
+    "t_share": 0.185,
+    "seconds": 4684,
     "neutral": false
    },
    "Mid": {
-    "t_share": 0.328,
-    "seconds": 4443,
-    "neutral": true
+    "t_share": 0.254,
+    "seconds": 6431,
+    "neutral": false
    },
    "A main": {
-    "t_share": 0.353,
-    "seconds": 2422,
+    "t_share": 0.38,
+    "seconds": 2889,
     "neutral": true
    },
    "Water": {
-    "t_share": 0.765,
-    "seconds": 5516,
+    "t_share": 0.725,
+    "seconds": 7169,
     "neutral": false
    },
    "B main": {
-    "t_share": 0.868,
-    "seconds": 5747,
+    "t_share": 0.83,
+    "seconds": 7563,
     "neutral": false
    },
    "T mid": {
-    "t_share": 0.936,
-    "seconds": 2992,
+    "t_share": 0.904,
+    "seconds": 4370,
     "neutral": false
    },
    "Alley": {
-    "t_share": 0.962,
-    "seconds": 3118,
+    "t_share": 0.917,
+    "seconds": 4161,
     "neutral": false
    },
    "Carpet": {
-    "t_share": 0.965,
-    "seconds": 1968,
+    "t_share": 0.957,
+    "seconds": 2083,
     "neutral": false
    }
   },
   "de_cache": {
-   "Truck": {
-    "t_share": 0.019,
-    "seconds": 1930,
+   "B Heaven": {
+    "t_share": 0.032,
+    "seconds": 2713,
     "neutral": false
    },
-   "B Heaven": {
-    "t_share": 0.037,
-    "seconds": 3196,
+   "Truck": {
+    "t_share": 0.039,
+    "seconds": 1435,
     "neutral": false
    },
    "Electro": {
-    "t_share": 0.091,
-    "seconds": 3490,
+    "t_share": 0.126,
+    "seconds": 2871,
     "neutral": false
    },
    "B site": {
-    "t_share": 0.116,
-    "seconds": 2638,
-    "neutral": false
-   },
-   "White box": {
-    "t_share": 0.196,
-    "seconds": 3518,
+    "t_share": 0.157,
+    "seconds": 1726,
     "neutral": false
    },
    "A site": {
-    "t_share": 0.198,
-    "seconds": 3018,
+    "t_share": 0.169,
+    "seconds": 2462,
     "neutral": false
    },
-   "Vents": {
-    "t_share": 0.335,
-    "seconds": 1723,
-    "neutral": true
+   "White box": {
+    "t_share": 0.183,
+    "seconds": 3604,
+    "neutral": false
    },
    "Mid": {
-    "t_share": 0.443,
-    "seconds": 4044,
-    "neutral": true
-   },
-   "Forklift": {
-    "t_share": 0.506,
-    "seconds": 3030,
+    "t_share": 0.407,
+    "seconds": 3772,
     "neutral": true
    },
    "B main": {
-    "t_share": 0.559,
-    "seconds": 4020,
+    "t_share": 0.446,
+    "seconds": 3350,
     "neutral": true
    },
-   "A Main": {
-    "t_share": 0.613,
-    "seconds": 695,
+   "Vents": {
+    "t_share": 0.501,
+    "seconds": 1375,
+    "neutral": true
+   },
+   "Forklift": {
+    "t_share": 0.533,
+    "seconds": 2187,
     "neutral": true
    },
    "Squeaky": {
-    "t_share": 0.701,
-    "seconds": 2038,
+    "t_share": 0.726,
+    "seconds": 1472,
+    "neutral": false
+   },
+   "A Main": {
+    "t_share": 0.74,
+    "seconds": 803,
     "neutral": false
    },
    "Boost": {
-    "t_share": 0.821,
-    "seconds": 3153,
+    "t_share": 0.881,
+    "seconds": 2146,
     "neutral": false
    },
    "Outside A": {
-    "t_share": 0.948,
-    "seconds": 3795,
+    "t_share": 0.883,
+    "seconds": 2085,
     "neutral": false
    },
    "A Long": {
-    "t_share": 0.95,
-    "seconds": 1473,
+    "t_share": 0.892,
+    "seconds": 975,
     "neutral": false
    }
   },
   "de_dust2": {
-   "B site": {
-    "t_share": 0.061,
-    "seconds": 18362,
-    "neutral": false
-   },
    "B doors": {
-    "t_share": 0.069,
-    "seconds": 11345,
+    "t_share": 0.058,
+    "seconds": 8695,
     "neutral": false
    },
    "Mid Doors": {
-    "t_share": 0.076,
-    "seconds": 21214,
+    "t_share": 0.062,
+    "seconds": 16079,
+    "neutral": false
+   },
+   "B site": {
+    "t_share": 0.117,
+    "seconds": 10327,
     "neutral": false
    },
    "Cross": {
-    "t_share": 0.128,
-    "seconds": 18757,
-    "neutral": false
-   },
-   "B boost": {
-    "t_share": 0.131,
-    "seconds": 16246,
+    "t_share": 0.144,
+    "seconds": 11818,
     "neutral": false
    },
    "A site": {
-    "t_share": 0.209,
-    "seconds": 12341,
-    "neutral": false
-   },
-   "A long": {
-    "t_share": 0.227,
-    "seconds": 15068,
+    "t_share": 0.173,
+    "seconds": 10040,
     "neutral": false
    },
    "A short": {
-    "t_share": 0.236,
-    "seconds": 15027,
+    "t_share": 0.213,
+    "seconds": 10386,
+    "neutral": false
+   },
+   "B boost": {
+    "t_share": 0.221,
+    "seconds": 8490,
+    "neutral": false
+   },
+   "A long": {
+    "t_share": 0.254,
+    "seconds": 9742,
     "neutral": false
    },
    "Pit": {
-    "t_share": 0.343,
-    "seconds": 6774,
-    "neutral": true
+    "t_share": 0.286,
+    "seconds": 4561,
+    "neutral": false
    },
    "Cat": {
-    "t_share": 0.474,
-    "seconds": 16769,
+    "t_share": 0.393,
+    "seconds": 10429,
     "neutral": true
    },
    "Long doors": {
-    "t_share": 0.545,
-    "seconds": 13495,
+    "t_share": 0.57,
+    "seconds": 7925,
     "neutral": true
    },
    "X box": {
-    "t_share": 0.673,
-    "seconds": 16992,
+    "t_share": 0.608,
+    "seconds": 9533,
     "neutral": true
    },
    "Lower tuns": {
-    "t_share": 0.83,
-    "seconds": 7996,
+    "t_share": 0.765,
+    "seconds": 5345,
     "neutral": false
    },
    "Top mid": {
-    "t_share": 0.845,
-    "seconds": 12966,
+    "t_share": 0.8,
+    "seconds": 8436,
     "neutral": false
    },
    "Upper tuns": {
-    "t_share": 0.899,
-    "seconds": 14545,
+    "t_share": 0.881,
+    "seconds": 7532,
     "neutral": false
    },
    "Outside Long": {
-    "t_share": 0.916,
-    "seconds": 15619,
+    "t_share": 0.887,
+    "seconds": 9382,
     "neutral": false
    },
    "T plat": {
-    "t_share": 0.954,
-    "seconds": 4650,
-    "neutral": false
-   },
-   "Suicide": {
-    "t_share": 0.969,
-    "seconds": 11055,
+    "t_share": 0.958,
+    "seconds": 3390,
     "neutral": false
    },
    "Outside Tuns": {
-    "t_share": 0.97,
-    "seconds": 5082,
+    "t_share": 0.959,
+    "seconds": 3217,
+    "neutral": false
+   },
+   "Suicide": {
+    "t_share": 0.961,
+    "seconds": 6967,
     "neutral": false
    }
   },
   "de_inferno": {
    "CT": {
-    "t_share": 0.023,
-    "seconds": 6352,
-    "neutral": false
-   },
-   "Church": {
-    "t_share": 0.047,
-    "seconds": 4269,
-    "neutral": false
-   },
-   "Library": {
-    "t_share": 0.053,
-    "seconds": 8168,
-    "neutral": false
-   },
-   "Pit": {
-    "t_share": 0.086,
-    "seconds": 5978,
-    "neutral": false
-   },
-   "CT boost": {
-    "t_share": 0.096,
-    "seconds": 11826,
+    "t_share": 0.02,
+    "seconds": 4553,
     "neutral": false
    },
    "Arches": {
-    "t_share": 0.097,
-    "seconds": 10428,
+    "t_share": 0.061,
+    "seconds": 8983,
     "neutral": false
    },
-   "A site": {
-    "t_share": 0.116,
-    "seconds": 11851,
+   "Library": {
+    "t_share": 0.067,
+    "seconds": 4531,
+    "neutral": false
+   },
+   "Church": {
+    "t_share": 0.082,
+    "seconds": 2320,
+    "neutral": false
+   },
+   "Pit": {
+    "t_share": 0.097,
+    "seconds": 3479,
+    "neutral": false
+   },
+   "CT boost": {
+    "t_share": 0.102,
+    "seconds": 7944,
     "neutral": false
    },
    "B site": {
-    "t_share": 0.175,
-    "seconds": 7435,
+    "t_share": 0.14,
+    "seconds": 6808,
+    "neutral": false
+   },
+   "A site": {
+    "t_share": 0.151,
+    "seconds": 8049,
     "neutral": false
    },
    "Balcony": {
-    "t_share": 0.234,
-    "seconds": 6931,
+    "t_share": 0.236,
+    "seconds": 4965,
     "neutral": false
    },
-   "Car": {
-    "t_share": 0.386,
-    "seconds": 13404,
+   "Top mid": {
+    "t_share": 0.381,
+    "seconds": 7209,
     "neutral": true
    },
-   "Top mid": {
-    "t_share": 0.46,
-    "seconds": 11040,
+   "Car": {
+    "t_share": 0.512,
+    "seconds": 9076,
     "neutral": true
    },
    "Apps": {
-    "t_share": 0.7,
-    "seconds": 6273,
+    "t_share": 0.645,
+    "seconds": 4549,
     "neutral": true
    },
-   "Banana": {
-    "t_share": 0.83,
-    "seconds": 9291,
-    "neutral": false
-   },
    "Mid": {
-    "t_share": 0.877,
-    "seconds": 6488,
+    "t_share": 0.837,
+    "seconds": 4440,
     "neutral": false
    },
-   "T ramp": {
-    "t_share": 0.942,
-    "seconds": 14919,
+   "Banana": {
+    "t_share": 0.85,
+    "seconds": 6088,
     "neutral": false
    },
    "2nd mid": {
-    "t_share": 0.947,
-    "seconds": 9702,
+    "t_share": 0.891,
+    "seconds": 5437,
+    "neutral": false
+   },
+   "T ramp": {
+    "t_share": 0.902,
+    "seconds": 9669,
     "neutral": false
    }
   },
   "de_mirage": {
-   "Ticket": {
-    "t_share": 0.031,
-    "seconds": 11315,
-    "neutral": false
-   },
    "B window": {
-    "t_share": 0.052,
-    "seconds": 8729,
+    "t_share": 0.041,
+    "seconds": 14207,
     "neutral": false
    },
    "Mid Window": {
-    "t_share": 0.054,
-    "seconds": 16345,
+    "t_share": 0.05,
+    "seconds": 25301,
+    "neutral": false
+   },
+   "Ticket": {
+    "t_share": 0.052,
+    "seconds": 13089,
     "neutral": false
    },
    "B site": {
-    "t_share": 0.097,
-    "seconds": 13869,
+    "t_share": 0.104,
+    "seconds": 20497,
     "neutral": false
    },
    "Stairs": {
-    "t_share": 0.14,
-    "seconds": 14072,
+    "t_share": 0.118,
+    "seconds": 22020,
     "neutral": false
    },
    "A site": {
-    "t_share": 0.177,
-    "seconds": 10992,
+    "t_share": 0.183,
+    "seconds": 20358,
     "neutral": false
    },
    "Apps": {
-    "t_share": 0.235,
-    "seconds": 13228,
+    "t_share": 0.247,
+    "seconds": 18199,
     "neutral": false
    },
    "Cat": {
     "t_share": 0.289,
-    "seconds": 8672,
+    "seconds": 13876,
     "neutral": false
    },
    "Con": {
-    "t_share": 0.481,
-    "seconds": 10186,
-    "neutral": true
-   },
-   "A main": {
-    "t_share": 0.695,
-    "seconds": 16054,
+    "t_share": 0.504,
+    "seconds": 15384,
     "neutral": true
    },
    "Palace": {
-    "t_share": 0.725,
-    "seconds": 10665,
-    "neutral": false
+    "t_share": 0.686,
+    "seconds": 13100,
+    "neutral": true
    },
    "Underpass": {
-    "t_share": 0.827,
-    "seconds": 5233,
+    "t_share": 0.745,
+    "seconds": 6974,
+    "neutral": false
+   },
+   "A main": {
+    "t_share": 0.78,
+    "seconds": 23696,
     "neutral": false
    },
    "Top mid": {
-    "t_share": 0.895,
-    "seconds": 11565,
+    "t_share": 0.857,
+    "seconds": 16034,
     "neutral": false
    },
    "Back Alley": {
-    "t_share": 0.9,
-    "seconds": 9267,
+    "t_share": 0.905,
+    "seconds": 12319,
     "neutral": false
    },
    "Side Alley": {
-    "t_share": 0.93,
-    "seconds": 8581,
+    "t_share": 0.909,
+    "seconds": 10996,
     "neutral": false
    }
   },
   "de_nuke": {
    "A Heaven": {
-    "t_share": 0.068,
-    "seconds": 10327,
+    "t_share": 0.059,
+    "seconds": 4895,
     "neutral": false
    },
    "Ramp": {
-    "t_share": 0.135,
-    "seconds": 15681,
+    "t_share": 0.114,
+    "seconds": 6842,
     "neutral": false
    },
    "Mini": {
-    "t_share": 0.137,
-    "seconds": 14558,
+    "t_share": 0.176,
+    "seconds": 6131,
     "neutral": false
    },
-   "Double door": {
-    "t_share": 0.276,
-    "seconds": 2279,
-    "neutral": false
-   },
-   "Single Door": {
-    "t_share": 0.276,
-    "seconds": 1631,
+   "Vent": {
+    "t_share": 0.207,
+    "seconds": 1698,
     "neutral": false
    },
    "Garage": {
-    "t_share": 0.337,
-    "seconds": 8058,
-    "neutral": true
+    "t_share": 0.226,
+    "seconds": 4243,
+    "neutral": false
    },
-   "Vent": {
-    "t_share": 0.343,
-    "seconds": 4191,
-    "neutral": true
+   "Double door": {
+    "t_share": 0.245,
+    "seconds": 707,
+    "neutral": false
+   },
+   "Single Door": {
+    "t_share": 0.3,
+    "seconds": 853,
+    "neutral": false
    },
    "Control room": {
-    "t_share": 0.344,
-    "seconds": 1660,
+    "t_share": 0.403,
+    "seconds": 581,
     "neutral": true
    },
    "B site": {
-    "t_share": 0.425,
-    "seconds": 2294,
-    "neutral": false
-   },
-   "A site": {
-    "t_share": 0.474,
-    "seconds": 10469,
+    "t_share": 0.416,
+    "seconds": 1029,
     "neutral": false
    },
    "Secret": {
-    "t_share": 0.514,
-    "seconds": 3905,
+    "t_share": 0.463,
+    "seconds": 1440,
     "neutral": true
    },
+   "A site": {
+    "t_share": 0.526,
+    "seconds": 4329,
+    "neutral": false
+   },
    "Lobby": {
-    "t_share": 0.895,
-    "seconds": 12798,
+    "t_share": 0.875,
+    "seconds": 5449,
     "neutral": false
    },
    "Outside": {
-    "t_share": 0.914,
-    "seconds": 9549,
+    "t_share": 0.875,
+    "seconds": 3686,
     "neutral": false
    },
    "Hut": {
-    "t_share": 0.969,
-    "seconds": 4937,
+    "t_share": 0.948,
+    "seconds": 2368,
     "neutral": false
    }
   }
