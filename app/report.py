@@ -975,8 +975,13 @@ def team_stats(team_id: int) -> dict | None:
     you = {"rounds": 0, "won": 0,
            "ct": {"rounds": 0, "won": 0}, "t": {"rounds": 0, "won": 0},
            "opening_took": 0, "opening_converted": 0,
-           "opening_lost": 0, "opening_saved": 0}
-    you_buys = defaultdict(lambda: {"n": 0, "won": 0})
+           "opening_lost": 0, "opening_saved": 0,
+           # The same four by side, so the collegiate reference can be
+           # weighted by this team's own split (app/league.py).
+           "opening_side": {s: {"took": 0, "converted": 0, "lost": 0,
+                                "saved": 0} for s in ("ct", "t")}}
+    you_buys = defaultdict(lambda: {"n": 0, "won": 0,
+                                    "side": {"ct": 0, "t": 0}})
     sides = {"ct": {"rounds": 0, "won": 0}, "t": {"rounds": 0, "won": 0}}
     opening = {"ct": {"took": 0, "converted": 0, "lost": 0, "saved": 0},
                "t": {"took": 0, "converted": 0, "lost": 0, "saved": 0}}
@@ -1021,6 +1026,7 @@ def team_stats(team_id: int) -> dict | None:
                 r["equip_ct"] if my_side == "ct" else r["equip_t"], rn)
             you_buys[kind]["n"] += 1
             you_buys[kind]["won"] += int(i_won)
+            you_buys[kind]["side"][my_side] += 1
 
         evs = by_round.get((key, rn), [])
         deaths = [e for e in evs if e["type"] == "death"]
@@ -1041,12 +1047,17 @@ def team_stats(team_id: int) -> dict | None:
                     opening[winner]["converted"] += 1
             if my_side:
                 i_won = ct_won if my_side == "ct" else not ct_won
+                os_ = you["opening_side"][my_side]
                 if winner == my_side:
                     you["opening_took"] += 1
                     you["opening_converted"] += int(i_won)
+                    os_["took"] += 1
+                    os_["converted"] += int(i_won)
                 else:
                     you["opening_lost"] += 1
                     you["opening_saved"] += int(i_won)
+                    os_["lost"] += 1
+                    os_["saved"] += int(i_won)
 
         # --- what each side buys after losing the round before --------------
         last = prev.get(key)
@@ -1088,39 +1099,53 @@ def recurring_patterns(team_id: int) -> list[dict]:
     number of rounds out of a stated number of chances — no estimate anywhere,
     so there is nothing here to be wrong about. Anything under
     MIN_PATTERN_CHANCES is dropped rather than shown as a percentage of five.
+
+    Each pattern carries `ref`, what collegiate teams do in the same spot
+    weighted by this team's own mix (app/league.py), and `verdict`, -1/0/+1
+    from league.judge(). Read against collegiate teams rather than against the
+    team's own round win rate since 2026-09-27, on NC State Red's captain's
+    call: a team's own average cannot say whether 21% after losing the
+    opening duel is a problem; the collegiate 30% can.
     """
+    from . import league
+
     st = team_stats(team_id)
     if st is None:
         return []
 
     out = []
 
-    def add(name, hit, of, detail, side=None):
+    def add(name, hit, of, detail, side=None, ref=None):
         if of >= MIN_PATTERN_CHANCES:
             out.append({"name": name, "hit": hit, "of": of, "pct": 100.0 * hit / of,
-                        "detail": detail, "side": side})
+                        "detail": detail, "side": side, "ref": ref,
+                        "verdict": league.judge(hit, of, ref)})
 
     # When the roster is known, the patterns that matter are about THIS TEAM,
     # not about the CT and T sides of their matches. Fall through to the
     # side-based version only when there is nothing to infer a roster from.
     y = st["you"]
     if st["anchors"]["confident"] and y["rounds"]:
-        for key, (hit, of) in (
-                ("opening_won", (y["opening_converted"], y["opening_took"])),
-                ("opening_lost", (y["opening_saved"], y["opening_lost"])),
-                ("ct", (y["ct"]["won"], y["ct"]["rounds"])),
-                ("t", (y["t"]["won"], y["t"]["rounds"]))):
+        for key, (hit, of), rf in (
+                ("opening_won", (y["opening_converted"], y["opening_took"]),
+                 league.opening("won", y["opening_side"])),
+                ("opening_lost", (y["opening_saved"], y["opening_lost"]),
+                 league.opening("lost", y["opening_side"])),
+                ("ct", (y["ct"]["won"], y["ct"]["rounds"]),
+                 league.side("ct", st["maps"])),
+                ("t", (y["t"]["won"], y["t"]["rounds"]),
+                 league.side("t", st["maps"]))):
             name, detail = PATTERNS[key]
-            add(name, hit, of, detail)
+            add(name, hit, of, detail, ref=rf)
         for kind, v in sorted(st["you_buys"].items()):
             name, detail = buy_pattern(kind)
-            add(name, v["won"], v["n"], detail)
+            add(name, v["won"], v["n"], detail, ref=league.buy(kind, v["side"]))
         # Utility, in the same shape and the same column as everything else.
         # Imported here rather than at the top: `app.utility` reads this
         # module's roster helpers, so the dependency only runs one way.
         from . import utility as _utility
         for name, hit, of, detail in _utility.round_patterns(team_id):
-            add(name, hit, of, detail)
+            add(name, hit, of, detail, ref=league.flash())
         return sorted(out, key=lambda x: -x["of"])
 
     for side in ("ct", "t"):
@@ -1129,11 +1154,12 @@ def recurring_patterns(team_id: int) -> list[dict]:
             o["converted"], o["took"],
             "The first kill of the round is the cheapest advantage there is. "
             "How often it is converted says more about a team than its aim does.",
-            side)
+            side, ref=league.opening("won", {side: o}))
         add(f"Wins the round after losing the opening duel",
             o["saved"], o["lost"],
             "Recovering a round down a player. Low here and the problem is "
-            "retakes and trades, not the opening duel itself.", side)
+            "retakes and trades, not the opening duel itself.", side,
+            ref=league.opening("lost", {side: o}))
 
         f = st["pistol_followups"][side]
         add("Buys after losing the pistol round",

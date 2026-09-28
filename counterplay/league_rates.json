@@ -1,0 +1,105 @@
+{
+ "_how": "tools/league_rates.py: collegiate (tier league) matches, one per sha, both sides of every round. Built over 138 matches, 2836 rounds.",
+ "matches": 138,
+ "rounds": 2836,
+ "opening": {
+  "ct": {
+   "took": 1502,
+   "converted": 1030,
+   "lost": 1334,
+   "saved": 388
+  },
+  "t": {
+   "took": 1334,
+   "converted": 946,
+   "lost": 1502,
+   "saved": 472
+  }
+ },
+ "sides": {
+  "de_ancient": {
+   "ct_rounds": 659,
+   "ct_won": 307
+  },
+  "de_anubis": {
+   "ct_rounds": 218,
+   "ct_won": 93
+  },
+  "de_mirage": {
+   "ct_rounds": 819,
+   "ct_won": 429
+  },
+  "de_inferno": {
+   "ct_rounds": 297,
+   "ct_won": 139
+  },
+  "de_cache": {
+   "ct_rounds": 133,
+   "ct_won": 77
+  },
+  "de_nuke": {
+   "ct_rounds": 197,
+   "ct_won": 96
+  },
+  "de_dust2": {
+   "ct_rounds": 513,
+   "ct_won": 277
+  }
+ },
+ "buys": {
+  "ct": {
+   "pistol": [
+    275,
+    122
+   ],
+   "eco": [
+    199,
+    19
+   ],
+   "full": [
+    1879,
+    1113
+   ],
+   "force": [
+    483,
+    164
+   ]
+  },
+  "t": {
+   "pistol": [
+    275,
+    153
+   ],
+   "force": [
+    774,
+    348
+   ],
+   "full": [
+    1634,
+    904
+   ],
+   "eco": [
+    153,
+    13
+   ]
+  }
+ },
+ "flash": {
+  "ct": [
+   1049,
+   583
+  ],
+  "t": [
+   1322,
+   682
+  ]
+ },
+ "utility": {
+  "flash_thrown": 8934,
+  "flash_hit_enemy": 4201,
+  "flash_hit_own": 4178,
+  "measured_matches": 109,
+  "value_spent": 20491400,
+  "value_wasted": 5945250
+ }
+}

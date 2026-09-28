@@ -2822,7 +2822,9 @@ def _stats_body(team, user=None, share: str = ""):
     # beside it — two views of the same list that disagreed about its length.
     patterns_chart = charts.bars(
         [(p_["name"], p_["hit"], p_["of"]) for p_ in patterns],
-        notes=[p_["detail"] for p_ in patterns]) if patterns else ""
+        notes=[p_["detail"] for p_ in patterns],
+        refs=[p_["ref"][0] if p_.get("ref") else None for p_ in patterns],
+        verdicts=[p_.get("verdict", 0) for p_ in patterns]) if patterns else ""
     if patterns:
         # The table that used to sit under this repeated the chart row for
         # row. Its one extra, the note on each pattern, rides on the chart's
@@ -3142,7 +3144,11 @@ def _stats_body(team, user=None, share: str = ""):
   <section>
     <div class="sec-head"><span class="label">What repeats across your matches</span>
       <h2>Recurring patterns</h2></div>
-    <p class="lede">Counted, never predicted. A line needs
+    <p class="lede">Counted, never predicted, and read against other
+      collegiate teams: the mark on each bar and the &ldquo;college
+      avg&rdquo; under it are what they do in the same spot, on your mix of
+      sides and maps. A figure turns green or red only when the gap is too
+      big, for the rounds behind it, to be luck. A line needs
       {report_mod.MIN_PATTERN_CHANCES} chances to appear.</p>
     {patterns_block}
   </section>"""

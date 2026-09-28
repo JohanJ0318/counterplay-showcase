@@ -16,10 +16,15 @@ Three tests, all of which have to pass:
 
   1. ENOUGH ROUNDS. Below MIN_ROUNDS it is an anecdote, and the product's whole
      credibility rests on refusing to dress anecdotes as findings.
-  2. A GAP WORTH ACTING ON. The situation has to differ from this team's own
-     baseline by at least MIN_GAP percentage points. Not from a professional
-     benchmark, not from a league average — from what this same team does the
-     rest of the time.
+  2. A GAP WORTH ACTING ON. For a place on the map, against this team's own
+     other rounds on that map and side (the question is which setup, so the
+     team is its own control). For everything read in rounds across the
+     season (trades, buys, a side of a map), against COLLEGIATE TEAMS in the
+     same spot, weighted by this team's own mix (app/league.py), and only
+     when league.judge() says the gap is both wide and too big to be luck.
+     That was the team's own round win rate until 2026-09-27; NC State Red's
+     captain pointed out it cannot say whether 21% after losing the opening
+     duel is a problem, and the collegiate 30% can.
   3. SOMETHING TO ACTUALLY DO. If the honest advice is "keep doing that", it
      says so, and if no action follows from the finding, no line is produced.
 
@@ -36,7 +41,7 @@ even though the ranking that decides what matters is global.
 """
 from __future__ import annotations
 
-from . import db, movement
+from . import db, league, movement
 from .report import _side_by_round, team_anchors, team_stats
 
 # An anecdote below this. Deliberately higher than the reporting threshold: it
@@ -243,71 +248,86 @@ def monday(team_id: int) -> dict:
                 stake=pstake, foot=pfoot, against=p["other_pct"],
                 vs=pvs(f"Two or more at {p['zone']}"))
 
-    # Findings read against the whole season draw the season as their second
-    # bar.
-    season = ("All your rounds", you["won"], you["rounds"])
+    # Findings read across the season draw COLLEGIATE TEAMS as their second
+    # bar: what they win in the same spot, weighted by this team's own mix of
+    # sides, maps and buys (app/league.py). `against` makes the gap, and so
+    # the rounds at stake, count from that rate rather than from the season.
+    def college(r):
+        return ("Collegiate teams", r[1], r[2])
 
     # ---------------------------------------------------------------- trades
-    if you["opening_lost"] >= MIN_ROUNDS:
-        if _pct(you["opening_saved"], you["opening_lost"]) - baseline <= -MIN_GAP:
-            add("Practice trading the opening duel",
-                "Losing the first duel is normal. Losing the round almost "
-                "every time is not: your second player is too far back to "
-                "trade. Drill the spacing.",
-                f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
-                f"after losing the opening duel",
-                you["opening_saved"], you["opening_lost"],
-                vs=(("After losing the opening duel", you["opening_saved"],
-                     you["opening_lost"]), season))
+    ref = league.opening("lost", you.get("opening_side", {}))
+    if (you["opening_lost"] >= MIN_ROUNDS
+            and league.judge(you["opening_saved"], you["opening_lost"], ref) < 0):
+        add("Practice trading the opening duel",
+            "Losing the first duel is normal. Losing the round this much more "
+            "often than other college teams is not: your second player is too "
+            "far back to trade. Drill the spacing.",
+            f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
+            f"after losing the opening duel",
+            you["opening_saved"], you["opening_lost"], against=ref[0],
+            vs=(("After losing the opening duel", you["opening_saved"],
+                 you["opening_lost"]), college(ref)))
 
-    if you["opening_took"] >= MIN_ROUNDS:
-        if _pct(you["opening_converted"], you["opening_took"]) - baseline <= -MIN_GAP:
-            add("Close out the rounds you start ahead",
-                "You win the first duel and lose the round more often than "
-                "your own average. The problem is the twenty seconds after the "
-                "kill, not the kill.",
-                f"You win {you['opening_converted']} of {you['opening_took']} "
-                f"rounds after winning the opening duel",
-                you["opening_converted"], you["opening_took"],
-                vs=(("After winning the opening duel", you["opening_converted"],
-                     you["opening_took"]), season))
+    ref = league.opening("won", you.get("opening_side", {}))
+    if (you["opening_took"] >= MIN_ROUNDS
+            and league.judge(you["opening_converted"], you["opening_took"], ref) < 0):
+        add("Close out the rounds you start ahead",
+            "You win the first duel and then lose the round more often than "
+            "other college teams do. The problem is the twenty seconds after "
+            "the kill, not the kill.",
+            f"You win {you['opening_converted']} of {you['opening_took']} "
+            f"rounds after winning the opening duel",
+            you["opening_converted"], you["opening_took"], against=ref[0],
+            vs=(("After winning the opening duel", you["opening_converted"],
+                 you["opening_took"]), college(ref)))
 
     # ---------------------------------------------------------------- economy
     for kind, v in sorted(st["you_buys"].items()):
-        if v["n"] < MIN_ROUNDS:
+        if v["n"] < MIN_ROUNDS or kind not in ("full", "force"):
             continue
-        rate = _pct(v["won"], v["n"])
-        if kind == "full" and rate - baseline <= -MIN_GAP:
+        ref = league.buy(kind, v.get("side", {}))
+        if league.judge(v["won"], v["n"], ref) >= 0:
+            continue
+        if kind == "full":
             add("Full buys are not converting",
-                "The round you are most expected to win, and you win it "
-                "below your own average. The most expensive place for a "
-                "problem to be.",
+                "The round you are most expected to win, and you win it well "
+                "below what other college teams do with the same money. The "
+                "most expensive place for a problem to be.",
                 f"You win {v['won']} of {v['n']} full-buy rounds",
-                v["won"], v["n"],
-                vs=(("Full buys", v["won"], v["n"]), season))
-        elif kind == "force" and rate < 20:
+                v["won"], v["n"], against=ref[0],
+                vs=(("Full buys", v["won"], v["n"]), college(ref)))
+        else:
             add("Stop forcing, or force differently",
-                "A force trades economy for tempo. At this rate you get "
-                "neither. Either save properly or force with all five.",
+                "A force trades economy for tempo, and other college teams win "
+                "clearly more of theirs. Either save properly or force with "
+                "all five.",
                 f"You win {v['won']} of {v['n']} force-buy rounds",
-                v["won"], v["n"],
-                vs=(("Force buys", v["won"], v["n"]), season))
+                v["won"], v["n"], against=ref[0],
+                vs=(("Force buys", v["won"], v["n"]), college(ref)))
 
     # ---------------------------------------------------------------- maps
+    #
+    # This read m.get("ct") / m.get("t"), keys the map rows never had, so it
+    # had never fired for anyone before 2026-09-27. The rows carry this
+    # team's rounds as you_ct / you_ct_won and you_t / you_t_won.
     for name, m in st["maps"].items():
         for side in ("ct", "t"):
-            s = m.get(side) or {}
-            if s.get("rounds", 0) < MIN_ROUNDS:
+            n = m.get(f"you_{side}", 0)
+            won = m.get(f"you_{side}_won", 0)
+            if n < MIN_ROUNDS:
                 continue
-            if _pct(s["won"], s["rounds"]) - baseline <= -MIN_GAP:
-                add(f"Your {side.upper()} side needs a rebuild",
-                    "Your weakest side anywhere, by a distance. That is a "
-                    "set of defaults to change, not a run of bad games.",
-                    f"You win {s['won']} of {s['rounds']} {side.upper()} rounds "
-                    f"on {name.replace('de_', '')}",
-                    s["won"], s["rounds"], mp=name, side=side,
-                    vs=((f"{side.upper()} on {name.replace('de_', '')}",
-                         s["won"], s["rounds"]), season))
+            ref = league.side_on_map(side, name)
+            if league.judge(won, n, ref) >= 0:
+                continue
+            short = name.replace("de_", "")
+            add(f"Your {side.upper()} side on {short} needs a rebuild",
+                f"Well below what other college teams win on the "
+                f"{side.upper()} side of {short}. That is a set of defaults "
+                f"to change, not a run of bad games.",
+                f"You win {won} of {n} {side.upper()} rounds on {short}",
+                won, n, mp=name, side=side, against=ref[0],
+                vs=((f"{side.upper()} on {short}", won, n), college(ref)))
 
     # ---------------------------------------------------------------- utility
     #
@@ -359,17 +379,27 @@ def monday(team_id: int) -> dict:
             return f"Happens in {of} of your {you['rounds']} rounds"
         return f"Happens in {of} rounds"
 
+    # Read against collegiate teams too (app/league.py), measured the same
+    # way: per flash, from matches whose demo recorded blinds. The fixed
+    # lines below are the fallback when the reference file is missing. They
+    # were chosen before looking, and they were wrong: a college team
+    # blinds its own side with 47% of its flashes and an opponent with 47%,
+    # so "over 40% own side" and "under a third land" flagged normal teams.
     uf = _utility.flashes(team_id)
     if uf and uf["thrown"] >= MIN_UTILITY:
         own = _pct(uf["hit_own"], uf["thrown"])
-        if own >= OWN_FLASH_LIMIT:
+        own_ref = league.flash_rate("own")
+        if (league.judge(uf["hit_own"], uf["thrown"], own_ref) > 0 if own_ref
+                else own >= OWN_FLASH_LIMIT):
             # The headline is the whole own-side number, and the second
             # sentence takes it apart, because most of it is not the problem
             # the third sentence describes. A flash that blinds two defenders
             # and clips your entry on the way through worked. The one to drill
             # is the flash that blinded a teammate and nobody else.
             add("Fix who your flashes land on",
-                f"{own:.0f}% of your flashes blind your own side. Drill the "
+                f"{own:.0f}% of your flashes blind your own side"
+                + (f", against {own_ref[0]:.0f}% for other college teams"
+                   if own_ref else "") + f". Drill the "
                 f"{uf['team_no_enemy']} that blinded a teammate and nobody "
                 f"else: your entry walks in blind to a site still held.",
                 f"{uf['hit_own']} of {uf['thrown']} flashes blinded your "
@@ -380,9 +410,13 @@ def monday(team_id: int) -> dict:
                 stake=_round_stake("own_flash"),
                 foot=_round_foot("own_flash"))
         landed = _pct(uf["hit_enemy"], uf["thrown"])
-        if landed <= LANDED_FLASH_FLOOR:
+        land_ref = league.flash_rate("enemy")
+        if (league.judge(uf["hit_enemy"], uf["thrown"], land_ref) < 0 if land_ref
+                else landed <= LANDED_FLASH_FLOOR):
             add("Your flashes are not landing on anybody",
-                f"Only {landed:.0f}% of your flashes blind an opponent. "
+                f"Only {landed:.0f}% of your flashes blind an opponent"
+                + (f", against {land_ref[0]:.0f}% for other college teams"
+                   if land_ref else "") + ". "
                 f"That is where and when they are thrown, not aim. Pick two "
                 f"throws per map and drill them.",
                 f"{uf['hit_enemy']} of {uf['thrown']} flashes blinded an "
@@ -394,11 +428,15 @@ def monday(team_id: int) -> dict:
     uu = _utility.unused(team_id)
     if uu and uu["bought"] >= MIN_UTILITY:
         left = _pct(uu["wasted"], uu["spent"]) if uu["spent"] else 0.0
-        if left >= UNUSED_LIMIT:
+        left_ref = league.unused_share()
+        if (left - left_ref >= league.MIN_GAP if left_ref is not None
+                else left >= UNUSED_LIMIT):
             add("You are dying with the utility still on you",
                 f"${uu['per_round']:,.0f} of utility a round dies unthrown, "
-                f"{left:.0f}% of what you buy. It is being saved for a moment "
-                f"that never comes.",
+                f"{left:.0f}% of what you buy"
+                + (f", against {left_ref:.0f}% for other college teams"
+                   if left_ref is not None else "")
+                + ". It is being saved for a moment that never comes.",
                 f"${uu['wasted']:,} of ${uu['spent']:,} of utility died in "
                 f"its owner's hand, across {uu['rounds_holding']} rounds",
                 uu["wasted"], uu["spent"],

@@ -152,24 +152,46 @@ def test_a_place_is_judged_against_the_same_map_and_side(engine):
     assert not engine([normal])["items"], "five points below should not"
 
 
-def test_the_season_baseline_still_governs_season_wide_findings(engine):
-    """A place has a complement. A season habit does not.
+def _lost_openings(stats, lost, saved):
+    """Openings lost and rounds saved, all on T side, as team_stats() splits them."""
+    stats["you"].update(opening_lost=lost, opening_saved=saved, opening_side={
+        "t": {"took": 0, "converted": 0, "lost": lost, "saved": saved},
+        "ct": {"took": 0, "converted": 0, "lost": 0, "saved": 0}})
+    return stats
 
-    Trades, buys and utility are claims about the team across every map, so
-    the only thing to hold them against is the team's own rate. The same
-    opening-duel record is a finding for a team that wins half its rounds and
-    not for one that wins a third.
+
+def test_season_findings_are_read_against_collegiate_teams(engine):
+    """NC State Red's captain, 2026-09-27: 21% after losing the opening duel
+    against the team's own 45% says nothing; against the collegiate 30% it
+    says whether there is a problem. So the team's own win rate no longer
+    decides: the same record is judged the same for a strong and a weak team.
     """
-    stats = _stats(baseline_won=49)
-    stats["you"].update(opening_lost=40, opening_saved=10)     # 25%
-    good = engine([], stats)
+    from app import league
+    ref = league.opening("lost", {"t": {"lost": 40}})[0]
+    assert 25 < ref < 40, ref          # collegiate T side, about 31%
 
-    weak = _stats(baseline_won=30)
-    weak["you"].update(opening_lost=40, opening_saved=10)      # 25%
-    poor = engine([], weak)
+    for won in (49, 30):
+        close = engine([], _lost_openings(_stats(baseline_won=won), 40, 10))
+        assert not any("trading" in i["do"] for i in close["items"]), \
+            "25% against about 31% is inside the noise, strong team or weak"
+        far = engine([], _lost_openings(_stats(baseline_won=won), 40, 3))
+        assert any("trading" in i["do"] for i in far["items"]), \
+            "8% against about 31% over 40 rounds is a finding either way"
 
-    assert any("trading" in i["do"] for i in good["items"]),         "24 points below a 49% team is a finding"
-    assert not any("trading" in i["do"] for i in poor["items"]),         "5 points below a 30% team is not"
+
+def test_the_card_draws_collegiate_teams_as_its_second_bar(engine):
+    out = engine([], _lost_openings(_stats(), 40, 3))
+    card = next(i for i in out["items"] if "trading" in i["do"])
+    assert card["vs"][1][0] == "Collegiate teams"
+
+
+def test_a_weak_side_of_a_map_is_found(engine):
+    """This rule read m.get("ct"), a key the map rows never had, so it had
+    never fired for anyone. The rows carry you_ct / you_ct_won."""
+    stats = _stats(maps={"de_nuke": {"you_ct": 30, "you_ct_won": 5,
+                                     "you_t": 0, "you_t_won": 0}})
+    out = engine([], stats)
+    assert any("CT side on nuke" in i["do"] for i in out["items"])
 
 
 # ----------------------------------------------------------------- direction
@@ -325,9 +347,23 @@ def _utility_engine(monkeypatch, splits, unused=None, flashes=None,
     return advice.monday(1)
 
 
+# 45% of utility value dying unused: well past the collegiate 29%, so the
+# card appears and these tests can read its wording.
 UNUSED = {"bought": 100, "thrown": 60, "unused": 40, "rounds": 42,
-          "rounds_holding": 31, "spent": 10000, "wasted": 2900,
+          "rounds_holding": 31, "spent": 10000, "wasted": 4500,
           "per_round": 1171.0}
+
+
+def test_dying_with_utility_is_read_against_college_teams(monkeypatch):
+    """29% of utility value dies unused for college teams. The old fixed 20%
+    line flagged UCF, NC State Red and NC State BLK for being normal."""
+    typical = dict(UNUSED, wasted=2900)                    # 29%
+    out = _utility_engine(monkeypatch, {"died_holding": (15, 31)},
+                          unused=typical)
+    assert not out["items"]
+    out = _utility_engine(monkeypatch, {"died_holding": (15, 31)},
+                          unused=UNUSED)
+    assert "other college teams" in _only_item(out)["because"]
 
 
 def _only_item(out):

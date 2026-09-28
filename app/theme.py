@@ -621,6 +621,15 @@ details.drop>.tbl-plain{margin-top:10px}
   color:var(--ink);font-variant-numeric:tabular-nums;white-space:nowrap;
   min-width:6.5rem}
 .hb-den{font-weight:400;color:var(--muted)}
+/* What collegiate teams do in the same spot (app/league.py): a mark on the
+   bar at that rate and the figure under the value. The value takes a colour
+   only when league.judge() says the gap is real. */
+.hb-full{position:relative}
+.hb-ref{position:absolute;top:-3px;bottom:-3px;width:2px;margin-left:-1px;
+  background:var(--ink);opacity:.6;border-radius:1px}
+.hb-refval{display:block;font-weight:400;font-size:.72rem;color:var(--muted)}
+.hb-val.up{color:var(--good)}
+.hb-val.down{color:var(--bad)}
 /* The note behind each row's "i" opens under the whole row and is exactly as
    wide as it. Anchored to the "i" it could start anywhere along the line and
    run off either edge of a phone, and a hidden balloon off the edge still

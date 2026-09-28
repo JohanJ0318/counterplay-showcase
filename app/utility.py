@@ -80,6 +80,24 @@ def _match_keys(team_id):
     return _team_match_keys(team_id)
 
 
+def with_blind_data(keys) -> set:
+    """The matches whose demo recorded blinds at all.
+
+    Some demos carry no player_blind events: the parser logs "0 blinds" and
+    every flash in them reads as having blinded nobody. On 2026-09-27 that
+    was 29 of 138 collegiate matches, two of NC State Red's three, and it put
+    "Your flashes are not landing on anybody" (17 of 123) on their page when
+    two thirds of those flashes had never been measured. A flash from such a
+    match is unknown, not a miss, so flash figures leave the match out.
+    """
+    if not keys:
+        return set()
+    marks = ",".join("?" * len(keys))
+    return {r["match_key"] for r in db.query(
+        f"SELECT DISTINCT match_key FROM blinds WHERE match_key IN ({marks})",
+        *keys)}
+
+
 # ------------------------------------------------------------------ flashes
 
 @memo.by_team
@@ -99,11 +117,14 @@ def by_kind(team_id: int) -> dict:
     rows = db.query(f"""SELECT match_key, round_num, kind, side,
                                hit_enemy, hit_own, damage, kills
                           FROM grenades WHERE match_key IN ({marks})""", *keys)
+    measured = with_blind_data(keys)
     out: dict = {}
     for r in rows:
         mine = sides.get((r["match_key"], r["round_num"]))
         if mine is None or r["side"] != mine:
             continue
+        if r["kind"] == "flash" and r["match_key"] not in measured:
+            continue          # no blind data in this demo: unknown, not a miss
         k = out.setdefault(r["kind"], {
             "thrown": 0, "hit_enemy": 0, "hit_own": 0, "hit_none": 0,
             "blinded": 0, "blinded_own": 0, "damage": 0.0, "did_damage": 0,

@@ -653,7 +653,8 @@ def diverging(items: list[tuple[str, float, str]], width: int = 600,
 
 
 def bars(items: list[tuple[str, int, int]], width: int = 560,
-         row_h: int = 36, notes: list[str] | None = None) -> str:
+         row_h: int = 36, notes: list[str] | None = None,
+         refs: list | None = None, verdicts: list | None = None) -> str:
     """Rates, with the weight of evidence behind them drawn.
 
     The bar's full length is the CHANCES and the filled part is what came of
@@ -666,6 +667,12 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
     the "59% 78/133" off the screen, which was the only place a phone could
     see a count at all. The value now has a column of its own that is always
     in view. `width` and `row_h` are accepted and ignored.
+
+    `refs[i]` is what collegiate teams do in the same spot (app/league.py),
+    a percentage or None: a mark on the bar at that rate, and "college avg"
+    under the value. `verdicts[i]` (-1, 0, +1 from league.judge) colours the
+    value only when the gap is clearly real, so a colour always means
+    something and most rows stay plain.
     """
     if not items:
         return ""
@@ -680,13 +687,21 @@ def bars(items: list[tuple[str, int, int]], width: int = 560,
         full = of / most * 100
         got = (hit / of * 100) if of else 0
         pct = (100 * hit / of) if of else 0
+        rf = refs[i] if refs and i < len(refs) else None
+        vd = verdicts[i] if verdicts and i < len(verdicts) else 0
+        mark = (f'<span class="hb-ref" style="left:{min(max(rf, 0), 100):.1f}%" '
+                f'title="College average {rf:.0f}%"></span>'
+                if rf is not None else "")
+        refval = (f'<span class="hb-refval">college avg {rf:.0f}%</span>'
+                  if rf is not None else "")
+        cls = "hb-val" + (" up" if vd > 0 else " down" if vd < 0 else "")
         rows.append(
             f'<li><span class="hb-label">{esc(label)}{info}</span>'
             f'<span class="hb-track"><span class="hb-full" '
             f'style="width:{full:.1f}%"><span class="hb-got" '
-            f'style="width:{got:.1f}%"></span></span></span>'
-            f'<span class="hb-val">{pct:.0f}% <span class="hb-den">'
-            f'{hit}/{of}</span></span></li>')
+            f'style="width:{got:.1f}%"></span>{mark}</span></span>'
+            f'<span class="{cls}">{pct:.0f}% <span class="hb-den">'
+            f'{hit}/{of}</span>{refval}</span></li>')
     return ('<ul class="hb" role="figure" aria-label="Rates, with the chances '
             f'behind them">{"".join(rows)}</ul>')
 
