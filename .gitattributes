@@ -1,2 +1,5 @@
 # Shell scripts run under bash, which fails on CRLF line endings.
 *.sh text eol=lf
+
+# Generated zone-map previews; keep them out of the language stats.
+site/_de_*.html linguist-generated
