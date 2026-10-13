@@ -101,5 +101,35 @@
   "measured_matches": 109,
   "value_spent": 20491400,
   "value_wasted": 5945250
+ },
+ "opening_chain": {
+  "ct": {
+   "lost": {
+    "n": 1334,
+    "traded": 243,
+    "traded_won": 105,
+    "open_won": 283
+   },
+   "took": {
+    "n": 1502,
+    "traded": 450,
+    "traded_won": 260,
+    "open_won": 770
+   }
+  },
+  "t": {
+   "lost": {
+    "n": 1502,
+    "traded": 450,
+    "traded_won": 190,
+    "open_won": 282
+   },
+   "took": {
+    "n": 1334,
+    "traded": 243,
+    "traded_won": 138,
+    "open_won": 808
+   }
+  }
  }
 }

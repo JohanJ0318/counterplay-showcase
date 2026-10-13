@@ -41,7 +41,7 @@ even though the ranking that decides what matters is global.
 """
 from __future__ import annotations
 
-from . import db, league, movement
+from . import db, league, movement, why
 from .report import _side_by_round, team_anchors, team_stats
 
 # An anecdote below this. Deliberately higher than the reporting threshold: it
@@ -77,6 +77,22 @@ UNUSED_LIMIT = 20.0
 # Below this many pieces of utility, a percentage of them is noise. Same as
 # MIN_ROUNDS, applied to a different denominator.
 MIN_UTILITY = 30
+
+
+def _why_cause(team_id: int, role: str):
+    """(headline, advice) for the step of the round that costs the most
+    rounds after the opening duel, or None when no step clearly does."""
+    e = why.for_team(team_id).get(role)
+    if not e or not e["culprits"]:
+        return None
+    link = e["links"][e["culprits"][0]]
+    heads = {("lost", 0): "Practice trading the opening duel",
+             ("lost", 1): "Win the 4v4 after the trade",
+             ("lost", 2): "Have a plan for the 4v5",
+             ("took", 0): "Stop giving the opening kill straight back",
+             ("took", 1): "Win the 4v4 after they trade",
+             ("took", 2): "Close out the 5v4"}
+    return heads[(role, e["culprits"][0])], link["advice"]
 
 
 def _pct(hit, of):
@@ -259,10 +275,16 @@ def monday(team_id: int) -> dict:
     ref = league.opening("lost", you.get("opening_side", {}))
     if (you["opening_lost"] >= MIN_ROUNDS
             and league.judge(you["opening_saved"], you["opening_lost"], ref) < 0):
-        add("Practice trading the opening duel",
+        # The reason is measured, not assumed (app/why.py). This card used to
+        # say "your second player is too far back to trade" to every team it
+        # fired for; NC State Red traded MORE opening deaths than college
+        # teams (38% to 25%) and lost the rounds after the trade.
+        cause = _why_cause(team_id, "lost")
+        add(cause[0] if cause else "Win more rounds after losing the opening duel",
             "Losing the first duel is normal. Losing the round this much more "
-            "often than other college teams is not: your second player is too "
-            "far back to trade. Drill the spacing.",
+            "often than other college teams is not. "
+            + (cause[1] if cause else "No one step of the round explains it; "
+               "the chain under Patterns shows each one."),
             f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
             f"after losing the opening duel",
             you["opening_saved"], you["opening_lost"], against=ref[0],
@@ -272,10 +294,12 @@ def monday(team_id: int) -> dict:
     ref = league.opening("won", you.get("opening_side", {}))
     if (you["opening_took"] >= MIN_ROUNDS
             and league.judge(you["opening_converted"], you["opening_took"], ref) < 0):
+        cause = _why_cause(team_id, "took")
         add("Close out the rounds you start ahead",
             "You win the first duel and then lose the round more often than "
-            "other college teams do. The problem is the twenty seconds after "
-            "the kill, not the kill.",
+            "other college teams do. "
+            + (cause[1] if cause else "The problem is after the kill, not "
+               "the kill."),
             f"You win {you['opening_converted']} of {you['opening_took']} "
             f"rounds after winning the opening duel",
             you["opening_converted"], you["opening_took"], against=ref[0],

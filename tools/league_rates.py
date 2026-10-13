@@ -18,6 +18,8 @@ counts once for the CT and once for the T:
   sides     map -> ct rounds, ct won
   buys      side -> buy kind -> rounds, won
   flash     side -> rounds where that side's flash blinded an opponent, won
+  opening_chain  side -> lost / took -> n, traded, traded_won, open_won
+            (the opening duel as a chain of steps, app/why.py)
 
 Ship the JSON: the box holds 10 collegiate matches to 104 pro ones, and the
 corpus lives on Johan's PC. app/league.py reads it and weights every figure
@@ -32,7 +34,7 @@ from collections import defaultdict
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
-from app import db  # noqa: E402
+from app import db, why  # noqa: E402
 from counterplay.schema import classify_round  # noqa: E402
 
 TIER = "league"
@@ -50,11 +52,14 @@ def main() -> int:
                                  equip_ct, equip_t FROM rounds
                            WHERE match_key IN ({marks})""", *keys)
     first_death = {}
-    for e in db.query(f"""SELECT match_key, round_num, victim_side, seconds
+    deaths = defaultdict(list)
+    for e in db.query(f"""SELECT match_key, round_num, seconds, victim_side,
+                                 victim_steamid, attacker_steamid
                             FROM events WHERE type = 'death'
                              AND match_key IN ({marks})
                         ORDER BY match_key, round_num, seconds""", *keys):
         first_death.setdefault((e["match_key"], e["round_num"]), e["victim_side"])
+        deaths[(e["match_key"], e["round_num"])].append(e)
     flashed = set()
     for g in db.query(f"""SELECT DISTINCT match_key, round_num, side FROM grenades
                            WHERE kind = 'flash' AND hit_enemy > 0
@@ -66,6 +71,9 @@ def main() -> int:
     sides: dict = defaultdict(lambda: {"ct_rounds": 0, "ct_won": 0})
     buys: dict = {s: defaultdict(lambda: [0, 0]) for s in ("ct", "t")}
     flash = {s: [0, 0] for s in ("ct", "t")}
+    # The opening duel as a chain (app/why.py): was it traded, and what
+    # happened after, counted exactly the way why.team_counts counts a team.
+    chain = {s: why.empty() for s in ("ct", "t")}
     for r in rounds:
         key = (r["match_key"], r["round_num"])
         ct_won = bool(r["ct_won"])
@@ -81,6 +89,10 @@ def main() -> int:
             if (r["match_key"], r["round_num"], side) in flashed:
                 flash[side][0] += 1
                 flash[side][1] += int(won)
+            o = why.opening_events(deaths.get(key, []))
+            if o is not None:
+                why.tally(chain[side], "lost" if o[0] == side else "took",
+                          o[1], won)
             loser = first_death.get(key)
             if loser is None:
                 continue
@@ -116,7 +128,8 @@ def main() -> int:
                "matches": len(keys), "rounds": len(rounds),
                "opening": opening, "sides": dict(sides),
                "buys": {s: dict(v) for s, v in buys.items()},
-               "flash": flash, "utility": utility}, sys.stdout, indent=1)
+               "flash": flash, "utility": utility,
+               "opening_chain": chain}, sys.stdout, indent=1)
     print()
     return 0
 

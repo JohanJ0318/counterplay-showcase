@@ -172,16 +172,16 @@ def test_season_findings_are_read_against_collegiate_teams(engine):
 
     for won in (49, 30):
         close = engine([], _lost_openings(_stats(baseline_won=won), 40, 10))
-        assert not any("trading" in i["do"] for i in close["items"]), \
+        assert not any("after losing the opening duel" in i["evidence"][0] for i in close["items"]), \
             "25% against about 31% is inside the noise, strong team or weak"
         far = engine([], _lost_openings(_stats(baseline_won=won), 40, 3))
-        assert any("trading" in i["do"] for i in far["items"]), \
+        assert any("after losing the opening duel" in i["evidence"][0] for i in far["items"]), \
             "8% against about 31% over 40 rounds is a finding either way"
 
 
 def test_the_card_draws_collegiate_teams_as_its_second_bar(engine):
     out = engine([], _lost_openings(_stats(), 40, 3))
-    card = next(i for i in out["items"] if "trading" in i["do"])
+    card = next(i for i in out["items"] if "after losing the opening duel" in i["evidence"][0])
     assert card["vs"][1][0] == "Collegiate teams"
 
 

@@ -35,7 +35,7 @@ from counterplay import economy
 from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
-               utility)
+               utility, why)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, map_chip, page
@@ -694,6 +694,77 @@ def advice_card(it, baseline: float) -> str:
         + fig
         + (f'<p class="den">{esc(foot)}</p>' if foot else "")
         + '</div>')
+
+
+# The chain behind the two opening-duel patterns (app/why.py): the page used
+# to stop at "21% after losing the opening duel, college teams 30%", which a
+# captain called Leetify with a benchmark. This says which step of the round
+# costs the rounds, how sure that is, and which rounds to watch.
+WHY_HEAD = {
+    "lost": ("After you lose the opening duel",
+             "rounds after losing the opening duel"),
+    "took": ("After you win the opening duel",
+             "rounds after winning the opening duel"),
+}
+
+
+def why_block(team_id: int) -> str:
+    out = []
+    for role, e in why.for_team(team_id).items():
+        if not e or not e["culprits"]:
+            continue
+        title, what = WHY_HEAD[role]
+        links = e["links"]
+        lead = links[e["culprits"][0]]
+        fewer = -e["total"]
+        sure = ("Clearly" if e["confidence"] == "clear" else
+                "Most likely, though on these rounds it is not certain")
+        chart = charts.bars(
+            [(l["label"], l["hit"], l["of"]) for l in links],
+            refs=[l["college"] for l in links],
+            verdicts=[l["verdict"] for l in links])
+        also = [links[i] for i in e["culprits"][1:]]
+        # Say what it is NOT, too: a link where they are clearly better than
+        # college teams rules out the advice a coach would otherwise reach for.
+        fine = [l for l in links if l["verdict"] > 0]
+        lines = []
+        for l in also:
+            lines.append(f"Also costing rounds: {l['label'].lower()}, "
+                         f"{l['hit']} of {l['of']} against "
+                         f"{l['college']:.0f}% for college teams.")
+        for l in fine:
+            lines.append(f"Not the problem: {l['label'].lower()}, "
+                         f"{l['pct']:.0f}% against {l['college']:.0f}% for "
+                         f"college teams.")
+        watch = why.rounds_line(e["rounds"])
+        if watch:
+            lines.append(watch + ".")
+        out.append(
+            f'<div class="card" style="margin-bottom:16px">'
+            f'<h3>{esc(title)}</h3>'
+            f'<p class="den">About {fewer:.0f} '
+            f'{"round" if round(fewer) == 1 else "rounds"} fewer than college '
+            f'teams would win from the same {e["n"]} {esc(what)}, '
+            f'split below by where in the round they go.</p>'
+            f'<div class="chart">{chart}</div>'
+            f'<p class="lede"><strong>{esc(sure)}: '
+            f'{esc(lead["label"].lower())}.</strong> {esc(lead["advice"])}</p>'
+            + "".join(f'<p class="den">{esc(x)}</p>' for x in lines)
+            + '</div>')
+    if not out:
+        return ""
+    return f"""
+  <section>
+    <div class="sec-head"><span class="label">Why the patterns above are where they are</span>
+      <h2>Where the rounds go</h2></div>
+    <p class="lede">A round after the opening duel is a short chain: the
+      trade, then the 4v4 or the man advantage. Each step is counted and read
+      against college teams, and the rounds you are short are split exactly
+      between the steps. The step costing the most is named, and
+      &ldquo;clearly&rdquo; only when that step alone is too far off to be
+      luck.</p>
+    {"".join(out)}
+  </section>"""
 
 
 def opening_tile(you) -> str:
@@ -3174,7 +3245,7 @@ def _stats_body(team, user=None, share: str = ""):
 
   {_tab("Map pool", pool_block)}
 
-  {_tab("Patterns", patterns_section)}
+  {_tab("Patterns", patterns_section + why_block(team["id"]))}
 
   {_tab("Utility", utility_block)}
 
