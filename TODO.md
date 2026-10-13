@@ -178,6 +178,54 @@ true on purpose.
       UNKNOWN_MAP_ID = len(MAPS) instead of defaulting to a real one, so the
       class of bug cannot recur silently. Append to MAPS, never insert.
 
+- [x] **26 more maps did not move it either.** 2026-10-13: 164 maps (the
+      138 plus NECC Fall 2026 division weeks 1-2), 20 seeds, matched floor:
+
+      | | 138 maps | 164 maps |
+      |---|---|---|
+      | passing | 11 of 20 | 12 of 20 |
+      | ratio median | 2.39 | 2.36 |
+      | ratio min / max | 1.40 / 3.48 | 1.21 / 5.86 |
+      | AUC median | 0.8599 | 0.8588 |
+
+      One more seed passing is inside the noise, and the tail got WORSE:
+      seed 53 at 5.86 (ECE 0.058) is the worst split recorded. This is the
+      third time more matches has been tried as the lever (42, 88, 138,
+      164) and the third time it was not one.
+
+- [x] **The first real held-out test PASSED.** 2026-10-13, tools/holdout.py.
+      Trained and calibrated on the 138 placement maps only, split 20 ways,
+      every fit scored on the same 26 division maps (weeks 1-2, played after
+      every training map, never used to choose anything). Rule written into
+      the script BEFORE the run: 18 of 20 fits under 2.5x.
+
+          passed 19 of 20; median ratio 1.79; min 0.89, max 2.54 (seed 67)
+          AUC 0.862 to 0.885
+
+      This is question 1 below, answered once, and it says yes. What it does
+      not say: 26 maps is one sample of new games, and the one failure sits
+      just over the line, so the next division weeks are the next test, read
+      the same way with the same rule. And it is the calibration gate only:
+      whatever the scorer prints to a coach still has to be checked for
+      sense against real rounds before it ships.
+
+- [x] **Why 19 of 20 held out but 12 of 20 in the sweep: the TEST SET.**
+      tools/gapcheck.py changes one thing at a time from the held-out run:
+
+      | arm | change | passed |
+      |---|---|---|
+      | A | same protocol, test on 26 random PLACEMENT maps | 12 of 20 |
+      | B | division test, train on the sweep's share (123 maps) | 20 of 20 |
+      | C | sweep on all 164, but a 26-map test set | 14 of 20 |
+
+      Not training size (B passes with less), not test size (A fails at the
+      same size). The 26 division maps are an easy test set, and a random
+      26-map set passes about 60% of the time (A), so part of that pass may
+      be the draw. A guess at "training size" written here earlier was wrong.
+      Possible real reason, untested: divisions pair teams of similar level,
+      so fewer lopsided games than placements. Weeks 3-4 decide it: if a
+      second division set passes too, it is the games; if not, it was luck.
+
 - [ ] **Stop chasing features on this evidence. The measurement is the limit.**
       ECE ranges 0.0156 to 0.0387 across 20 seeds on the SAME 138 maps, a 2.5x
       spread. Any feature worth less than that is invisible here, and plant
