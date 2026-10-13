@@ -700,6 +700,11 @@ def advice_card(it, baseline: float) -> str:
 # to stop at "21% after losing the opening duel, college teams 30%", which a
 # captain called Leetify with a benchmark. This says which step of the round
 # costs the rounds, how sure that is, and which rounds to watch.
+#
+# NOT RENDERED (Johan, 2026-10-13): another block of statistics is the
+# overload the coach's read exists to replace. The chain reaches coaches
+# through tools/coach_read.py as evidence instead. Kept for that and for a
+# later "show the working" link under a note.
 WHY_HEAD = {
     "lost": ("After you lose the opening duel",
              "rounds after losing the opening duel"),
@@ -3245,7 +3250,7 @@ def _stats_body(team, user=None, share: str = ""):
 
   {_tab("Map pool", pool_block)}
 
-  {_tab("Patterns", patterns_section + why_block(team["id"]))}
+  {_tab("Patterns", patterns_section)}
 
   {_tab("Utility", utility_block)}
 
