@@ -3846,7 +3846,7 @@ async def api_zones(request: Request):
     from anyone signed in, which meant the first coach with an account could
     rename Mirage for everybody by trying the naming page out.
 
-    Shared knowledge, yes. Shared write access, no. `grantadmin.py` is how the
+    Shared knowledge, yes. Shared write access, no. `tools/grantadmin.py` is how the
     flag is given, and it is deliberately not something a web page can do.
     """
     user = current(request)
@@ -4007,7 +4007,7 @@ for _p, (_n, _k) in ICONS.items():
 
 # ---- who visited
 #
-# Admin only, and the flag is given by grantadmin.py, which is deliberately
+# Admin only, and the flag is given by tools/grantadmin.py, which is deliberately
 # not something a web page can do. Everyone else gets the 404 they would get
 # for any address that is not theirs, rather than a 403: a page you may not
 # see should not confirm it exists.
@@ -4217,7 +4217,7 @@ def sitemap_xml():
 if (SITE / "radars").is_dir():
     app.mount("/radars", StaticFiles(directory=SITE / "radars"), name="radars")
 
-# The map silhouettes the chips are masked with, built by mapicons.py. Mounted
+# The map silhouettes the chips are masked with, built by tools/mapicons.py. Mounted
 # the same way and equally optional: without them map_chip falls back to the
 # radar image it used before.
 if (SITE / "icons").is_dir():

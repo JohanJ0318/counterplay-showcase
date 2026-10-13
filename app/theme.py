@@ -544,7 +544,7 @@ details.drop>.tbl-plain{margin-top:10px}
   background-color:var(--purple-soft);border-color:var(--purple-line);
   display:flex;align-items:center;justify-content:center}
 /* 22 of a 26px circle. The silhouette carries interior detail now, and the
-   limit is cells per pixel: mapicons.py draws about 49 across, so 22px is
+   limit is cells per pixel: tools/mapicons.py draws about 49 across, so 22px is
    roughly two cells a pixel, which holds an edge. Smaller than this and the
    detail is present but averaged into grey. */
 /* A ROUNDED SQUARE, NOT A CIRCLE. A circular frame only suits content that
@@ -1145,7 +1145,7 @@ RADAR_FOR = {
 }
 
 
-# The maps mapicons.py has produced a silhouette for. Overpass and Train
+# The maps tools/mapicons.py has produced a silhouette for. Overpass and Train
 # have no stored radar mask, so they fall through to the radar image below;
 # anything with neither renders as a bare name.
 ICON_FOR = {"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno",
@@ -1155,7 +1155,7 @@ ICON_FOR = {"de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno",
 def map_chip(map_name: str, big: bool = False, label: str = "") -> str:
     """A map's outline as a small round chip, with its name beside it.
 
-    The silhouette is this site's own drawing, built once by mapicons.py from
+    The silhouette is this site's own drawing, built once by tools/mapicons.py from
     the alpha channel of the radar. At the size a chip renders, an actual
     radar is a grey smudge: shape is the only thing that reads at twenty
     pixels, and shape is what tells one map from another.

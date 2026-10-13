@@ -1,6 +1,6 @@
 """Render the link-preview card, `site/media/og.png`.
 
-    python makeog.py
+    python tools/makeog.py
 
 WHAT IT IS FOR
 --------------
@@ -34,7 +34,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw, ImageFont
 
-ROOT = Path(__file__).resolve().parent
+ROOT = Path(__file__).resolve().parent.parent
 OUT = ROOT / "site" / "media" / "og.png"
 FONTDIR = ROOT / "design" / "fonts"
 

@@ -335,7 +335,7 @@ one big frame.
 **A link preview**, 2026-09-21. The site had no `og:` tags at all, so the URL
 about to be posted in the NECC Discord and mailed to thirteen coaches unfurled
 as a line of grey text. There is a card now, `site/media/og.png`, drawn by
-`makeog.py` in the dark palette and carrying one real reading with its
+`tools/makeog.py` in the dark palette and carrying one real reading with its
 denominator. Deliberately not the video poster frame: that is gameplay footage
 with ten strangers' Steam avatars along the top, which is somebody else's data
 on our card.
@@ -346,7 +346,7 @@ noindex is there to stop.
 
 Set in Segoe UI and Consolas, because Space Grotesk and JetBrains Mono are not
 installed on this machine. Drop either `.ttf` into `design/fonts/` and re-run
-`makeog.py` and it picks them up.
+`tools/makeog.py` and it picks them up.
 
 **`/robots.txt` and `/sitemap.xml`**, same day. Both 404'd. Six pages are
 public; the other thirty routes want a session or a token, and `/zones.html`

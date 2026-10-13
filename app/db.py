@@ -128,7 +128,7 @@ def team_by_share_token(token: str) -> sqlite3.Row | None:
 def is_admin(user_id: int) -> bool:
     """The master account flag.
 
-    Set by grantadmin.py and deliberately not by anything a web page can
+    Set by tools/grantadmin.py and deliberately not by anything a web page can
     reach, which is the same rule /admin/traffic already relies on.
     """
     row = one("SELECT is_admin FROM users WHERE id = ?", user_id)

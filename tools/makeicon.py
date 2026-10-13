@@ -1,6 +1,6 @@
 """Render the favicon to the raster sizes browsers still ask for.
 
-    python makeicon.py
+    python tools/makeicon.py
 
 `site/favicon.svg` is the artwork and this draws the same rectangles from the
 same numbers rather than converting it: the mark is five rectangles and a
@@ -30,7 +30,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-SITE = Path(__file__).resolve().parent / "site"
+SITE = Path(__file__).resolve().parent.parent / "site"
 
 # The dark theme's own ground and the two sides' colours, so the mark is drawn
 # in a palette the site already speaks in.

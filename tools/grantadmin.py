@@ -5,9 +5,9 @@ Admin is one power today: naming the map zones, which are shared across every
 team on the platform. There is no admin UI and there should not be one until
 there is a second thing to administer.
 
-    python grantadmin.py --list
-    python grantadmin.py you@example.com
-    python grantadmin.py you@example.com --revoke
+    python tools/grantadmin.py --list
+    python tools/grantadmin.py you@example.com
+    python tools/grantadmin.py you@example.com --revoke
 
 Migration 16 gives the flag to the lowest user id, which is the founder on a
 box with one account and a leftover test account on a development machine.
@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parent.parent))
 
 from app import auth, db
 

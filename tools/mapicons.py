@@ -1,6 +1,6 @@
 """Build one small purple silhouette per map, for the map chips.
 
-    python mapicons.py
+    python tools/mapicons.py
 
 WHY NOT THE RADAR PNG, WHICH WAS ALREADY THERE
 ----------------------------------------------
@@ -66,9 +66,13 @@ from collections import deque
 
 import numpy as np
 
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parent.parent))
+
 from counterplay import radarmask as RM
 
-OUT = pathlib.Path("site/icons/maps")
+OUT = pathlib.Path(__file__).resolve().parent.parent / "site" / "icons" / "maps"
 GRID = 56          # cells across before cropping
 HOLE_MAX = 10      # interior gaps up to this many cells are speckle
 MAPS = ["de_ancient", "de_anubis", "de_cache", "de_dust2", "de_inferno",

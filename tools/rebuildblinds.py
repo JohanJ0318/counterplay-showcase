@@ -1,6 +1,6 @@
 """Recompute every flash counter from the stored blind rows.
 
-    python rebuildblinds.py [--check]
+    python tools/rebuildblinds.py [--check]
 
 Two constants in `counterplay.utility` decide what a flash is credited with:
 `MIN_BLIND_SECONDS`, how long it has to hold somebody before it counts as
@@ -34,6 +34,10 @@ you like.
 from __future__ import annotations
 
 import sys
+
+import pathlib as _pl
+import sys as _sys
+_sys.path.insert(0, str(_pl.Path(__file__).resolve().parent.parent))
 
 from app import db
 from counterplay.utility import (KILL_GRACE_SECONDS, MIN_BLIND_SECONDS,

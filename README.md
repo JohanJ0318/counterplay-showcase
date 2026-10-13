@@ -33,6 +33,27 @@ deployment and the first conversations with coaches.
 - **Shares and hands over**: read-only share links, and a one-time link that transfers a
   team built from a coach's public demos to that coach's own account.
 
+## What a coach sees
+
+Screenshots from the [sample report](https://counterplaycs.com/sample-report) on the live
+site. The team is fictional and its numbers are invented, so no real team's data is shown;
+the layout, charts and maps are the product's own.
+
+**What to work on**, ranked by how many rounds each habit costs or wins, with the counts
+behind every claim:
+
+<p align="center"><img src="docs/images/what-to-work-on.png" width="800" alt="What to work on: ranked advice with the rounds behind each item"></p>
+
+**Recurring patterns**: every rate printed with the chances it came from, so a coach can
+open the demo and check it:
+
+<p align="center"><img src="docs/images/recurring-patterns.png" width="800" alt="Recurring patterns: round win rates with their denominators"></p>
+
+**Zone maps**: positions placed into named areas by walking distance over ground players
+actually stood on, so a place never bleeds through a wall:
+
+<p align="center"><img src="docs/images/zone-maps.png" width="800" alt="Zone maps for Mirage, Nuke upper and lower, and Inferno"></p>
+
 ## How it fits together
 
 ```mermaid
@@ -108,9 +129,10 @@ app/            Web app: routes and pages (main.py), every reading (report.py),
 counterplay/    Parser and models: parse.py, model.py (win probability), rank.py,
                 economy.py, zones and the walked zone model
 league/gen/     Generator for the league statistics site (FACEIT data)
-tools/          Measurement scripts: calibration checks, seed sweeps, benchmarks
+tools/          Measurement and operator scripts: calibration checks, seed sweeps,
+                benchmarks, icon and image builders, Windows launchers
 tests/          264 tests
-docs/           The decision engine write-up
+docs/           The decision engine write-up and README images
 ```
 
 ## Running it locally
