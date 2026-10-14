@@ -17,7 +17,7 @@ import argparse
 import sys
 import time
 
-from . import db, ingest
+from . import coach, db, ingest
 
 
 # Consecutive retryable failures before giving up on this pass. When the demo
@@ -82,6 +82,8 @@ def main() -> int:
     if args.once or args.limit:
         done, failed = drain(args.limit)
         print(f"\n{done} parsed, {failed} failed")
+        if done:
+            coach.refresh()
         return 0
 
     print("watching for demos (ctrl-c to stop)")
@@ -89,6 +91,13 @@ def main() -> int:
         done, failed = drain()
         if done or failed:
             print(f"  {done} parsed, {failed} failed", flush=True)
+        # The coach's read for every team with a newly parsed demo. After the
+        # pass, not per demo, so a coach uploading five maps gets one note
+        # from all five. refresh() never raises and does nothing without a key.
+        if done:
+            made = coach.refresh()
+            if made:
+                print(f"  coach's read: {len(made)} note(s) written", flush=True)
         try:
             time.sleep(args.interval)
         except KeyboardInterrupt:

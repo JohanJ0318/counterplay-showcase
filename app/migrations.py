@@ -611,6 +611,34 @@ MIGRATIONS: list[tuple[int, str, str]] = [
                              JOIN matches m2 ON m2.demo_id = d2.id
                             WHERE d2.sha256 = d.sha256 AND d2.id < d.id);
     """),
+    (26, "the coach's read: one row per note written for a team", """
+        -- app/coach.py writes a short coaching note after a team's demo is
+        -- parsed: Claude drafts it from facts this code computed, edits it,
+        -- reviews it, and a checker refuses any number the facts do not
+        -- back. status: pending (waiting for the master account's read),
+        -- approved (shown on the team's Overview), rejected, failed (the
+        -- checker or the reviewer refused it twice; never shown).
+        -- `auto` is 1 when it was approved without a person, which only
+        -- happens after AUTO_APPROVE_AFTER approvals in a row with no edits.
+        -- `pack` is the evidence exactly as sent, so a note can always be
+        -- checked against what it was written from.
+        CREATE TABLE IF NOT EXISTS coach_notes (
+            id          INTEGER PRIMARY KEY,
+            team_id     INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+            created_at  TEXT NOT NULL,
+            status      TEXT NOT NULL,
+            note        TEXT,
+            pack        TEXT NOT NULL,
+            problems    TEXT,
+            cost_usd    REAL,
+            auto        INTEGER NOT NULL DEFAULT 0,
+            edited      INTEGER NOT NULL DEFAULT 0,
+            decided_by  INTEGER REFERENCES users(id),
+            decided_at  TEXT
+        );
+        CREATE INDEX IF NOT EXISTS idx_coach_notes_team
+            ON coach_notes(team_id, status);
+    """),
 ]
 
 

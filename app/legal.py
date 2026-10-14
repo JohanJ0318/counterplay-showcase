@@ -49,7 +49,7 @@ from .theme import esc
 
 EMAIL = os.environ.get("COUNTERPLAY_LEGAL_EMAIL", "")
 
-UPDATED = "September 2026"
+UPDATED = "October 2026"
 
 
 def complete() -> bool:
@@ -133,9 +133,16 @@ def privacy_body() -> str:
       <h2>Storage, sharing and how long we keep it</h2></div>
     <div class="card">
       <p>Everything sits on one server rented from Hetzner Online GmbH in
-        Nuremberg, Germany, and in backups of that server. Nobody else
-        processes it. There is no analytics provider, no advertising network
-        and no third-party database.</p>
+        Nuremberg, Germany, and in backups of that server. There is no
+        analytics provider, no advertising network and no third-party
+        database.</p>
+      <p>One other company handles some of it. To write the coach's read on
+        a team's Overview, we send that team's name and the statistics worked
+        out from its matches (counts and rates, compared with other college
+        teams) to Anthropic, whose Claude model writes the note. No demo
+        file, no player names and no Steam IDs are sent. Anthropic's terms
+        for its API say it does not train its models on what is sent this
+        way.</p>
       <p>Match data is kept while it is useful to the team that uploaded it.
         Demo files are kept so that reports can be rebuilt when the parser
         improves. Ask us to delete a team's data and we delete the rows and

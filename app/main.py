@@ -35,7 +35,7 @@ from counterplay import economy
 from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
-               utility, why)
+               utility, why, coach)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, map_chip, page
@@ -769,6 +769,38 @@ def why_block(team_id: int) -> str:
       &ldquo;clearly&rdquo; only when that step alone is too far off to be
       luck.</p>
     {"".join(out)}
+  </section>"""
+
+
+COACH_PILL = {"fix": ("work on this", "t"), "keep": ("keep doing this", "on"),
+              "check": ("worth checking", "")}
+
+
+def coach_read_block(read: dict) -> str:
+    """The approved coach's read as the lead of Overview (app/coach.py)."""
+    cards = []
+    for p in read.get("points", []):
+        tag, cls = COACH_PILL.get(p.get("kind"), ("", ""))
+        watch = (f'<p class="den">Rounds to watch: '
+                 f'{esc(", ".join(p["rounds_to_watch"]))}</p>'
+                 if p.get("rounds_to_watch") else "")
+        cards.append(
+            f'<div class="card advice{" good" if p.get("kind") == "keep" else ""}">'
+            f'<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
+            f'<span class="pill {cls}">{esc(tag)}</span></div>'
+            f'<h3>{esc(p.get("headline", ""))}</h3>'
+            f'<p class="lede">{esc(p.get("what_happens", ""))}</p>'
+            f'<p><strong>Practice:</strong> {esc(p.get("practice", ""))}</p>'
+            f'{watch}</div>')
+    return f"""
+  <section class="lead">
+    <div class="sec-head"><span class="label">Read this one first</span>
+      <h2>Coach's read</h2></div>
+    <p class="lede">{esc(read.get("summary", ""))}</p>
+    <div class="grid2">{"".join(cards)}</div>
+    <p class="den">Written by Claude from your matches and checked against
+      them: every number here comes from your rounds, compared with other
+      college teams.</p>
   </section>"""
 
 
@@ -2860,6 +2892,23 @@ def _stats_body(team, user=None, share: str = ""):
     else:
         monday_block = ""
 
+    # ---- the coach's read (app/coach.py), when one has been approved.
+    # Coaching first, statistics one click away: the cards above fold under
+    # the note instead of leading the page (Johan, 2026-10-13).
+    read = coach.latest(team["id"])
+    if read:
+        if plan["items"]:
+            monday_block = f"""
+  <section>
+    <details class="drop"><summary>Show the numbers behind it</summary>
+      <p class="lede">Every finding on your matches, biggest first: how far
+        each one sits from your usual, times the rounds it covers.</p>
+      {chart_block}
+      {"".join(groups)}
+    </details>
+  </section>"""
+        monday_block = coach_read_block(read) + monday_block
+
     # ---- recent form
     #
     # A season total cannot show whether the thing you fixed in practice held.
@@ -3565,6 +3614,40 @@ def team_new(request: Request, name: str = Form(""), league: str = Form("NECC"),
     return see_other("/dashboard")
 
 
+@app.post("/coach/decide")
+async def coach_decide(request: Request):
+    """Approve (with any edits) or reject a pending coach's read. The master
+    account only. A rejected edit, one the checker refuses, comes back as a
+    note on /account and nothing is saved."""
+    user, redirect = require_user(request)
+    if redirect:
+        return redirect
+    form = await request.form()
+    if not auth.check_csrf(user, form.get("csrf", "")) or not user["is_admin"]:
+        return see_other("/account")
+    try:
+        note_id = int(form.get("note_id", ""))
+    except ValueError:
+        return see_other("/account")
+    approve = form.get("action") == "approve"
+    edited = {"summary": form.get("summary", ""),
+              "points": [{"headline": form.get(f"h{i}", ""),
+                          "what_happens": form.get(f"w{i}", ""),
+                          "practice": form.get(f"p{i}", "")}
+                         for i in range(coach.MAX_POINTS) if f"h{i}" in form]}
+    problems = coach.decide(note_id, user["id"], approve,
+                            edited if approve else None)
+    if problems:
+        return html_page(
+            "Coach's read not saved | Counterplay", banner("Account"),
+            '<section><div class="card"><h3>Not saved: the checker refused '
+            'the edit</h3><ul class="den">'
+            + "".join(f"<li>{esc(p)}</li>" for p in problems)
+            + '</ul><p><a href="/account">Back to the queue</a></p></div>'
+              '</section>', user)
+    return see_other("/account")
+
+
 @app.post("/claim/new")
 def claim_new(request: Request, csrf: str = Form("")):
     """Make a one-time link that hands this team to whoever opens it.
@@ -3830,7 +3913,53 @@ def account(request: Request):
     </div>
   </section>""" if user["is_admin"] else ""
 
+    # Coach's reads waiting for the master account (app/coach.py). Each can be
+    # edited in place before approving; an edit is held to the same checker
+    # as a note Claude wrote, and any edit turns auto-approval back off.
+    queue_block = ""
+    if user["is_admin"]:
+        items = []
+        for q in coach.queue():
+            n = q["note"]
+            pts = []
+            for i, p in enumerate(n.get("points", [])):
+                tag = COACH_PILL.get(p.get("kind"), ("", ""))[0]
+                pts.append(
+                    f'<fieldset class="stack"><legend>{esc(tag)}</legend>'
+                    f'{form_field(f"h{i}", "Headline", value=p.get("headline", ""))}'
+                    f'<label>What happens<textarea name="w{i}" rows="3">'
+                    f'{esc(p.get("what_happens", ""))}</textarea></label>'
+                    f'<label>Practice<textarea name="p{i}" rows="3">'
+                    f'{esc(p.get("practice", ""))}</textarea></label>'
+                    + (f'<p class="den">Rounds to watch: '
+                       f'{esc(", ".join(p["rounds_to_watch"]))}</p>'
+                       if p.get("rounds_to_watch") else "")
+                    + '</fieldset>')
+            cost = f" · ${q['cost_usd']:.2f}" if q.get("cost_usd") else ""
+            items.append(
+                f'<form class="card stack" method="post" action="/coach/decide">'
+                f'{csrf_input(user)}<input type="hidden" name="note_id" '
+                f'value="{q["id"]}"><h3>{esc(q["team"])}</h3>'
+                f'<p class="den">Written {esc(q["created_at"][:16].replace("T", " "))}'
+                f'{cost}. Edit anything, then approve; the checker reruns on an '
+                f'edit.</p>'
+                f'<label>Summary<textarea name="summary" rows="2">'
+                f'{esc(n.get("summary", ""))}</textarea></label>{"".join(pts)}'
+                f'<div style="display:flex;gap:9px">'
+                f'<button class="btn" type="submit" name="action" value="approve">'
+                f'Approve and show it</button>'
+                f'<button class="btn ghost" type="submit" name="action" '
+                f'value="reject">Reject</button></div></form>')
+        if items:
+            queue_block = f"""
+  <section>
+    <div class="sec-head"><span class="label">Waiting for you</span>
+      <h2>Coach's reads to approve</h2></div>
+    {"".join(items)}
+  </section>"""
+
     body = f"""
+  {queue_block}
   <section>
     <div class="card">
       <h3>{esc(user["name"] or "–")}</h3>

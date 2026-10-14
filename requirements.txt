@@ -23,6 +23,8 @@ fastapi==0.141.1
 uvicorn==0.52.4
 python-multipart==0.0.32
 zstandard==0.25.0
+# The coach's read (app/coach.py), called by the worker, never in a request.
+anthropic==1.13.0
 
 # tests
 pytest==9.1.1
