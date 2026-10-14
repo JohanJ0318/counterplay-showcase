@@ -226,6 +226,34 @@ true on purpose.
       so fewer lopsided games than placements. Weeks 3-4 decide it: if a
       second division set passes too, it is the games; if not, it was luck.
 
+- [x] **The shipped LightGBM is too BIG for this data, and pro maps help
+      it.** 2026-10-14, tools/baselines.py. 20 seeds; DIV = train placement,
+      test the 26 division maps; RAND = 26 random maps of 164 as test.
+
+      | arm | DIV passed | DIV AUC | DIV logloss | RAND passed | RAND median | RAND AUC | RAND logloss |
+      |---|---|---|---|---|---|---|---|
+      | LGB (shipped) | 19/20 | 0.869 | 0.448 | 14/20 | 1.78 | 0.870 | 0.453 |
+      | LOGIT | 18/20 | 0.897 | 0.399 | 14/20 | 1.69 | 0.889 | 0.419 |
+      | SMALL (7 leaves, 300/leaf) | 19/20 | 0.898 | 0.398 | 15/20 | 1.75 | 0.892 | 0.414 |
+      | XFIT (cross-fitted isotonic) | 20/20 | 0.880 | 0.427 | 13/20 | 2.12 | 0.879 | 0.433 |
+      | PRO (+104 pro maps) | 20/20 | 0.883 | 0.426 | 15/20 | 1.68 | 0.885 | 0.426 |
+      | LOGPRO | 18/20 | 0.897 | 0.400 | 17/20 | 1.70 | 0.888 | 0.418 |
+
+      A plain logistic regression beats the shipped booster by about 0.02
+      AUC and 0.04 log loss on both protocols, and a cut-down booster does
+      as well or slightly better. So the trees were overfitting 29,000 rows
+      that are really about 4,000 rounds, and capacity is the OPPOSITE of
+      what is missing: a bigger model (PyTorch on these 11 features) would
+      go the wrong way. Pro maps help the big booster (they act as more
+      data) and add almost nothing to the small ones. Cross-fitting steadies
+      the DIV run and does worse on RAND, so it is not a clear win.
+
+      None of it fixes the calibration tail: every arm still has a RAND
+      seed near 4x. That is about which 26 maps land in test, not the model.
+
+      Next, if taken: run seedsweep and holdout with SMALL (with and without
+      pro maps) as the shipped config, then decide. Not changed yet.
+
 - [ ] **Stop chasing features on this evidence. The measurement is the limit.**
       ECE ranges 0.0156 to 0.0387 across 20 seeds on the SAME 138 maps, a 2.5x
       spread. Any feature worth less than that is invisible here, and plant
