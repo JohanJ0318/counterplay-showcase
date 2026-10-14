@@ -55,7 +55,12 @@ ROUND_TYPE_IDS = {r: i for i, r in enumerate(ROUND_TYPES)}
 # is a very different proposition in tier-1 CS than in solo-queue Premier, and
 # a model that averages them is wrong for everybody. Conditioning on tier means
 # one model serves all four populations honestly instead of serving none.
-TIERS = ["pro", "collegiate", "league", "premier"]
+#
+# APPEND only, like MAPS: TIER_IDS is positional. "esea" (2026-10-14) is the
+# ESEA League on FACEIT (tools/esea.py), kept apart from "league" so an ESEA
+# match never counts as a college one. Without its own entry state.py would
+# file it under DEFAULT_TIER, silently.
+TIERS = ["pro", "collegiate", "league", "premier", "esea"]
 TIER_IDS = {t: i for i, t in enumerate(TIERS)}
 DEFAULT_TIER = "premier"
 

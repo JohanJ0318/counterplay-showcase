@@ -12,7 +12,11 @@ rows compare with that table directly:
 Calibration is the shipped isotonic layer, fitted on 25% of the training
 matches that the model never trained on. Test maps are always collegiate.
 
+  SWEEP tools/seedsweep.py's split: 25% of all 164 college maps as test.
+        DIV is tools/holdout.py's protocol, whose rule is 18 of 20.
+
 Arms:
+  LGB       the shipped LightGBM (counterplay/model.py), unchanged.
   SMALL     the bar: LightGBM cut down (tools/baselines.py's best tree arm),
             the shipped eleven features.
   SMALLPOS  the same trees plus hand-made position summaries (ml.data.POSFEAT:
@@ -69,6 +73,17 @@ def tree_frame(idx, with_pos):
     return f
 
 
+def shipped_tree(tr, seed):
+    """counterplay/model.py's booster, unchanged: the reference."""
+    b = lgb.LGBMClassifier(
+        n_estimators=400, learning_rate=0.05, num_leaves=31,
+        min_child_samples=40, subsample=0.9, colsample_bytree=0.9,
+        random_state=seed, verbose=-1)
+    b.fit(tree_frame(tr, False), Y[tr],
+          categorical_feature=[FEATURES.index(c) for c in CATEGORICAL])
+    return lambda idx: b.predict_proba(tree_frame(idx, False))[:, 1]
+
+
 def small_tree(tr, seed, with_pos):
     b = lgb.LGBMClassifier(
         n_estimators=200, learning_rate=0.05, num_leaves=7,
@@ -86,6 +101,7 @@ def net(tr, seed, use_players, pro):
 
 
 ARMS = {
+    "LGB": shipped_tree,
     "SMALL": lambda tr, s: small_tree(tr, s, False),
     "SMALLPOS": lambda tr, s: small_tree(tr, s, True),
     "MLP": lambda tr, s: net(tr, s, False, False),
@@ -107,20 +123,32 @@ def rand_protocol(seed):
     return LEAGUE[~test], LEAGUE[test]
 
 
-PROTOCOLS = {"DIV": lambda seed: (PLACE, DIV), "RAND": rand_protocol}
+def sweep_protocol(seed):
+    """tools/seedsweep.py's split, exactly: model._split3's outer split, 25%
+    of the 164 college maps as test. split_cal then makes its inner one."""
+    outer = GroupShuffleSplit(n_splits=1, test_size=0.25, random_state=seed)
+    rest, test = next(outer.split(LEAGUE, groups=st["match_id"].to_numpy()[LEAGUE]))
+    return LEAGUE[rest], LEAGUE[test]
+
+
+PROTOCOLS = {"DIV": lambda seed: (PLACE, DIV), "RAND": rand_protocol,
+             "SWEEP": sweep_protocol}
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("arms", nargs="*", default=list(ARMS))
     ap.add_argument("--seeds", type=int, default=len(SEEDS))
+    ap.add_argument("--protocols", default="DIV,RAND",
+                    help="comma list of DIV, RAND, SWEEP")
     args = ap.parse_args()
     seeds = SEEDS[:args.seeds]
     print(f"{len(PLACE)} placement rows, {len(DIV)} division rows, "
           f"{len(PRO)} pro rows; {len(seeds)} seeds\n")
     print("%-5s %-9s %8s %10s %10s %8s %8s %7s" % (
         "proto", "arm", "passed", "ratio med", "range", "AUC", "logloss", "secs"))
-    for pname, protocol in PROTOCOLS.items():
+    for pname in args.protocols.split(","):
+        protocol = PROTOCOLS[pname]
         for aname in args.arms:
             t0 = time.time()
             ratios, aucs, losses = [], [], []
