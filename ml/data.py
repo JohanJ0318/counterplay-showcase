@@ -38,7 +38,7 @@ from counterplay import state as state_mod
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "data" / "ml"
-CACHE_VERSION = 2
+CACHE_VERSION = 3
 
 # Per player: x, y, z (normalised per map), health / 100, alive, facing as
 # sin and cos, standing in bombsite 1, in bombsite 2.
@@ -51,7 +51,7 @@ SLOTS = 10
 POSFEAT = ["hp_ct", "hp_t", "ct_site1", "ct_site2", "t_site1", "t_site2",
            "ct_spread", "t_spread", "closest_enemy"]
 
-TIERS = ("league", "pro")
+TIERS = ("league", "pro", "esea")
 
 
 @dataclass
@@ -148,7 +148,11 @@ def _map_norms(keys_by_map):
 
 def build() -> Snapshots:
     db.init()
-    frames = [state_mod.build_states(*corpus.load_frames(tier=t)) for t in TIERS]
+    frames = []
+    for t in TIERS:
+        rounds, events = corpus.load_frames(tier=t)
+        if len(rounds):                 # a tier with no matches yet is skipped
+            frames.append(state_mod.build_states(rounds, events))
     states = pd.concat(frames, ignore_index=True)
     maps = {r["match_key"]: r["map_name"]
             for r in db.query("SELECT match_key, map_name FROM matches")}

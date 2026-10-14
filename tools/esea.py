@@ -178,7 +178,13 @@ def main():
             sys.exit(f"no folder {folder}")
         # tier=esea is the whole point: see the docstring.
         print(pull.from_directory(folder, tier="esea"))
-        print("now run: python -m app.worker --once")
+        # Parse here, with worker.drain and NOT `python -m app.worker
+        # --once`: that also runs coach.refresh(), which on this PC (where
+        # ANTHROPIC_API_KEY is set) would pay Claude to write notes for
+        # every local team.
+        from app import worker
+        parsed, failed = worker.drain()
+        print(f"{parsed} parsed, {failed} failed")
 
 
 if __name__ == "__main__":

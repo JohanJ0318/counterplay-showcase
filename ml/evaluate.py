@@ -26,6 +26,9 @@ Arms:
             If NET beats SMALL but MLP does too, it was the model family.
   NET       the network with all ten players, college maps only.
   NETPRO    NET pretrained with the 104 pro maps, then fine-tuned on college.
+  NETESEA   the same, pretrained with ESEA League maps (tools/esea.py).
+  NETBOTH   pretrained with pro and ESEA together.
+  SMALLPOS+ESEA  SMALLPOS with the ESEA maps as extra training rows.
 """
 from __future__ import annotations
 
@@ -57,6 +60,9 @@ snap = data.load()
 st = snap.states
 LEAGUE = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["league"])
 PRO = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["pro"])
+ESEA = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["esea"])
+EXTRA = {None: None, "pro": PRO, "esea": ESEA,
+         "both": np.concatenate([PRO, ESEA])}
 division = {r["match_key"] for r in db.query(
     """SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id
         WHERE m.tier = 'league' AND d.created_at >= '2026-10-13'""")}
@@ -94,9 +100,9 @@ def small_tree(tr, seed, with_pos):
     return lambda idx: b.predict_proba(tree_frame(idx, with_pos))[:, 1]
 
 
-def net(tr, seed, use_players, pro):
+def net(tr, seed, use_players, extra=None):
     fit = train.train(snap, tr, seed=seed, use_players=use_players,
-                      pretrain_idx=PRO if pro else None)
+                      pretrain_idx=EXTRA[extra])
     return lambda idx: fit.predict(snap, idx)
 
 
@@ -104,9 +110,14 @@ ARMS = {
     "LGB": shipped_tree,
     "SMALL": lambda tr, s: small_tree(tr, s, False),
     "SMALLPOS": lambda tr, s: small_tree(tr, s, True),
-    "MLP": lambda tr, s: net(tr, s, False, False),
-    "NET": lambda tr, s: net(tr, s, True, False),
-    "NETPRO": lambda tr, s: net(tr, s, True, True),
+    # The trees get ESEA rows as extra training rows (tier_id is a feature,
+    # so they can tell them apart); calibration and test stay collegiate.
+    "SMALLPOS+ESEA": lambda tr, s: small_tree(np.concatenate([tr, ESEA]), s, True),
+    "MLP": lambda tr, s: net(tr, s, False),
+    "NET": lambda tr, s: net(tr, s, True),
+    "NETPRO": lambda tr, s: net(tr, s, True, "pro"),
+    "NETESEA": lambda tr, s: net(tr, s, True, "esea"),
+    "NETBOTH": lambda tr, s: net(tr, s, True, "both"),
 }
 
 
@@ -144,8 +155,8 @@ def main():
     args = ap.parse_args()
     seeds = SEEDS[:args.seeds]
     print(f"{len(PLACE)} placement rows, {len(DIV)} division rows, "
-          f"{len(PRO)} pro rows; {len(seeds)} seeds\n")
-    print("%-5s %-9s %8s %10s %10s %8s %8s %7s" % (
+          f"{len(PRO)} pro rows, {len(ESEA)} ESEA rows; {len(seeds)} seeds\n")
+    print("%-5s %-13s %8s %10s %10s %8s %8s %7s" % (
         "proto", "arm", "passed", "ratio med", "range", "AUC", "logloss", "secs"))
     for pname in args.protocols.split(","):
         protocol = PROTOCOLS[pname]
@@ -164,7 +175,7 @@ def main():
                 aucs.append(roc_auc_score(Y[test], p))
                 losses.append(log_loss(Y[test], p))
             ok = sum(r < M.ECE_FLOOR_MULTIPLE for r in ratios)
-            print("%-5s %-9s %5d/%-2d %10.2f %4.1f-%-5.1f %8.4f %8.4f %7.0f" % (
+            print("%-5s %-13s %5d/%-2d %10.2f %4.1f-%-5.1f %8.4f %8.4f %7.0f" % (
                 pname, aname, ok, len(seeds), statistics.median(ratios),
                 min(ratios), max(ratios), statistics.median(aucs),
                 statistics.median(losses), time.time() - t0), flush=True)
