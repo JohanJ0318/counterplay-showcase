@@ -1,0 +1,9 @@
+# HTTPS for the staging copy. Caddy gets the certificate itself once the
+# domain's DNS points at this machine. The app sets Secure cookies, so it
+# needs HTTPS to log in at all.
+{$STAGING_DOMAIN} {
+	encode gzip
+	reverse_proxy web:8000
+	# A staging site must never be indexed or mistaken for the real one.
+	header X-Robots-Tag "noindex, nofollow"
+}

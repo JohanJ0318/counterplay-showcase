@@ -1,0 +1,23 @@
+# Only app/, counterplay/, site/ and requirements.txt go into the image
+# (see Dockerfile). Everything else is kept out of the build context, above
+# all the real database and demos: data/ holds real accounts.
+data/
+backups/
+transfer.db
+archive/
+league/
+outreach/
+graphify-out/
+ml/
+tools/
+tests/
+design/
+deploy/
+.git/
+.claude/
+.github/
+*.md
+**/__pycache__/
+*.pyc
+*.log
+site/league/

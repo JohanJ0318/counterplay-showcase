@@ -1,0 +1,44 @@
+# A staging copy of Counterplay on any machine with Docker: the web app, the
+# parse worker and Caddy for HTTPS, sharing one /data volume.
+#
+#     cd deploy
+#     cp staging.env.example staging.env      # then fill it in
+#     docker compose up -d
+#
+# See deploy/STAGING.md. Production is NOT this: it is the Hetzner box under
+# systemd, and nothing here touches it.
+
+services:
+  web:
+    image: ${COUNTERPLAY_IMAGE:-ghcr.io/johanj0318/counterplay:latest}
+    build: ..
+    env_file: staging.env
+    volumes: [data:/data]
+    restart: unless-stopped
+
+  worker:
+    image: ${COUNTERPLAY_IMAGE:-ghcr.io/johanj0318/counterplay:latest}
+    command: ["python", "-m", "app.worker"]
+    env_file: staging.env
+    volumes: [data:/data]
+    restart: unless-stopped
+    # Parsing is the memory-hungry part; the systemd unit caps it at 3G too.
+    # A 1GB free-tier machine cannot parse: leave the worker off there with
+    #   docker compose up -d web caddy
+    mem_limit: 3g
+    depends_on: [web]
+
+  caddy:
+    image: caddy:2
+    ports: ["80:80", "443:443"]
+    volumes:
+      - ./Caddyfile.staging:/etc/caddy/Caddyfile:ro
+      - caddy:/data
+    environment:
+      STAGING_DOMAIN: ${STAGING_DOMAIN:?set STAGING_DOMAIN, e.g. staging.counterplaycs.com}
+    restart: unless-stopped
+    depends_on: [web]
+
+volumes:
+  data:
+  caddy:

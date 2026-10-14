@@ -32,3 +32,6 @@ __pycache__/
 # rather than source: graph.json alone is megabytes and changes on every edit.
 # .mcp.json IS tracked, because the server config is worth sharing.
 graphify-out/
+
+# A staging copy's secrets (deploy/staging.env.example says what goes in it).
+deploy/staging.env
