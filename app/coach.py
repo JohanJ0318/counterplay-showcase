@@ -163,7 +163,9 @@ team as "you" everywhere, never "we" or "our". No hedging
 boilerplate ("it is worth noting", "this suggests"), no talk about
 statistics, tests or samples (the point's label already says whether it is
 proven), no "it is not X, it is Y" constructions, no lists of three for
-rhythm, no praise padding. No dashes as punctuation. US spelling. A league
+rhythm, no praise padding. No dashes as punctuation. US spelling. Never
+"he", "him" or "his" for a player: "they", "their", or name the role
+("the entry", "the player who got the opener"). A league
 team plays scheduled matches: no matchmaking words like "queue"."""
 
 RULES = f"""- Use ONLY the facts provided. Every number you write must appear in a fact
