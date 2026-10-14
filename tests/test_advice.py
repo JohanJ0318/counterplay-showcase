@@ -100,6 +100,10 @@ def engine(monkeypatch):
         monkeypatch.setattr(utility, "round_splits", lambda _tid: {})
         monkeypatch.setattr(utility, "flashes", lambda _tid: None)
         monkeypatch.setattr(utility, "unused", lambda _tid: None)
+        # The trade cards ask why.for_team() what the cause is (2026-10-13),
+        # which reads the database: the same trap as above, and CI failed on
+        # it for a day while this laptop passed. No cause measured here.
+        monkeypatch.setattr(advice.why, "for_team", lambda _tid: {})
         return advice.monday(1)
     return run
 

@@ -254,6 +254,16 @@ true on purpose.
       Next, if taken: run seedsweep and holdout with SMALL (with and without
       pro maps) as the shipped config, then decide. Not changed yet.
 
+- [ ] **state.py assumes every round starts 5 on 5.** Found 2026-10-14 by
+      ml/data.py, which reads alive state from death events and positions
+      from the samples. After that fix the two agree on 99.2% of rows, and
+      every remaining row (383 of 47,036) is a side with FEWER than five
+      players in it: a disconnect or a late join, where the positions are
+      right and build_states' alive_ct / alive_t = 5 at the start is not.
+      Small, but it feeds the shipped model wrong counts in exactly the
+      rounds a team plays short. Fix: start each round's counts from who
+      was alive at freeze-end in round_positions, where it exists.
+
 - [ ] **Stop chasing features on this evidence. The measurement is the limit.**
       ECE ranges 0.0156 to 0.0387 across 20 seeds on the SAME 138 maps, a 2.5x
       spread. Any feature worth less than that is invisible here, and plant
