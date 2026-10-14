@@ -4136,7 +4136,8 @@ def sample_report(request: Request):
     # zone_pictures is handed in rather than imported: it lives here, and
     # app.sample importing main would close the loop.
     return HTMLResponse(sample_page.render(current(request),
-                                           pictures=zone_pictures))
+                                           pictures=zone_pictures,
+                                           read_block=coach_read_block))
 
 
 # ---- the icon

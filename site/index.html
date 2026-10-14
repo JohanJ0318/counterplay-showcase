@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Counterplay: Match analysis for league teams</title>
-<meta name="description" content="Counterplay reads your team's match demos and returns player stats, team stats, match reports and recurring patterns, every number with its denominator.">
+<meta name="description" content="Counterplay reads your team's match demos and tells you what to work on at practice: a short coach's read with the rounds to watch, and the stats behind it.">
 <link rel="icon" href="/favicon.ico" sizes="32x32">
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="/apple-touch-icon.png">
@@ -18,7 +18,7 @@
 <meta property="og:site_name" content="Counterplay">
 <meta property="og:url" content="https://counterplaycs.com/">
 <meta property="og:title" content="Your matches, actually read.">
-<meta property="og:description" content="Upload your team's demos and get back player stats, team stats, a report per match, and the patterns you repeat without noticing. Every number carries the rounds it came from.">
+<meta property="og:description" content="Upload your team's demos and get a short coach's read: what to work on, what to keep, and the rounds to pull up at practice. The stats behind it are one click away.">
 <meta property="og:image" content="https://counterplaycs.com/media/og.png">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
@@ -216,6 +216,19 @@ nav{border-bottom:1px solid var(--border);background:var(--surface);position:sti
   text-transform:uppercase;color:var(--t);border:1px solid var(--t);padding:1px 5px}
 .receipt-foot{margin-top:12px;padding-top:12px;border-top:1px solid var(--border-strong);
   font-family:var(--f-mono);font-size:.66rem;color:var(--faint);line-height:1.5}
+.rsum{font-size:.95rem;line-height:1.45;padding:12px 0 4px}
+.rpoint{padding:12px 0;border-bottom:1px solid var(--border);display:flex;
+  flex-direction:column;gap:5px}
+.rpoint:nth-last-child(2){border-bottom:none}
+.rpoint h3{font-size:.98rem}
+.rpoint p{font-size:.86rem;line-height:1.42;color:var(--muted)}
+.rpoint .rprac{color:var(--ink)}
+.rpoint .rwatch{font-family:var(--f-mono);font-size:.7rem;color:var(--faint)}
+.rpill{align-self:flex-start;font-family:var(--f-mono);font-size:.6rem;
+  letter-spacing:.1em;text-transform:uppercase;padding:2px 7px;border-radius:99px;
+  border:1px solid var(--border-strong);color:var(--muted)}
+.rpill.fix{border-color:var(--t);color:var(--t);background:var(--t-soft)}
+.rpill.keep{border-color:var(--purple);color:var(--purple);background:var(--purple-soft)}
 .fade{opacity:0;transform:translateY(6px);animation:rise .5s ease forwards}
 @keyframes rise{to{opacity:1;transform:none}}
 @media (prefers-reduced-motion:reduce){.fade{animation:none;opacity:1;transform:none}}
@@ -652,38 +665,46 @@ footer a{color:var(--muted)}
   <div class="hero-copy">
     <span class="eyebrow"><span class="pip"></span><span class="label">For NECC, NACE, ECAC, Playfly &amp; ESEA teams</span></span>
     <h1>Your matches, actually read.</h1>
-    <p class="sub">Upload your match demos. Get player stats, team stats, a report for
-      every match, and the habits your team repeats without noticing. Measured against
-      your own rounds and other college teams, never against pros.</p>
+    <p class="sub">Upload your match demos. Get a short coach's read: what to work
+      on, what to keep doing, and the rounds to pull up at practice. Measured against
+      your own rounds and other college teams, never against pros, with the stats behind it one click
+      away.</p>
     <div class="hero-cta">
       <a class="btn" href="/signup">Add your team, free this season</a>
-      <a class="btn btn-ghost" href="sample-report">See a real report</a>
+      <a class="btn btn-ghost" href="sample-report">See a sample report</a>
     </div>
   </div>
 
-  <div class="receipt" aria-label="Example of how figures are reported">
+  <div class="receipt" aria-label="An example coach's read">
     <div class="receipt-body">
     <div class="receipt-top">
-      <span class="label">Real lines, real matches</span>
-      <span class="label">hover for the rounds</span>
+      <span class="label">Coach's read</span>
+      <span class="label">example team</span>
     </div>
-    <div class="rline fade" style="animation-delay:.05s">
-      <span class="what">Flashes that got somebody killed<span class="rbar" style="--f:10%"></span></span>
-      <span class="fig" title="38 of 374"><span class="pct">10%</span></span>
+    <p class="rsum fade" style="animation-delay:.05s">Your flashes are catching your
+      own players, your Mirage A default works, and the Nuke loss is worth a look
+      on T side.</p>
+    <div class="rpoint fade" style="animation-delay:.13s">
+      <span class="rpill fix">work on this</span>
+      <h3>Stop flashing your own entry</h3>
+      <p>91 of your 144 flashes blinded your own side, and 24 of those caught a
+        teammate and nobody else.</p>
+      <p class="rprac"><strong>Practice:</strong> run your default flashes with the
+        entry calling out each one that catches them, until none do.</p>
     </div>
-    <div class="rline fade" style="animation-delay:.13s">
-      <span class="what">Rounds won after winning the opening duel<span class="rbar" style="--f:65%"></span></span>
-      <span class="fig" title="84 of 130"><span class="pct">65%</span></span>
+    <div class="rpoint fade" style="animation-delay:.21s">
+      <span class="rpill keep">keep doing this</span>
+      <h3>Keep the A default on Mirage CT</h3>
+      <p>You held it in 8 of 32 Mirage CT rounds and won 7 of those 8.</p>
     </div>
-    <div class="rline fade" style="animation-delay:.21s">
-      <span class="what">Rounds won after losing the opening duel<span class="rbar" style="--f:32%"></span></span>
-      <span class="fig" title="39 of 120"><span class="pct">32%</span></span>
+    <div class="rpoint fade" style="animation-delay:.29s">
+      <span class="rpill">worth checking</span>
+      <h3>Look at your Nuke T side</h3>
+      <p>You lost Nuke 13 to 21, and on T you won 5 of 16 rounds.</p>
+      <p class="rwatch">Rounds to watch: nuke 14, 16, 17, 20, 22</p>
     </div>
-    <div class="rline fade" style="animation-delay:.29s">
-      <span class="what">Your first death is in A main, T-side Mirage<span class="rbar" style="--f:29%"></span></span>
-      <span class="fig" title="10 of 34"><span class="pct">29%</span></span>
-    </div>
-    <div class="receipt-foot">From one team's real season.</div>
+    <div class="receipt-foot">A made-up team, from the <a href="sample-report">sample
+      report</a>. Yours is written from your own matches.</div>
     </div>
   </div>
 </div></div>
@@ -700,8 +721,8 @@ footer a{color:var(--muted)}
   <div class="scrim" aria-hidden="true"></div>
   <div class="wrap film-copy">
     <h2>The rounds you played, not the ones you remember.</h2>
-    <p class="under">Your own demos, read round by round, and every number
-      carries the rounds it came from.</p>
+    <p class="under">Your own demos, read round by round, and every point
+      names the rounds it came from.</p>
   </div>
 </section>
 
@@ -710,8 +731,10 @@ footer a{color:var(--muted)}
   <section id="features">
     <div class="sec-head">
       <span class="label">What you get</span>
-      <h2>Four things, off one folder of demos.</h2>
-      <p>Upload a season once. Everything below comes from the same files.</p>
+      <h2>A coach's read, and the numbers behind it.</h2>
+      <p>The read comes first: up to three points, each with what happens and one
+        thing to practice, and the rounds to watch where there are some. It is checked
+        against your rounds before it goes up. Under it, from the same files:</p>
     </div>
     <div class="pgrid">
       <div class="pcard">
@@ -742,8 +765,8 @@ footer a{color:var(--muted)}
     <div class="shareblock">
       <span class="label">And one link</span>
       <h3>Your roster reads it without making accounts.</h3>
-      <p>One address opens your season read-only: the stats, the patterns, every match
-        report. Send it to five players and a graduate assistant and none of them sign
+      <p>One address opens your season read-only: the coach's read, the stats, the
+        patterns, every match report. Send it to five players and a graduate assistant and none of them sign
         up, install anything, or ask you for a seat. Revoke it whenever you like.</p>
       <p class="den">Other team tools sell seats, five at a time. This is a link.</p>
     </div>
@@ -768,26 +791,29 @@ footer a{color:var(--muted)}
       <div class="rule">
         <span class="label">No predictions</span>
         <div class="rule-body">
-          <h3>Counted, not modelled</h3>
-          <p>Your stats and patterns are counts of what happened. The one modelled part
-            is the buy call, and beside it the page shows how real college teams did in
-            that spot.</p>
+          <h3>Counted, then written up</h3>
+          <p>Your stats and patterns are counts of what happened. Claude writes the
+            coach's read from those counts, and a check refuses any number or round
+            that is not in them. The one modelled part is the buy call, shown beside
+            how real college teams did in that spot.</p>
         </div>
       </div>
       <div class="rule">
         <span class="label">Small samples say so</span>
         <div class="rule-body">
           <h3>Every rate knows its sample size</h3>
-          <p>Hover a figure for the rounds behind it. A rate off four rounds is noise
-            wearing a percent sign, and you can see when it is one.</p>
+          <p>A point the read is unsure of says how many rounds it rests on ("4 of 11
+            rounds"), and every figure in the stats shows its count on hover. A rate off four rounds is noise wearing a percent
+            sign, and you can see when it is one.</p>
         </div>
       </div>
       <div class="rule">
         <span class="label">Auditable</span>
         <div class="rule-body">
           <h3>Round numbers listed</h3>
-          <p>Every match report lists its rounds. Open the demo, watch round 14, and
-            check us. If a line is wrong you can see that it is wrong.</p>
+          <p>Where a point rests on lost rounds, the read names the ones to watch, and
+            every match report lists its rounds. Open the demo, watch round 14, and check us. If a line is
+            wrong you can see that it is wrong.</p>
         </div>
       </div>
     </div>
@@ -810,7 +836,8 @@ footer a{color:var(--muted)}
           delete match demos after a few weeks.</p></div></li>
       <li><span class="n">03</span><div class="body">
         <h3>Your season, and a link for your roster</h3>
-        <p>Stats, patterns and a report per match, updating as you add matches. Make a share
+        <p>A coach's read, stats, patterns and a report per match, updating as you add
+          matches. Make a share
           link for your roster; no accounts for them to make, nothing for anyone to install.</p></div></li>
     </ol>
     <p style="margin-top:22px"><a class="btn btn-ghost" href="sample-report">See a full report &rarr;</a></p>
@@ -831,6 +858,9 @@ footer a{color:var(--muted)}
         Positions, buys, outcomes: the numbers your reports are built from.</span></li>
       <li><span><strong>Your team's report is yours.</strong>
         We do not show one team's report to another team.</span></li>
+      <li><span><strong>One outside company sees your statistics.</strong>
+        To write the coach's read we send your team name and match statistics to
+        Anthropic. No demo file, player name or Steam ID.</span></li>
       <li><span><strong>We do not publish or sell demo files.</strong>
         They are not redistributed, and they are not listed anywhere public.</span></li>
       <li><span><strong>Your data stays yours.</strong>

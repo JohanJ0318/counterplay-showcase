@@ -93,8 +93,39 @@ ADVICE = [
     ]),
 ]
 
+# The coach's read, in the shape app/coach.py stores and main.coach_read_block
+# draws. Every number in it is one this page already shows (the flash card,
+# the A default card, the Nuke map pool row and the Nuke result in FORM,
+# which agrees with the pool's 13 of 34), so
+# the preview keeps the product's one rule: no number the facts do not have.
+READ = {
+    "summary": "Your flashes are catching your own players, your Mirage A "
+               "default works, and the Nuke loss is worth a look on T side.",
+    "points": [
+        {"kind": "fix", "headline": "Stop flashing your own entry",
+         "what_happens": "91 of your 144 flashes blinded your own side, and "
+                         "24 of those caught a teammate and nobody else.",
+         "practice": "Run your default flashes with the entry calling out "
+                     "each one that catches them, until none do.",
+         "rounds_to_watch": []},
+        {"kind": "keep", "headline": "Keep the A default on Mirage CT",
+         "what_happens": "You held A default in 8 of 32 Mirage CT rounds and "
+                         "won 7 of those 8.",
+         "practice": "Make it your first call on Mirage CT and have all five "
+                     "know their spot in it without being told.",
+         "rounds_to_watch": []},
+        {"kind": "check", "headline": "Look at your Nuke T side",
+         "what_happens": "You lost Nuke 13 to 21, and on T you won 5 of 16 "
+                         "rounds.",
+         "practice": "Watch the lost T rounds together and mark the moment "
+                     "each one turns before changing anything.",
+         "rounds_to_watch": ["nuke 14", "nuke 16", "nuke 17", "nuke 20",
+                             "nuke 22"]},
+    ],
+}
+
 FORM = [("W", "13&ndash;9", "mirage"), ("L", "8&ndash;13", "mirage"),
-        ("W", "13&ndash;11", "inferno"), ("L", "6&ndash;13", "nuke"),
+        ("W", "13&ndash;11", "inferno"), ("L", "13&ndash;21", "nuke"),
         ("L", "10&ndash;13", "inferno")]
 
 # ---------------------------------------------------------------- patterns
@@ -219,9 +250,14 @@ NOT_CLAIMED = [
     ("No predictions.",
      "Nothing here says what anyone will do next match. It says what happened, "
      "how often, and out of how many chances."),
-    ("No comparison to other teams.",
-     "You are not scored against professional or matchmaking players. Those "
-     "baselines exist and they do not describe your league, so they are off."),
+    ("No comparison to pros.",
+     "You are compared with other college teams and with your own rounds, "
+     "never with professional or matchmaking players. Those do not describe "
+     "your league."),
+    ("The coach's read is written by Claude and checked by code.",
+     "Claude writes it from your match statistics. A check refuses any "
+     "number that is not in them, and any round that is not yours. Nothing "
+     "on it predicts your next match."),
     ("Every rate knows its sample size.",
      "Hover a figure for the rounds behind it. A rate off four rounds is noise "
      "wearing a percent sign, and you can see when it is one."),
@@ -240,13 +276,18 @@ def _info(tid: str, text: str) -> str:
             f'</span>')
 
 
-def render(user=None, pictures=None) -> str:
+def render(user=None, pictures=None, read_block=None) -> str:
     """`pictures` is main.zone_pictures, handed in rather than imported.
 
     It reads the stored zone models, which live behind the app, and importing
     it here would make this module and main.py import each other. The page
     renders without it, which is also what a fresh install does before anybody
     has named that map's zones.
+
+    `read_block` is main.coach_read_block, handed in for the same reason.
+    With it the page opens on the coach's read and folds What to work on
+    under it, as /stats does once a read is approved; without it, What to
+    work on leads as it did before.
     """
     # ---- what to work on
     groups, ranked = [], []
@@ -414,6 +455,26 @@ def render(user=None, pictures=None) -> str:
 
     n_items = sum(len(items) for _mp, items in ADVICE)
 
+    numbers = f"""<p class="lede">Biggest first: how far each one sits from
+      your usual, times the rounds it covers.</p>
+    <div class="chart">{ranking}<p class="den" style="margin:12px 0 0">Longer
+      bar, more rounds at stake. Left costs you rounds, right wins them.</p></div>
+    {"".join(groups)}"""
+    if read_block:
+        lead = (read_block(READ) + f"""
+  <section>
+    <details class="drop"><summary>Show the numbers behind it</summary>
+      {numbers}
+    </details>
+  </section>""")
+    else:
+        lead = f"""
+  <section class="lead">
+    <div class="sec-head"><span class="label">Read this one first</span>
+      <h2>What to work on</h2></div>
+    {numbers}
+  </section>"""
+
     body = f"""
   <section>
     <div class="warn">
@@ -436,15 +497,7 @@ def render(user=None, pictures=None) -> str:
     </div>
   </section>
 
-  <section class="lead">
-    <div class="sec-head"><span class="label">Read this one first</span>
-      <h2>What to work on</h2></div>
-    <p class="lede">Biggest first: how far each one sits from your usual,
-      times the rounds it covers.</p>
-    <div class="chart">{ranking}<p class="den" style="margin:12px 0 0">Longer
-      bar, more rounds at stake. Left costs you rounds, right wins them.</p></div>
-    {"".join(groups)}
-  </section>
+  {lead}
 
   <section>
     <div class="sec-head"><span class="label">Newest first</span>
