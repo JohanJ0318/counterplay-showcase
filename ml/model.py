@@ -37,6 +37,10 @@ from counterplay.schema import MAPS, ROUND_TYPES, TIERS
 
 from .data import PLAYER_FEATURES
 
+# x, y, z, health, alive, facing (2), bombsite (2): the snapshot as first
+# measured. The rest of PLAYER_FEATURES is movement, weapon and grenades.
+BASE_PLAYER = 9
+
 GLOBAL = ["alive_ct", "alive_t", "equip_log_ratio", "equip_ct", "equip_t",
           "time_left", "bomb_planted", "time_since_plant"]
 
@@ -57,7 +61,8 @@ def global_features(states) -> np.ndarray:
 
 class WinNet(nn.Module):
     def __init__(self, d: int = 48, heads: int = 4, dropout: float = 0.1,
-                 use_players: bool = True, use_levels: bool = False):
+                 use_players: bool = True, use_levels: bool = False,
+                 use_kit: bool = False):
         super().__init__()
         self.use_players = use_players
         self.map_emb = nn.Embedding(len(MAPS) + 1, 8)      # + UNKNOWN_MAP_ID
@@ -68,13 +73,18 @@ class WinNet(nn.Module):
         # division, pro), one shared table so "D2" means the same on either
         # side. Off by default: the measured arms say whether it helps.
         self.use_levels = use_levels
+        # Movement over the last second, weapon class and grenades per
+        # player (posfeat.PLAYER_FEATURES after the first BASE_PLAYER) are
+        # off by default: measured 2026-10-14, they lost 0.001 to 0.002 AUC
+        # on both protocols (ml/README.md). Kept so the test can be rerun.
+        self.n_player = len(PLAYER_FEATURES) if use_kit else BASE_PLAYER
         if use_levels:
             from .levels import LEVELS
             self.level_emb = nn.Embedding(len(LEVELS), 4)
         pooled = 0
         if use_players:
             self.encode = nn.Sequential(
-                nn.Linear(len(PLAYER_FEATURES) + 8, d), nn.GELU(),
+                nn.Linear(self.n_player + 8, d), nn.GELU(),
                 nn.Linear(d, d))
             self.side = nn.Parameter(torch.zeros(2, d))
             self.attn = nn.MultiheadAttention(d, heads, dropout=dropout,
@@ -93,6 +103,7 @@ class WinNet(nn.Module):
         if self.use_levels:
             parts += [self.level_emb(levels[:, 0]), self.level_emb(levels[:, 1])]
         if self.use_players:
+            players = players[..., :self.n_player]
             # A slot is empty when nobody played it (all zeros, including the
             # alive bit AND the coordinates). A dead player is NOT empty: where
             # they died is information.

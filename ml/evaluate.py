@@ -139,6 +139,8 @@ ARMS = {
     # ESEA rows as college rows kept in the college stage.
     "NETLONG": lambda tr, s: net(tr, s, True, "esea", pretrain_patience=10,
                                  pretrain_epochs=80, keep_mix=0.5),
+    # Per-player movement, weapon and grenades on top of NETESEA.
+    "NETKIT": lambda tr, s: net(tr, s, True, "esea", use_kit=True),
 }
 
 

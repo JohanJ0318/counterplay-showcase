@@ -149,3 +149,48 @@ against 232. The last hundred maps moved neither model beyond noise, so
 more ESEA is not the lever any more. What is left for the network: more
 COLLEGE maps (it always finishes on the same 164), and how it uses ESEA
 (longer pretraining, or some ESEA kept in the college stage).
+
+### Skill levels, matched pretraining, longer pretraining, movement (2026-10-14)
+
+NC State Red's captain: NECC's divisions are far apart in skill, and some
+ESEA divisions sit close to some NECC ones. `ml/levels.py` gives every
+college and ESEA round each side's level (NECC D1-D4 from the team's
+division, ESEA Open/Intermediate/Main, pro).
+
+Which ESEA division plays most like each NECC division: train the small
+LightGBM on one source alone and see how well it predicts each division
+(log loss, lower is closer):
+
+| trained on | D1 | D2 | D3 | D4 |
+|---|---|---|---|---|
+| ESEA Open | **0.3715** | 0.4067 | **0.4171** | **0.3922** |
+| ESEA Intermediate | 0.3779 | **0.3972** | 0.4197 | 0.4041 |
+| ESEA Main | 0.3790 | 0.4086 | 0.4203 | 0.4008 |
+| pro | 0.3747 | 0.4133 | 0.4344 | 0.4124 |
+
+Open is closest to D1, D3 and D4, Intermediate to D2; Main never is; pro
+is furthest from D3 and D4. Small samples (340 to 750 rounds a division).
+
+Then each idea against the same model without it (332 ESEA maps, 20 seeds):
+
+| arm | RAND AUC / log loss / passes | DIV AUC / log loss / passes |
+|---|---|---|
+| SMALLPOS+ESEA (the scorer) | 0.9000 / 0.3987 / 16 | 0.9098 / 0.3748 / 20 |
+| + each side's level | 0.9010 / 0.3977 / 15 | 0.9091 / 0.3769 / 19 |
+| NETESEA | 0.8961 / 0.4047 / 15 | 0.9084 / 0.3781 / 17 |
+| + each side's level | 0.8973 / 0.4014 / 17 | 0.9080 / 0.3809 / 16 |
+| pretrained on Open + Intermediate only | 0.8946 / 0.4065 / 15 | 0.9076 / 0.3785 / 20 |
+| **longer pretraining, ESEA kept in fine-tuning** | **0.8985 / 0.4018** / 15 | 0.9082 / **0.3771** / **20** |
+| + movement, weapon, grenades per player | 0.8950 / 0.4042 / 15 | 0.9066 / 0.3811 / 20 |
+
+* Levels: no clear gain for either model. The divisions differ, but the
+  models already see what makes them differ (economy, positions, fights).
+* Matched ESEA: worse. At this size, more data beats better-matched data.
+* Longer pretraining (NETLONG: patience 10, up to 80 epochs, half as many
+  ESEA rows as college rows kept in the college stage): better on both
+  protocols, and the network's best so far, 0.0015 AUC behind the trees on
+  RAND. The way to train the network from here.
+* Movement and weapons per player: no gain, slightly worse. The moments
+  scored are kills and plants, where most players stand in or react to a
+  fight; movement may matter more between events. Off by default
+  (WinNet use_kit); NETKIT reruns it.
