@@ -98,6 +98,27 @@ tier `esea`, never tested on. Same protocols and seeds as above.
 
 New pick: SMALLPOS trained with the ESEA rows.
 
+### 232 ESEA maps, and the scorer switched (2026-10-14)
+
+Double the ESEA set, same seeds. SWEEP is tools/seedsweep.py's split.
+
+| arm | DIV AUC / log loss / passes | RAND AUC / log loss / passes | SWEEP AUC / log loss / passes / median |
+|---|---|---|---|
+| SMALLPOS | 0.9071 / 0.3809 / 19 | 0.8976 / 0.4023 / 15 | 0.8919 / 0.4095 / 14 / 2.01 |
+| SMALLPOS + 232 ESEA | **0.9097 / 0.3758 / 20** | **0.8998 / 0.3974** / 15 | **0.8958 / 0.4023 / 15** / 2.18 |
+| NETESEA (232) | 0.9085 / 0.3765 / 19 | 0.8971 / 0.4075 / 15 | 0.8936 / 0.4069 / 12 / 2.17 |
+
+The trees gained again on every protocol; the network gained on RAND and
+lost a little on DIV, and is now within 0.003 AUC of the trees on RAND.
+
+SMALLPOS + ESEA is now the scorer's model (counterplay/model.py, config
+"smallpos"). Run through the scorer's own code, tools/seedsweep.py gives
+15 of 20, median 2.18, AUC 0.8958: the evaluation above, to the digit.
+Against the model it replaced (12 of 20, median 2.36, AUC 0.8588) it is
+better on every number and passes the holdout rule (DIV 20 of 20 against
+18 fixed in advance). The sweep still fails a quarter of splits, so a
+coach is still not shown a number from it.
+
 ## Things that went wrong on the way, and what they taught
 
 * **Reading positions a moment late.** The first snapshots disagreed with

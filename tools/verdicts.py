@@ -31,7 +31,8 @@ os.environ.setdefault("COUNTERPLAY_DB", r"C:/Users/Johan/counterplay/data/counte
 DASH = f" {chr(8212)} "
 
 
-def moments(steamids: list[str], n: int = 10, demos=None) -> list[dict]:
+def moments(steamids: list[str], n: int = 10, demos=None,
+            config: str | None = None) -> list[dict]:
     """The n costliest moments for the team these players form, or [] when
     none of their maps are in the corpus here. `demos` (file hashes) limits
     them to those games, so a note never cites a match its page lacks."""
@@ -71,7 +72,7 @@ def moments(steamids: list[str], n: int = 10, demos=None) -> list[dict]:
     # training and for scoring.
     states = posfeat.attach(state_mod.build_states(rounds, events))
     model, _report, _ = M.train(states[~states["match_id"].isin(theirs)].reset_index(drop=True),
-                                seed=7)
+                                seed=7, config=config or M.DEFAULT_CONFIG)
 
     picked = []
     for side in ("ct", "t"):
