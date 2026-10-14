@@ -68,7 +68,7 @@ AUTO_APPROVE_AFTER = 20
 def evidence(team_id: int) -> dict | None:
     """Every fact the note may use, each with an id, a scope, a sentence and
     the rounds behind it. None for a team with nothing parsed."""
-    from . import advice, league, report, why
+    from . import advice, league, report, resources, why
 
     team = db.one("SELECT id, name FROM teams WHERE id = ?", team_id)
     st = report.team_stats(team_id)
@@ -164,8 +164,16 @@ def evidence(team_id: int) -> dict | None:
     shas = [r["sha256"] for r in db.query(
         """SELECT DISTINCT d.sha256 FROM demos d JOIN matches m ON m.demo_id = d.id
             WHERE d.team_id = ?""", team_id)]
+    # Vetted links retrieved for each fact (app/resources.py; the retrieval
+    # itself ran on the PC). Empty until Johan marks resources KEEP.
+    library = {}
+    for f in facts:
+        f["resources"] = resources.for_fact(f)
+        for rid in f["resources"]:
+            r = resources.get(rid)
+            library[rid] = {"title": r["title"], "kind": r["kind"]}
     return {"team": team["name"], "team_id": team_id, "anchors": anchors,
-            "demos": shas,
+            "demos": shas, "resources": library,
             "reference": "NECC collegiate teams, "
                          f"{league.ref().get('matches', 0)} matches",
             "facts": facts}
@@ -212,6 +220,10 @@ RULES = f"""- Use ONLY the facts provided. Every number you write must appear in
 - Never call a habit "working" unless a fact shows the rounds are won: a
   high trade rate is a habit, and if the rounds after it are still lost,
   say the habit is good and the rounds are not.
+- resource: at most one per point, and only an id listed in "resources" on
+  a fact that point cites; otherwise "". Pick it only if it helps with that
+  point's practice line. Never name or describe a resource in the text: the
+  page shows it as a link.
 - rounds_to_watch: when a cited fact lists rounds, pick up to five of them,
   written exactly as the fact has them ("nuke 6"); otherwise leave it empty.
   They are the rounds a coach opens first.
@@ -285,7 +297,7 @@ NOTE_SCHEMA = {
             "items": {
                 "type": "object", "additionalProperties": False,
                 "required": ["headline", "what_happens", "practice",
-                             "rounds_to_watch", "facts", "kind"],
+                             "rounds_to_watch", "facts", "kind", "resource"],
                 "properties": {
                     "headline": {"type": "string"},
                     "what_happens": {"type": "string"},
@@ -293,6 +305,9 @@ NOTE_SCHEMA = {
                     "rounds_to_watch": {"type": "array", "items": {"type": "string"}},
                     "facts": {"type": "array", "items": {"type": "string"}},
                     "kind": {"type": "string", "enum": list(KINDS)},
+                    "resource": {"type": "string",
+                                 "description": "A resource id from a cited "
+                                                "fact, or empty."},
                 },
             },
         },
@@ -316,7 +331,8 @@ def user_message(pack: dict) -> str:
     return ("Team: " + pack["team"] + "\nReference: " + pack["reference"]
             + "\n\nFacts (verdict: -1 clearly worse than college teams, +1 "
               "clearly better, 0 no clear difference, null not tested):\n"
-            + json.dumps(pack["facts"], indent=1))
+            + json.dumps(pack["facts"], indent=1)
+            + _resource_list(pack))
 
 
 def _cited(pack: dict, note: dict) -> list[dict]:
@@ -328,10 +344,19 @@ def _note_only(note: dict) -> dict:
     return {"summary": note.get("summary", ""), "points": note.get("points", [])}
 
 
+def _resource_list(pack: dict) -> str:
+    """The retrieved resources by id and title, when there are any."""
+    if not pack.get("resources"):
+        return ""
+    return ("\n\nResources (cite by id):\n"
+            + json.dumps(pack["resources"], indent=1))
+
+
 def edit_message(pack: dict, note: dict, problems: list[str] | None = None) -> str:
     out = ("Team: " + pack["team"] + "\n\nDraft:\n"
            + json.dumps(_note_only(note), indent=1)
-           + "\n\nFacts it cites:\n" + json.dumps(_cited(pack, note), indent=1))
+           + "\n\nFacts it cites:\n" + json.dumps(_cited(pack, note), indent=1)
+            + _resource_list(pack))
     if problems:
         out += "\n\nProblems to fix:\n" + "\n".join(f"- {p}" for p in problems)
     return out
@@ -340,7 +365,8 @@ def edit_message(pack: dict, note: dict, problems: list[str] | None = None) -> s
 def review_message(pack: dict, note: dict) -> str:
     return ("Team: " + pack["team"] + "\n\nNote:\n"
             + json.dumps(_note_only(note), indent=1)
-            + "\n\nFacts it cites:\n" + json.dumps(_cited(pack, note), indent=1))
+            + "\n\nFacts it cites:\n" + json.dumps(_cited(pack, note), indent=1)
+            + _resource_list(pack))
 
 
 # ---------------------------------------------------------------- checker
@@ -389,6 +415,10 @@ def check(pack: dict, note: dict) -> list[str]:
                                     f"its facts")
             if EM_DASH in text:
                 problems.append(f"point {i} {field}: em dash")
+        rid = p.get("resource") or ""
+        if rid and not any(rid in f.get("resources", []) for f in cited):
+            problems.append(f"point {i}: resource {rid!r} was not retrieved "
+                            f"for its facts")
         for r in p.get("rounds_to_watch", []):
             if r not in rounds:
                 problems.append(f"point {i}: round '{r}' is not in its facts")

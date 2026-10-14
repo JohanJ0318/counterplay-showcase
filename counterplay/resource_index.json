@@ -1,0 +1,7 @@
+{
+ "model": "sentence-transformers/all-MiniLM-L6-v2",
+ "built": "2026-10-14",
+ "min_similarity": 0.45,
+ "resources": {},
+ "keys": {}
+}

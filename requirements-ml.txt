@@ -1,0 +1,11 @@
+# The offline ML work (ml/, tools/resources.py). Runs on the PC, where the
+# collegiate corpus is; the server never installs these (requirements.txt).
+#
+#     pip install -r requirements.txt
+#     pip install -r requirements-ml.txt --extra-index-url https://download.pytorch.org/whl/cpu
+#
+# CPU torch on purpose: there is no GPU here and the models are small.
+
+torch==2.14.1
+sentence-transformers==6.1.0
+transformers==5.19.0

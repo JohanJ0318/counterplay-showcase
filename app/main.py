@@ -35,7 +35,7 @@ from counterplay import economy
 from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
-               utility, why, coach)
+               utility, why, coach, resources as resources_mod)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, map_chip, page
@@ -784,6 +784,14 @@ def coach_read_block(read: dict) -> str:
         watch = (f'<p class="den">Rounds to watch: '
                  f'{esc(", ".join(p["rounds_to_watch"]))}</p>'
                  if p.get("rounds_to_watch") else "")
+        # Resolved when drawn, so a link Johan later cuts from the library
+        # leaves every note that cited it.
+        res = resources_mod.get(p.get("resource") or "")
+        if res:
+            verb = "Watch" if res["kind"] == "video" else "Read"
+            watch += (f'<p class="den">{verb}: <a href="{esc(res["url"])}" '
+                      f'target="_blank" rel="noopener noreferrer">'
+                      f'{esc(res["title"])}</a></p>')
         cards.append(
             f'<div class="card advice{" good" if p.get("kind") == "keep" else ""}">'
             f'<div style="display:flex;gap:9px;align-items:center;flex-wrap:wrap">'
