@@ -85,6 +85,14 @@ def evidence(team_id: int) -> dict | None:
 
     fact("record", "all maps", f"Won {you['won']} of {you['rounds']} rounds "
          f"({pc(you['won'], you['rounds'])}%) across {st['matches']} maps.")
+    # Each map's result. Without these the model wrote "you lost Anubis",
+    # true and on the page, and the reviewer refused it as uncited: two of
+    # the first four notes on the box failed on exactly that.
+    for m in report.team_matches(team_id):
+        if m["status"] == "parsed" and m["result"] in ("W", "L", "T"):
+            word = {"W": "won", "L": "lost", "T": "tied"}[m["result"]]
+            fact("result", m["map"], f"{m['map']}: you {word} the map "
+                 f"{m['us']} to {m['them']}.")
     for side in ("ct", "t"):
         s = you[side]
         if s["rounds"]:
