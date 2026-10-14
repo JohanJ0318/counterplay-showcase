@@ -57,13 +57,20 @@ def global_features(states) -> np.ndarray:
 
 class WinNet(nn.Module):
     def __init__(self, d: int = 48, heads: int = 4, dropout: float = 0.1,
-                 use_players: bool = True):
+                 use_players: bool = True, use_levels: bool = False):
         super().__init__()
         self.use_players = use_players
         self.map_emb = nn.Embedding(len(MAPS) + 1, 8)      # + UNKNOWN_MAP_ID
         self.type_emb = nn.Embedding(len(ROUND_TYPES), 4)
         self.site_emb = nn.Embedding(3, 4)                 # none, site 1, site 2
         self.tier_emb = nn.Embedding(len(TIERS), 4)
+        # Each side's skill level (ml/levels.py: NECC division, ESEA
+        # division, pro), one shared table so "D2" means the same on either
+        # side. Off by default: the measured arms say whether it helps.
+        self.use_levels = use_levels
+        if use_levels:
+            from .levels import LEVELS
+            self.level_emb = nn.Embedding(len(LEVELS), 4)
         pooled = 0
         if use_players:
             self.encode = nn.Sequential(
@@ -75,13 +82,16 @@ class WinNet(nn.Module):
             self.norm = nn.LayerNorm(d)
             pooled = 4 * d                                 # (mean, max) x 2 sides
         self.head = nn.Sequential(
-            nn.Linear(pooled + len(GLOBAL) + 8 + 4 + 4 + 4, 64), nn.GELU(),
+            nn.Linear(pooled + len(GLOBAL) + 8 + 4 + 4 + 4
+                      + (8 if use_levels else 0), 64), nn.GELU(),
             nn.Dropout(dropout), nn.Linear(64, 1))
 
-    def forward(self, players, glob, map_id, type_id, site, tier):
+    def forward(self, players, glob, map_id, type_id, site, tier, levels=None):
         m = self.map_emb(map_id)
         parts = [glob, m, self.type_emb(type_id), self.site_emb(site),
                  self.tier_emb(tier)]
+        if self.use_levels:
+            parts += [self.level_emb(levels[:, 0]), self.level_emb(levels[:, 1])]
         if self.use_players:
             # A slot is empty when nobody played it (all zeros, including the
             # alive bit AND the coordinates). A dead player is NOT empty: where

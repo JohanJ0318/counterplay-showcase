@@ -112,3 +112,16 @@ def test_the_scorer_config_reads_positions_and_esea_only_trains():
     features, _params, tiers = M.CONFIGS[M.DEFAULT_CONFIG]
     assert features == FEATURES + POSFEAT and tiers == ("esea",)
     assert M.CONFIGS["shipped"][0] == FEATURES and M.CONFIGS["shipped"][2] == ()
+
+
+def test_a_loadout_reads_as_one_weapon_class_and_a_grenade_count():
+    from counterplay.posfeat import kit_of
+    # rifle, awp, smg, pistol only, grenades / 4
+    assert kit_of("AWP, Desert Eagle, Flashbang, Smoke Grenade") == (0, 1, 0, 0, 0.5)
+    assert kit_of("AK-47, AWP") == (0, 1, 0, 0, 0)        # the AWP decides
+    assert kit_of("M4A1-S, Molotov") == (1, 0, 0, 0, 0.25)
+    assert kit_of("MP9, Flashbang") == (0, 0, 1, 0, 0.25)
+    assert kit_of("Glock-18") == (0, 0, 0, 1, 0)
+    assert kit_of(None) == (0, 0, 0, 1, 0)                # nothing recorded
+    assert kit_of("Flashbang, Flashbang, Smoke Grenade, Molotov, "
+                  "High Explosive Grenade")[4] == 1.0     # capped at four

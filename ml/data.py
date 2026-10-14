@@ -35,7 +35,7 @@ from counterplay import state as state_mod
 
 ROOT = Path(__file__).resolve().parent.parent
 CACHE = ROOT / "data" / "ml"
-CACHE_VERSION = 3
+CACHE_VERSION = 5
 
 # The snapshot itself lives in counterplay/posfeat.py, shared with the
 # decision scorer's tree model, so both read positions the same way.
@@ -60,6 +60,14 @@ def build() -> Snapshots:
         if len(rounds):                 # a tier with no matches yet is skipped
             frames.append(state_mod.build_states(rounds, events))
     states = pd.concat(frames, ignore_index=True)
+    # Each side's skill level that round (ml/levels.py): NECC division,
+    # ESEA division or pro, as ids into levels.LEVELS.
+    from . import levels
+    lv = levels.load()
+    states = states.merge(lv, on=["match_id", "round_num"], how="left")
+    for side in ("ct", "t"):
+        states[f"level_{side}_id"] = (states[f"level_{side}"].fillna("unknown")
+                                      .map(levels.LEVEL_IDS).astype(int))
     players, posfeat, has = PF.snapshots(states, with_players=True)
     return Snapshots(states, players, posfeat, has)
 

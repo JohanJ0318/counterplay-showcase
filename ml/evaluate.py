@@ -61,8 +61,13 @@ st = snap.states
 LEAGUE = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["league"])
 PRO = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["pro"])
 ESEA = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["esea"])
+# ESEA's Open and Intermediate rounds: the two divisions that predicted
+# NECC divisions best when trained on alone (Open for D1, D3 and D4,
+# Intermediate for D2; ml/README.md). Main never did.
+_lvl = st["level_ct"].to_numpy()
+ESEA_MATCHED = ESEA[np.isin(_lvl[ESEA], ["esea_open", "esea_intermediate"])]
 EXTRA = {None: None, "pro": PRO, "esea": ESEA,
-         "both": np.concatenate([PRO, ESEA])}
+         "both": np.concatenate([PRO, ESEA]), "matched": ESEA_MATCHED}
 division = {r["match_key"] for r in db.query(
     """SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id
         WHERE m.tier = 'league' AND d.created_at >= '2026-10-13'""")}
@@ -71,11 +76,17 @@ PLACE, DIV = LEAGUE[~is_div[LEAGUE]], LEAGUE[is_div[LEAGUE]]
 Y = st[LABEL].astype(int).to_numpy()
 
 
-def tree_frame(idx, with_pos):
+LEVEL_COLS = ["level_ct_id", "level_t_id"]
+
+
+def tree_frame(idx, with_pos, with_lvl=False):
     f = st.iloc[idx][FEATURES].copy()
     if with_pos:
         for j, c in enumerate(data.POSFEAT):
             f[c] = snap.posfeat[idx, j]
+    if with_lvl:
+        for c in LEVEL_COLS:
+            f[c] = st[c].to_numpy()[idx]
     return f
 
 
@@ -90,17 +101,19 @@ def shipped_tree(tr, seed):
     return lambda idx: b.predict_proba(tree_frame(idx, False))[:, 1]
 
 
-def small_tree(tr, seed, with_pos):
+def small_tree(tr, seed, with_pos, with_lvl=False):
     # counterplay/model.py's params, so this and the scorer cannot drift.
     b = lgb.LGBMClassifier(**M.SMALL_PARAMS, random_state=seed, verbose=-1)
-    b.fit(tree_frame(tr, with_pos), Y[tr],
-          categorical_feature=[FEATURES.index(c) for c in CATEGORICAL])
-    return lambda idx: b.predict_proba(tree_frame(idx, with_pos))[:, 1]
+    frame = tree_frame(tr, with_pos, with_lvl)
+    cats = [frame.columns.get_loc(c) for c in CATEGORICAL
+            + (LEVEL_COLS if with_lvl else [])]
+    b.fit(frame, Y[tr], categorical_feature=cats)
+    return lambda idx: b.predict_proba(tree_frame(idx, with_pos, with_lvl))[:, 1]
 
 
-def net(tr, seed, use_players, extra=None):
+def net(tr, seed, use_players, extra=None, **kw):
     fit = train.train(snap, tr, seed=seed, use_players=use_players,
-                      pretrain_idx=EXTRA[extra])
+                      pretrain_idx=EXTRA[extra], **kw)
     return lambda idx: fit.predict(snap, idx)
 
 
@@ -116,6 +129,16 @@ ARMS = {
     "NETPRO": lambda tr, s: net(tr, s, True, "pro"),
     "NETESEA": lambda tr, s: net(tr, s, True, "esea"),
     "NETBOTH": lambda tr, s: net(tr, s, True, "both"),
+    # Taoish's point (2026-10-14): divisions differ, some ESEA ones are
+    # close to some NECC ones. LVL gives each side's level as an input;
+    # MATCH pretrains only on the ESEA divisions closest to NECC.
+    "SMALLPOS+ESEA+LVL": lambda tr, s: small_tree(np.concatenate([tr, ESEA]), s, True, True),
+    "NETESEA+LVL": lambda tr, s: net(tr, s, True, "esea", use_levels=True),
+    "NETMATCH": lambda tr, s: net(tr, s, True, "matched"),
+    # Longer pretraining (patience 10, up to 80 epochs) and half as many
+    # ESEA rows as college rows kept in the college stage.
+    "NETLONG": lambda tr, s: net(tr, s, True, "esea", pretrain_patience=10,
+                                 pretrain_epochs=80, keep_mix=0.5),
 }
 
 

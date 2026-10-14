@@ -44,6 +44,7 @@ def tensors(snap, idx):
             torch.from_numpy(st["round_type_id"].to_numpy(dtype=np.int64, copy=True)),
             torch.from_numpy(st["plant_site"].clip(0, 2).to_numpy(dtype=np.int64, copy=True)),
             torch.from_numpy(st["tier_id"].to_numpy(dtype=np.int64, copy=True)),
+            torch.from_numpy(st[["level_ct_id", "level_t_id"]].to_numpy(dtype=np.int64, copy=True)),
             torch.from_numpy(st[LABEL].to_numpy(dtype=np.float32, copy=True)))
 
 
@@ -64,7 +65,8 @@ def _loss(model, data):
     return float(nn.functional.binary_cross_entropy_with_logits(model(*x), y))
 
 
-def _run(model, train_data, val_data, lr, seed, max_epochs=MAX_EPOCHS):
+def _run(model, train_data, val_data, lr, seed, max_epochs=MAX_EPOCHS,
+         patience=PATIENCE):
     """One training run with early stopping. Returns the best val loss."""
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
     gen = torch.Generator().manual_seed(seed)
@@ -87,7 +89,7 @@ def _run(model, train_data, val_data, lr, seed, max_epochs=MAX_EPOCHS):
             best_state = {k: t.clone() for k, t in model.state_dict().items()}
         else:
             stale += 1
-            if stale >= PATIENCE:
+            if stale >= patience:
                 break
     model.load_state_dict(best_state)
     return best
@@ -109,9 +111,16 @@ class Fit:
 
 
 def train(snap, train_idx, seed: int = 7, use_players: bool = True,
-          pretrain_idx=None) -> Fit:
+          pretrain_idx=None, use_levels: bool = False,
+          pretrain_patience: int = PATIENCE, pretrain_epochs: int = MAX_EPOCHS,
+          keep_mix: float = 0.0) -> Fit:
+    """`pretrain_patience` and `pretrain_epochs` let the pretraining stage
+    run longer before it gives up; `keep_mix` keeps that share of
+    pretraining rows (relative to the college rows) in the fine-tuning
+    stage, so the college stage adjusts what pretraining learned instead
+    of overwriting it. Both measured in ml/evaluate.py (NETLONG)."""
     torch.manual_seed(seed)
-    model = WinNet(use_players=use_players)
+    model = WinNet(use_players=use_players, use_levels=use_levels)
     fit_idx, val_idx = _split_matches(snap, np.asarray(train_idx), 0.1, seed)
     val = tensors(snap, val_idx)
     lr = 2e-3
@@ -120,7 +129,15 @@ def train(snap, train_idx, seed: int = 7, use_players: bool = True,
         # then college alone at a lower rate so the pro habits are adjusted
         # rather than forgotten.
         both = np.concatenate([fit_idx, np.asarray(pretrain_idx)])
-        _run(model, tensors(snap, both), val, lr, seed)
+        _run(model, tensors(snap, both), val, lr, seed,
+             max_epochs=pretrain_epochs, patience=pretrain_patience)
         lr = 5e-4
-    best = _run(model, tensors(snap, fit_idx), val, lr, seed + 1)
+    tune_idx = fit_idx
+    if pretrain_idx is not None and keep_mix > 0:
+        extra = np.random.default_rng(seed).choice(
+            np.asarray(pretrain_idx), size=min(len(pretrain_idx),
+                                               int(keep_mix * len(fit_idx))),
+            replace=False)
+        tune_idx = np.concatenate([fit_idx, extra])
+    best = _run(model, tensors(snap, tune_idx), val, lr, seed + 1)
     return Fit(model, best)

@@ -31,9 +31,34 @@ from . import positions as P
 from .schema import POSFEAT as SCHEMA_POSFEAT
 
 # Per player: x, y, z (normalised per map), health / 100, alive, facing as
-# sin and cos, standing in bombsite 1, in bombsite 2.
+# sin and cos, standing in bombsite 1, in bombsite 2; then (2026-10-14) how
+# they were moving over the last second (units per second / 250, a run),
+# what they bought (one of rifle, AWP, SMG or heavy, pistol only) and how
+# many grenades (/ 4). Movement and weapon per player are what a team
+# total cannot say: the AWPer in mid, a rotation already under way.
 PLAYER_FEATURES = ["x", "y", "z", "health", "alive", "yaw_sin", "yaw_cos",
-                   "site1", "site2"]
+                   "site1", "site2", "vx", "vy", "w_rifle", "w_awp",
+                   "w_smg", "w_pistol", "nades"]
+
+RIFLES = {"AK-47", "M4A1-S", "M4A4", "Galil AR", "FAMAS", "AUG", "SG 553",
+          "SSG 08", "SCAR-20", "G3SG1"}
+SMGS = {"MP9", "MAC-10", "MP7", "MP5-SD", "UMP-45", "P90", "PP-Bizon",
+        "XM1014", "MAG-7", "Nova", "Sawed-Off", "Negev", "M249"}
+GRENADES = {"Flashbang", "Smoke Grenade", "High Explosive Grenade",
+            "Incendiary Grenade", "Molotov", "Decoy Grenade"}
+_NO_KIT = (0.0, 0.0, 0.0, 1.0, 0.0)
+
+
+def kit_of(loadout: str | None) -> tuple:
+    """(rifle, awp, smg, pistol, grenades / 4) from a player_rounds
+    loadout string, as bought at the start of the round."""
+    items = [x.strip() for x in (loadout or "").split(",") if x.strip()]
+    awp = "AWP" in items
+    rifle = not awp and any(x in RIFLES for x in items)
+    smg = not awp and not rifle and any(x in SMGS for x in items)
+    nades = sum(x in GRENADES for x in items)
+    return (float(rifle), float(awp), float(smg),
+            float(not (awp or rifle or smg)), min(nades, 4) / 4.0)
 SLOTS = 10
 
 # What a tree model reads (named in schema.py): total health per side (in
@@ -57,9 +82,10 @@ def _round_players(flags):
     return ct, t
 
 
-def _snapshot(samples, row_idx, ct, t, norm, dead):
+def _snapshot(samples, row_idx, ct, t, norm, dead, kits=None):
     """One (10, F) snapshot and its summary features. `dead` is the roster
-    indices the death events have killed by this moment."""
+    indices the death events have killed by this moment; `kits` maps a
+    roster index to kit_of() for the round."""
     mx, my, mz, sxy, sz = norm
     s = samples[row_idx]
     out = np.zeros((SLOTS, len(PLAYER_FEATURES)), dtype=np.float32)
@@ -79,10 +105,16 @@ def _snapshot(samples, row_idx, ct, t, norm, dead):
                 health = int(live["health"][-1]) if len(live) else 100
             zone = int((p["flags"] & P.ZONE_MASK) >> P.ZONE_SHIFT)
             yaw = (p["yaw"] / 255.0) * 2 * np.pi - np.pi
+            vx = vy = 0.0
+            if alive and row_idx >= 8:
+                prev = samples[row_idx - 8, i]           # one second earlier
+                vx = (float(p["x"]) - float(prev["x"])) / 250.0
+                vy = (float(p["y"]) - float(prev["y"])) / 250.0
             out[base + k] = (
                 (p["x"] - mx) / sxy, (p["y"] - my) / sxy, (p["z"] - mz) / sz,
                 health / 100.0 if alive else 0.0, float(alive),
-                np.sin(yaw), np.cos(yaw), float(zone == 1), float(zone == 2))
+                np.sin(yaw), np.cos(yaw), float(zone == 1), float(zone == 2),
+                vx, vy, *((kits or {}).get(i, _NO_KIT)))
             if alive:
                 pts[side].append((float(p["x"]), float(p["y"])))
                 hp[side] += health
@@ -160,6 +192,12 @@ def snapshots(states: pd.DataFrame, with_players: bool = False):
         if e["victim_steamid"]:
             deaths.setdefault((e["match_key"], e["round_num"]), []).append(
                 (float(e["seconds"]), int(e["victim_steamid"])))
+    loadouts: dict = {}
+    if with_players:
+        for r in db.query(f"""SELECT match_key, round_num, steamid, loadout
+                                FROM player_rounds WHERE match_key IN ({marks})""",
+                          *keys):
+            loadouts[(r["match_key"], r["round_num"], str(r["steamid"]))] = r["loadout"]
     pos = states.reset_index(drop=True)
     for (mk, rn), rows in pos.groupby(["match_id", "round_num"]).indices.items():
         r = db.one("SELECT data FROM round_positions WHERE match_key = ? AND "
@@ -168,6 +206,8 @@ def snapshots(states: pd.DataFrame, with_players: bool = False):
         if got is None or not got[0]["n_samples"]:
             continue
         meta, sids, samples = got
+        kits = ({i: kit_of(loadouts.get((mk, int(rn), str(int(sid)))))
+                 for i, sid in enumerate(sids)} if with_players else None)
         slot_of = {int(sid): i for i, sid in enumerate(sids)}
         died = [(sec, slot_of[v]) for sec, v in deaths.get((mk, int(rn)), [])
                 if v in slot_of]
@@ -177,7 +217,8 @@ def snapshots(states: pd.DataFrame, with_players: bool = False):
             secs = float(pos.at[row, "seconds"])
             i = min(n - 1, int(np.ceil(secs * P.TICK_RATE / meta["tick_step"])))
             dead = {slot for sec, slot in died if sec <= secs + 1e-6}
-            players[row], feats[row] = _snapshot(samples, i, ct, t, norms[mk], dead)
+            players[row], feats[row] = _snapshot(samples, i, ct, t, norms[mk],
+                                                 dead, kits)
             has[row] = True
     return players, feats, has
 
