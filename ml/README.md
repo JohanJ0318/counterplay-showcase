@@ -134,3 +134,18 @@ coach is still not shown a number from it.
 * **Retrieval by meaning alone** (the coach's read resource library,
   `tools/resources.py`) pulled Nuke CT guides for Nuke T. Filtering on tags
   first and ranking by embedding second fixed it.
+
+### 332 ESEA maps: both models have levelled off (2026-10-14)
+
+| ESEA maps | NETESEA RAND AUC | SMALLPOS+ESEA RAND AUC | gap |
+|---|---|---|---|
+| 0 | 0.8922 | 0.8976 | 0.0054 |
+| 115 | 0.8948 | 0.8995 | 0.0047 |
+| 232 | 0.8971 | 0.8998 | 0.0027 |
+| 332 | 0.8961 | 0.9000 | 0.0039 |
+
+DIV at 332: trees 0.9098 (20 of 20), network 0.9084 (17 of 20), both flat
+against 232. The last hundred maps moved neither model beyond noise, so
+more ESEA is not the lever any more. What is left for the network: more
+COLLEGE maps (it always finishes on the same 164), and how it uses ESEA
+(longer pretraining, or some ESEA kept in the college stage).
