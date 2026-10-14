@@ -44,6 +44,10 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
 LIST = ROOT / "data" / "esea-s58-na.csv"
+# Rooms already opened in a browser, one match id a line. --open skips them,
+# so a second batch can be opened before the first is parsed; without this
+# it reopened the same ten (2026-10-14).
+OPENED = ROOT / "data" / "esea-opened.txt"
 DEFAULT_FOLDER = Path.home() / "Downloads" / "ESEA demos"
 
 # Season 58, North America, regular seasons. Open1-8 is the closest to most
@@ -156,12 +160,16 @@ def main():
         print(f"wrote {LIST.relative_to(ROOT)}: {len(rows)} matches")
     if args.status or args.open:
         rows, got = read_list(), have()
-        todo = [r for r in rows if r["match_id"] not in got]
-        print(f"{len(rows)} listed, {len(rows) - len(todo)} in the corpus, "
-              f"{len(todo)} to go")
-        for r in todo[:args.open]:
-            print(f"  opening {r['division']}: {r['teams']}")
-            webbrowser.open(r["room"])
+        opened = set(OPENED.read_text().split()) if OPENED.exists() else set()
+        todo = [r for r in rows if r["match_id"] not in got | opened]
+        print(f"{len(rows)} listed, {len(got)} in the corpus, "
+              f"{len(opened - got)} opened and waiting to be parsed, "
+              f"{len(todo)} never opened")
+        with OPENED.open("a") as fh:
+            for r in todo[:args.open]:
+                print(f"  opening {r['division']}: {r['teams']}")
+                webbrowser.open(r["room"])
+                fh.write(r["match_id"] + "\n")
     if args.ingest:
         from app import db, pull
         db.init()
