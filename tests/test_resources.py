@@ -10,6 +10,8 @@ these tests cover the rules around it.
 import importlib.util
 import pathlib
 
+import pytest
+
 from app import coach, resources
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
@@ -100,6 +102,8 @@ def test_the_card_links_a_resource_and_drops_one_cut_since(monkeypatch):
     assert "Watch:" not in main.coach_read_block(note("F1", "R2"))
 
 
+@pytest.mark.skipif(not tool.SOURCE.exists(),
+                    reason="the candidate list lives in outreach/, private")
 def test_the_shipped_index_holds_only_vetted_resources():
     ix = resources.index()
     vetted = {r["url"] for r in tool.parse(tool.SOURCE.read_text(encoding="utf-8"))

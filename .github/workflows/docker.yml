@@ -39,7 +39,9 @@ jobs:
           docker run --rm counterplay:ci python -c "import app.worker, app.coach, demoparser2, lightgbm"
 
       - name: Push to GHCR
-        if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+        # Only from the private repository: the public showcase builds and
+        # checks the image but publishes nothing.
+        if: github.repository == 'JohanJ0318/counterplay' && github.ref == 'refs/heads/master' && github.event_name == 'push'
         run: |
           echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
           owner=$(echo "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
