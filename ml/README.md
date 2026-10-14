@@ -69,9 +69,34 @@ What it says:
 4. **No model fixes the calibration tail.** Every arm has a RAND split near
    4x the gate. That is which 26 maps land in the test set, not the model.
 
-So, today, the honest pick for the product is SMALLPOS: cheaper, as good,
-and easy to explain. The network is the one with room to grow, and what it
-needs is more matches, pro and ESEA, not more layers.
+So the pick for the product was SMALLPOS: cheaper, as good, and easy to
+explain. The network is the one with room to grow, and what it needs is
+more matches, not more layers.
+
+### Adding 115 ESEA League maps (2026-10-14)
+
+Season 58 North America, Main, Intermediate and Open (`tools/esea.py`),
+tier `esea`, never tested on. Same protocols and seeds as above.
+
+| arm | DIV AUC | DIV log loss | DIV passes | RAND AUC | RAND log loss | RAND passes |
+|---|---|---|---|---|---|---|
+| SMALLPOS | 0.9071 | 0.3809 | 19/20 | 0.8976 | 0.4023 | 15/20 |
+| SMALLPOS + ESEA rows | 0.9082 | 0.3778 | **20/20** | **0.8995** | **0.3991** | 15/20 |
+| NET | 0.9054 | 0.3822 | 20/20 | 0.8922 | 0.4125 | 14/20 |
+| NETPRO | 0.9079 | 0.3805 | 19/20 | 0.8953 | 0.4070 | 16/20 |
+| NETESEA | **0.9096** | **0.3761** | 19/20 | 0.8948 | 0.4064 | 14/20 |
+| NETBOTH (pro + ESEA) | 0.9084 | 0.3776 | 19/20 | 0.8944 | 0.4080 | 16/20 |
+
+* ESEA helped every arm on both protocols: the first data source that
+  moved the trees as well as the network.
+* ESEA pretraining beat pro pretraining with about the same number of
+  maps, and mixing the two was no better than ESEA alone: the population
+  matters more than the volume.
+* The network now wins DIV and still trails the trees on RAND by about
+  0.005 AUC. It gains more per map than the trees do.
+* Calibration tails are unchanged.
+
+New pick: SMALLPOS trained with the ESEA rows.
 
 ## Things that went wrong on the way, and what they taught
 
