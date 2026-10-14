@@ -133,7 +133,15 @@ def evidence(team_id: int) -> dict:
              verdict=1 if it["good"] else -1)
 
     anchors = list(report.team_anchors(team_id).get("anchors", {}))
+    # The demos behind every fact, by file hash, so facts added elsewhere
+    # (the scorer, on the PC) can be limited to the same games: a UCF note
+    # once carried a scorer moment from a division map that was in the PC's
+    # corpus but never uploaded to UCF's page.
+    shas = [r["sha256"] for r in db.query(
+        """SELECT DISTINCT d.sha256 FROM demos d JOIN matches m ON m.demo_id = d.id
+            WHERE d.team_id = ?""", team_id)]
     return {"team": team["name"], "team_id": team_id, "anchors": anchors,
+            "demos": shas,
             "reference": "NECC collegiate teams, "
                          f"{league.ref().get('matches', 0)} matches",
             "facts": facts}
@@ -146,7 +154,8 @@ def add_scorer(pack: dict, n: int = 3) -> int:
     sys.path.insert(0, str(ROOT / "tools"))
     import verdicts
 
-    moments = verdicts.moments(pack.get("anchors", []), n=n)
+    moments = verdicts.moments(pack.get("anchors", []), n=n,
+                               demos=pack.get("demos"))
     for m in moments:
         pack["facts"].append({
             "id": f"F{len(pack['facts']) + 1}", "kind": "scorer",
@@ -191,7 +200,15 @@ RULES = f"""- Use ONLY the facts provided. Every number you write must appear in
   One idea per point. The site shows every statistic already.
 - what_happens: the one or two numbers that matter and the college rate.
   practice: one concrete thing to do (a drill, a default, a call), with no
-  numbers in it at all.
+  numbers in it at all, aimed at what the facts show. Do not slip in a
+  cause they do not show: a fact that counts lost Nuke CT rounds does not
+  say rotations are the problem, so "review the lost rounds and fix where
+  they break" is fine and "drill rotations" is not.
+- Never call a habit "working" unless a fact shows the rounds are won: a
+  high trade rate is a habit, and if the rounds after it are still lost,
+  say the habit is good and the rounds are not.
+- If the team lost a map, the note mentions it, even in one clause of the
+  summary, when no fact makes it a fix or a check.
 - Comparisons are with other college teams, never with professionals."""
 
 SYSTEM = f"""You write the coach's read for a collegiate Counter-Strike 2 team:

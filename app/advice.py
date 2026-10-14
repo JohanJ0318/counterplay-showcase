@@ -86,12 +86,18 @@ def _why_cause(team_id: int, role: str):
     if not e or not e["culprits"]:
         return None
     link = e["links"][e["culprits"][0]]
+    if e["confidence"] != "clear":
+        # The biggest share, but within luck of college teams on its own:
+        # say where the rounds go without asserting the cause.
+        return None, (f"Most of the gap is in one step, "
+                      f"{link['label'].lower()}, though on these rounds that "
+                      f"is a lead rather than a finding.")
     heads = {("lost", 0): "Practice trading the opening duel",
-             ("lost", 1): "Win the 4v4 after the trade",
-             ("lost", 2): "Have a plan for the 4v5",
+             ("lost", 1): "Win the round after the trade",
+             ("lost", 2): "Have a plan for a lost opening duel",
              ("took", 0): "Stop giving the opening kill straight back",
-             ("took", 1): "Win the 4v4 after they trade",
-             ("took", 2): "Close out the 5v4"}
+             ("took", 1): "Win the round after they trade",
+             ("took", 2): "Close out the man advantage"}
     return heads[(role, e["culprits"][0])], link["advice"]
 
 
@@ -280,11 +286,12 @@ def monday(team_id: int) -> dict:
         # fired for; NC State Red traded MORE opening deaths than college
         # teams (38% to 25%) and lost the rounds after the trade.
         cause = _why_cause(team_id, "lost")
-        add(cause[0] if cause else "Win more rounds after losing the opening duel",
+        add((cause[0] if cause else None)
+            or "Win more rounds after losing the opening duel",
             "Losing the first duel is normal. Losing the round this much more "
             "often than other college teams is not. "
-            + (cause[1] if cause else "No one step of the round explains it; "
-               "the chain under Patterns shows each one."),
+            + (cause[1] if cause else "No one step of the round stands out "
+               "against college teams."),
             f"You win {you['opening_saved']} of {you['opening_lost']} rounds "
             f"after losing the opening duel",
             you["opening_saved"], you["opening_lost"], against=ref[0],

@@ -1,134 +1,134 @@
 {
- "_how": "tools/league_rates.py: collegiate (tier league) matches, one per sha, both sides of every round. Built over 138 matches, 2836 rounds.",
- "matches": 138,
- "rounds": 2836,
+ "_how": "tools/league_rates.py: collegiate (tier league) matches, one per sha, both sides of every round. Built over 164 matches, 3332 rounds.",
+ "matches": 164,
+ "rounds": 3332,
  "opening": {
   "ct": {
-   "took": 1502,
-   "converted": 1030,
-   "lost": 1334,
-   "saved": 388
+   "took": 1762,
+   "converted": 1211,
+   "lost": 1570,
+   "saved": 443
   },
   "t": {
-   "took": 1334,
-   "converted": 946,
-   "lost": 1502,
-   "saved": 472
+   "took": 1570,
+   "converted": 1127,
+   "lost": 1762,
+   "saved": 551
   }
  },
  "sides": {
   "de_ancient": {
-   "ct_rounds": 659,
-   "ct_won": 307
+   "ct_rounds": 763,
+   "ct_won": 353
   },
   "de_anubis": {
-   "ct_rounds": 218,
-   "ct_won": 93
+   "ct_rounds": 279,
+   "ct_won": 117
   },
   "de_mirage": {
-   "ct_rounds": 819,
-   "ct_won": 429
+   "ct_rounds": 907,
+   "ct_won": 477
   },
   "de_inferno": {
-   "ct_rounds": 297,
-   "ct_won": 139
+   "ct_rounds": 335,
+   "ct_won": 156
   },
   "de_cache": {
-   "ct_rounds": 133,
-   "ct_won": 77
+   "ct_rounds": 186,
+   "ct_won": 97
   },
   "de_nuke": {
-   "ct_rounds": 197,
-   "ct_won": 96
+   "ct_rounds": 313,
+   "ct_won": 157
   },
   "de_dust2": {
-   "ct_rounds": 513,
-   "ct_won": 277
+   "ct_rounds": 549,
+   "ct_won": 297
   }
  },
  "buys": {
   "ct": {
    "pistol": [
-    275,
-    122
+    327,
+    147
    ],
    "eco": [
-    199,
-    19
+    232,
+    20
    ],
    "full": [
-    1879,
-    1113
+    2188,
+    1290
    ],
    "force": [
-    483,
-    164
+    585,
+    197
    ]
   },
   "t": {
    "pistol": [
-    275,
-    153
+    327,
+    180
    ],
    "force": [
-    774,
-    348
+    898,
+    407
    ],
    "full": [
-    1634,
-    904
+    1925,
+    1075
    ],
    "eco": [
-    153,
-    13
+    182,
+    16
    ]
   }
  },
  "flash": {
   "ct": [
-   1049,
-   583
+   1230,
+   684
   ],
   "t": [
-   1322,
-   682
+   1530,
+   794
   ]
  },
  "utility": {
-  "flash_thrown": 8934,
-  "flash_hit_enemy": 4201,
-  "flash_hit_own": 4178,
-  "measured_matches": 109,
-  "value_spent": 20491400,
-  "value_wasted": 5945250
+  "flash_thrown": 10397,
+  "flash_hit_enemy": 4849,
+  "flash_hit_own": 4815,
+  "measured_matches": 129,
+  "value_spent": 24065350,
+  "value_wasted": 6936150
  },
  "opening_chain": {
   "ct": {
    "lost": {
-    "n": 1334,
-    "traded": 243,
-    "traded_won": 105,
-    "open_won": 283
+    "n": 1570,
+    "traded": 276,
+    "traded_won": 113,
+    "open_won": 330
    },
    "took": {
-    "n": 1502,
-    "traded": 450,
-    "traded_won": 260,
-    "open_won": 770
+    "n": 1762,
+    "traded": 522,
+    "traded_won": 303,
+    "open_won": 908
    }
   },
   "t": {
    "lost": {
-    "n": 1502,
-    "traded": 450,
-    "traded_won": 190,
-    "open_won": 282
+    "n": 1762,
+    "traded": 522,
+    "traded_won": 219,
+    "open_won": 332
    },
    "took": {
-    "n": 1334,
-    "traded": 243,
-    "traded_won": 138,
-    "open_won": 808
+    "n": 1570,
+    "traded": 276,
+    "traded_won": 163,
+    "open_won": 964
    }
   }
  }

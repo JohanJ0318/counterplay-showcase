@@ -37,7 +37,7 @@ from itertools import permutations
 
 from . import db, league
 
-# Same window as the parser's trade (counterplay/parse.py).
+# Same window and rule as the parser's trade (counterplay/parse.py).
 TRADE_SECONDS = 5.0
 
 # Rounds a link must cost, against college teams, to be named as a cause.
@@ -56,8 +56,12 @@ def opening_events(deaths: list) -> tuple | None:
     deaths in time order, each a mapping with seconds, victim_side,
     victim_steamid and attacker_steamid. None for a round with no duel.
 
-    Traded means the opening killer died within TRADE_SECONDS, which is the
-    parser's definition of a trade."""
+    Traded is the parser's rule: within TRADE_SECONDS the opening killer is
+    killed by someone on the dead player's side. A death row carries no
+    attacker side, so "someone on the dead player's side" is read as: not
+    the killer, and not anyone seen dying on the killer's own side this
+    round (a team kill). The first version counted the killer dying to
+    anything, which the claim check caught as looser than the parser."""
     if not deaths:
         return None
     first = deaths[0]
@@ -65,9 +69,16 @@ def opening_events(deaths: list) -> tuple | None:
     if loser not in ("ct", "t"):
         return None
     killer = first["attacker_steamid"]
+    if not killer:
+        return loser, False
+    killers_side = {d["victim_steamid"] for d in deaths
+                    if d["victim_side"] not in (loser, None)}
     traded = any(d["victim_steamid"] == killer
                  and d["seconds"] - first["seconds"] <= TRADE_SECONDS
-                 for d in deaths[1:]) if killer else False
+                 and d["attacker_steamid"]
+                 and d["attacker_steamid"] != killer
+                 and d["attacker_steamid"] not in killers_side
+                 for d in deaths[1:])
     return loser, traded
 
 
@@ -176,24 +187,24 @@ def _shapley(mine: tuple, ref: tuple) -> list[float]:
 LINKS = {
     "lost": [
         ("Opening death traded within 5 seconds",
-         "Your second player is not close enough to trade the first death. "
-         "Drill the spacing: the entry and the trade go together."),
-        ("Rounds won after the trade (4v4)",
-         "You get the trade and still lose the 4v4: the problem is the round "
-         "after the duel, not the duel. Look at what the four do next."),
-        ("Rounds won 4v5 with no trade",
+         "Fewer of your opening deaths are traded within 5 seconds than college "
+         "teams'. Drill the spacing: the entry and the trade go together."),
+        ("Rounds won after the trade",
+         "You get the trade and still lose the round: the problem is after the "
+         "duel, not the duel. Look at what the rest of the team does next."),
+        ("Rounds won with no trade",
          "Down a player with no trade, you lose more than college teams do. "
-         "Decide the 4v5 plan before the round: stack, retake or save."),
+         "Decide the plan for that before the round: stack, retake or save."),
     ],
     "took": [
         ("They traded your opening kill within 5 seconds",
-         "Your opening kills get traded straight back: the player taking the "
-         "duel is alone. Take it with a teammate in line to refrag."),
-        ("Rounds won after they traded (4v4)",
-         "After they trade your opening kill you lose the 4v4 more than "
+         "Your opening kills get traded back within 5 seconds more often than "
+         "college teams'. Take the duel with a teammate in line to refrag."),
+        ("Rounds won after they traded",
+         "After they trade your opening kill you lose the round more than "
          "college teams do."),
-        ("Rounds won 5v4",
-         "You keep the man advantage and still lose the round: a 5v4 needs a "
+        ("Rounds won with the man advantage",
+         "You keep the man advantage and still lose the round: it needs a "
          "plan to close it, not more duels."),
     ],
 }
@@ -232,8 +243,19 @@ def explain(team: dict, where: dict, role: str) -> dict | None:
     # more against college teams) and one link carries a round of that. Every
     # other link costing a round is named too: two weak links are two things
     # to work on, and hiding the second would be a guess dressed as an answer.
+    # The trade link's share can come out negative while the team trades
+    # the GOOD way, when its win rates after a trade and without one are in
+    # the unusual order (small samples allow it). Naming it then would tell
+    # a team that trades more than college teams to trade more. So a link
+    # is named only when its own rate is on the bad side of college teams.
+    def bad_way(i):
+        l = links[i]
+        worse_if_higher = role == "took" and i == 0
+        return l["pct"] > l["college"] if worse_if_higher else l["pct"] < l["college"]
+
     order = sorted(range(3), key=lambda i: links[i]["rounds"])
-    culprits = ([i for i in order if links[i]["rounds"] <= -MIN_ROUNDS]
+    culprits = ([i for i in order
+                 if links[i]["rounds"] <= -MIN_ROUNDS and bad_way(i)]
                 if total <= -MIN_ROUNDS else [])
     confidence = None
     if culprits:

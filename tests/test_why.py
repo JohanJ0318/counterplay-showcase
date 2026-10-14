@@ -60,3 +60,19 @@ def test_their_trade_back_counts_against_you(monkeypatch):
     e = why.explain(_team(40, 30, 10, 5, role="took"), {}, "took")
     assert e["links"][0]["verdict"] < 0
     assert e["links"][0]["rounds"] < 0
+
+
+def test_a_team_kill_is_not_a_trade():
+    # The opening killer K dies to his own teammate Z, who also dies later.
+    deaths = [_d(10.0, "t", "a", "K"), _d(12.0, "ct", "K", "Z"),
+              _d(20.0, "ct", "Z", "b")]
+    assert why.opening_events(deaths) == ("t", False)
+
+
+def test_the_trade_is_never_blamed_when_they_trade_more(monkeypatch):
+    # Trades MORE than college teams, but wins less after a trade than
+    # without one: the trade link's share goes negative. It must not be
+    # named, or the card would tell a team that trades well to trade more.
+    _ref(monkeypatch)
+    e = why.explain(_team(40, 30, 3, 6), {}, "lost")
+    assert 0 not in e["culprits"]

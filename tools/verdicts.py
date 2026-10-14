@@ -31,9 +31,10 @@ os.environ.setdefault("COUNTERPLAY_DB", r"C:/Users/Johan/counterplay/data/counte
 DASH = f" {chr(8212)} "
 
 
-def moments(steamids: list[str], n: int = 10) -> list[dict]:
+def moments(steamids: list[str], n: int = 10, demos=None) -> list[dict]:
     """The n costliest moments for the team these players form, or [] when
-    none of their maps are in the corpus here."""
+    none of their maps are in the corpus here. `demos` (file hashes) limits
+    them to those games, so a note never cites a match its page lacks."""
     from app import corpus, db
     from counterplay import model as M
     from counterplay import rank
@@ -52,6 +53,11 @@ def moments(steamids: list[str], n: int = 10) -> list[dict]:
     for r in rows:
         votes.setdefault((r["match_key"], r["round_num"]), Counter())[r["side"]] += 1
     side_of = {k: c.most_common(1)[0][0] for k, c in votes.items()}
+    if demos is not None:
+        allowed = {r["match_key"] for r in db.query(
+            f"""SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id
+                 WHERE d.sha256 IN ({','.join('?' * len(demos))})""", *demos)} if demos else set()
+        side_of = {k: s for k, s in side_of.items() if k[0] in allowed}
     theirs = {k for k, _ in side_of}
     if not theirs:
         return []
