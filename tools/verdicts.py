@@ -37,7 +37,7 @@ def moments(steamids: list[str], n: int = 10, demos=None) -> list[dict]:
     them to those games, so a note never cites a match its page lacks."""
     from app import corpus, db
     from counterplay import model as M
-    from counterplay import rank
+    from counterplay import posfeat, rank
     from counterplay import state as state_mod
 
     if not steamids:
@@ -66,8 +66,12 @@ def moments(steamids: list[str], n: int = 10, demos=None) -> list[dict]:
         f"({','.join('?' * len(theirs))})", *theirs)}
 
     rounds, events = corpus.load_frames(tier="league")
-    states = state_mod.build_states(rounds, events)
-    model, _report, _ = M.train(states[~states["match_id"].isin(theirs)], seed=7)
+    # The scorer's model reads where everyone stands (model.DEFAULT_CONFIG,
+    # "smallpos" since 2026-10-14): attach the position summaries once, for
+    # training and for scoring.
+    states = posfeat.attach(state_mod.build_states(rounds, events))
+    model, _report, _ = M.train(states[~states["match_id"].isin(theirs)].reset_index(drop=True),
+                                seed=7)
 
     picked = []
     for side in ("ct", "t"):

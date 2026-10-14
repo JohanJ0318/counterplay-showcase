@@ -91,10 +91,8 @@ def shipped_tree(tr, seed):
 
 
 def small_tree(tr, seed, with_pos):
-    b = lgb.LGBMClassifier(
-        n_estimators=200, learning_rate=0.05, num_leaves=7,
-        min_child_samples=300, subsample=0.8, subsample_freq=1,
-        colsample_bytree=0.9, reg_lambda=5.0, random_state=seed, verbose=-1)
+    # counterplay/model.py's params, so this and the scorer cannot drift.
+    b = lgb.LGBMClassifier(**M.SMALL_PARAMS, random_state=seed, verbose=-1)
     b.fit(tree_frame(tr, with_pos), Y[tr],
           categorical_feature=[FEATURES.index(c) for c in CATEGORICAL])
     return lambda idx: b.predict_proba(tree_frame(idx, with_pos))[:, 1]

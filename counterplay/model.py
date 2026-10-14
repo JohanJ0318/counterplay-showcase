@@ -23,7 +23,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from sklearn.model_selection import GroupShuffleSplit
 
-from .schema import CATEGORICAL, FEATURES, LABEL
+from .schema import CATEGORICAL, FEATURES, LABEL, POSFEAT
 
 # Gate on Expected Calibration Error (sample-weighted MEAN deviation), not on
 # the max across bins. Max-of-bins is a badly noisy statistic: a PERFECTLY
@@ -142,14 +142,28 @@ class Report:
 
 
 class WinProbabilityModel:
-    """LightGBM booster plus an isotonic calibration layer."""
+    """LightGBM booster plus an isotonic calibration layer.
 
-    def __init__(self, booster, calibrator):
+    Carries the feature list it was trained on: the "smallpos" config reads
+    the position summaries too, and predicting with the wrong columns would
+    be a silent nonsense number rather than an error.
+    """
+
+    def __init__(self, booster, calibrator, features=None):
         self.booster = booster
         self.calibrator = calibrator
+        self.features = list(features or FEATURES)
 
     def predict(self, states: pd.DataFrame) -> np.ndarray:
-        raw = self.booster.predict_proba(states[FEATURES])[:, 1]
+        missing = [c for c in self.features if c not in states.columns]
+        if missing:
+            # Position summaries are computed from the database on demand.
+            from . import posfeat
+            if set(missing) <= set(posfeat.POSFEAT):
+                states = posfeat.attach(states)
+            else:
+                raise KeyError(f"states lack {missing}")
+        raw = self.booster.predict_proba(states[self.features])[:, 1]
         return self.calibrator.predict(raw)
 
 
@@ -210,31 +224,87 @@ def _split3(states, seed, cal_frac: float = 0.25):
     return rest[tr_rel], rest[cal_rel], test
 
 
+# The booster as it shipped until 2026-10-14: too big for this data.
+SHIPPED_PARAMS = dict(n_estimators=400, learning_rate=0.05, num_leaves=31,
+                      min_child_samples=40, subsample=0.9, colsample_bytree=0.9)
+# Cut down, which alone gained about 0.02 AUC (tools/baselines.py, SMALL).
+# ml/evaluate.py reads these, so the measured trees and these cannot drift.
+SMALL_PARAMS = dict(n_estimators=200, learning_rate=0.05, num_leaves=7,
+                    min_child_samples=300, subsample=0.8, subsample_freq=1,
+                    colsample_bytree=0.9, reg_lambda=5.0)
+
+# name -> (features, booster params, extra training tiers)
+#
+# "smallpos" is the scorer's model since 2026-10-14: the small booster, the
+# nine position summaries (counterplay/posfeat.py) and the ESEA League maps
+# as extra TRAINING rows (tier_id tells them apart). Calibration and every
+# test stay collegiate, because the calibrator is fitted on, and the gate
+# measured on, the states passed in. Best of thirteen models across both
+# held-out protocols (ml/README.md). "shipped" is the old one, kept so
+# tools/compare.py can still put the two side by side.
+CONFIGS = {
+    "shipped": (FEATURES, SHIPPED_PARAMS, ()),
+    "smallpos": (FEATURES + POSFEAT, SMALL_PARAMS, ("esea",)),
+}
+DEFAULT_CONFIG = "smallpos"
+
+_extra_cache: dict = {}
+
+
+def extra_rows(tiers) -> pd.DataFrame | None:
+    """State rows (with position summaries) for the extra training tiers,
+    built once per process. None when there are none."""
+    if not tiers:
+        return None
+    key = tuple(tiers)
+    if key not in _extra_cache:
+        from app import corpus
+        from . import posfeat
+        from . import state as state_mod
+        frames = []
+        for t in tiers:
+            rounds, events = corpus.load_frames(tier=t)
+            if len(rounds):
+                frames.append(state_mod.build_states(rounds, events))
+        _extra_cache[key] = (posfeat.attach(pd.concat(frames, ignore_index=True))
+                             if frames else None)
+    return _extra_cache[key]
+
+
 def train(states: pd.DataFrame, seed: int = 7, cal_frac: float = 0.25,
-          calibrator: str = "isotonic"):
+          calibrator: str = "isotonic", config: str = DEFAULT_CONFIG):
     """Fit booster + calibrator and score on a held-out third of the matches.
 
     The defaults are the shipped model. Vary them through tools/compare.py,
     which holds the seed fixed across both arms so the change is not buried
     under which matches happened to land in test.
+
+    `states` are the collegiate rows: split, calibrated and tested on. The
+    config's extra tiers only ever join the TRAINING split.
     """
-    X, y = states[FEATURES], states[LABEL].astype(int)
+    features, params, tiers = CONFIGS[config]
+    if any(c not in states.columns for c in features):
+        from . import posfeat
+        states = posfeat.attach(states)
+    X, y = states[features], states[LABEL].astype(int)
     tr, cal, te = _split3(states, seed, cal_frac)
 
-    booster = lgb.LGBMClassifier(
-        n_estimators=400, learning_rate=0.05, num_leaves=31,
-        min_child_samples=40, subsample=0.9, colsample_bytree=0.9,
-        random_state=seed, verbose=-1,
-    )
-    booster.fit(X.iloc[tr], y.iloc[tr],
-                categorical_feature=[FEATURES.index(c) for c in CATEGORICAL])
+    X_tr, y_tr = X.iloc[tr], y.iloc[tr]
+    extra = extra_rows(tiers)
+    if extra is not None:
+        X_tr = pd.concat([X_tr, extra[features]], ignore_index=True)
+        y_tr = pd.concat([y_tr, extra[LABEL].astype(int)], ignore_index=True)
+
+    booster = lgb.LGBMClassifier(**params, random_state=seed, verbose=-1)
+    booster.fit(X_tr, y_tr,
+                categorical_feature=[features.index(c) for c in CATEGORICAL])
 
     # fit the calibrator on data the booster has never seen
     raw_cal = booster.predict_proba(X.iloc[cal])[:, 1]
     cal_model = _make_calibrator(calibrator)
     cal_model.fit(raw_cal, y.iloc[cal])
 
-    model = WinProbabilityModel(booster, cal_model)
+    model = WinProbabilityModel(booster, cal_model, features)
 
     p = model.predict(states.iloc[te])
     frac_pos, mean_pred = calibration_curve(y.iloc[te], p, n_bins=10, strategy="quantile")

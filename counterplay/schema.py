@@ -25,6 +25,13 @@ FEATURES = [
 
 CATEGORICAL = ["map_id", "round_type_id", "tier_id", "plant_site"]
 
+# Where everyone stands, summarised for a tree model (counterplay/posfeat.py
+# computes them from round_positions and the death events). Read by the
+# "smallpos" model config, not part of FEATURES: the shipped config, and
+# anything still trained on FEATURES alone, never saw them.
+POSFEAT = ["hp_ct", "hp_t", "ct_site1", "ct_site2", "t_site1", "t_site2",
+           "ct_spread", "t_spread", "closest_enemy"]
+
 # Label: did the CT side win this round. T-side WP is 1 - p.
 LABEL = "ct_won"
 
