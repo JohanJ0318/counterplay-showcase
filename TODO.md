@@ -254,6 +254,18 @@ true on purpose.
       Next, if taken: run seedsweep and holdout with SMALL (with and without
       pro maps) as the shipped config, then decide. Not changed yet.
 
+- [x] **Positions help; a network needs more data to beat trees.**
+      2026-10-14, ml/ (README there has the table). Same protocols as
+      tools/baselines.py. Hand-made position summaries in the small
+      LightGBM (SMALLPOS) gain about 0.008 AUC and 0.015 log loss over
+      SMALL on both protocols. The PyTorch network with all ten players
+      ties SMALL trained on college maps alone and reaches SMALLPOS only
+      when pretrained on the 104 pro maps: data-limited, not design-limited.
+      Calibration passes are unchanged (13 to 15 of 20 on RAND) for every
+      arm. Candidate to ship: SMALLPOS, after seedsweep and holdout run on
+      it as the shipped config. More pro and ESEA maps are what the network
+      needs; the trees have mostly saturated.
+
 - [ ] **state.py assumes every round starts 5 on 5.** Found 2026-10-14 by
       ml/data.py, which reads alive state from death events and positions
       from the samples. After that fix the two agree on 99.2% of rows, and
