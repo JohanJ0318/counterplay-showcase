@@ -154,3 +154,4 @@ def test_the_read_renders_as_the_lead_of_overview():
     html = main.coach_read_block({**GOOD})
     assert "Coach's read" in html and "work on this" in html
     assert "Practice:" in html and 'class="lead"' in html
+    assert "Written by Claude" not in html      # Johan cut it, 2026-10-14

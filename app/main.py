@@ -798,9 +798,6 @@ def coach_read_block(read: dict) -> str:
       <h2>Coach's read</h2></div>
     <p class="lede">{esc(read.get("summary", ""))}</p>
     <div class="grid2">{"".join(cards)}</div>
-    <p class="den">Written by Claude from your matches and checked against
-      them: every number here comes from your rounds, compared with other
-      college teams.</p>
   </section>"""
 
 

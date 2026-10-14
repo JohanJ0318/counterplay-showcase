@@ -40,6 +40,7 @@ import json
 import os
 import re
 import sys
+from collections import defaultdict
 
 from . import db
 
@@ -99,6 +100,21 @@ def evidence(team_id: int) -> dict | None:
             fact("record", f"all maps, {side.upper()}", f"{side.upper()} side: "
                  f"won {s['won']} of {s['rounds']} rounds "
                  f"({pc(s['won'], s['rounds'])}%).")
+    # The rounds lost on each side of each map, "nuke 6" as the page and
+    # why.rounds_line() write them, so a point about Nuke CT can name the
+    # rounds to open. Every first note on the box came without any.
+    lost = defaultdict(list)
+    sides = report.our_sides(team_id)
+    if sides:
+        keys = sorted({k for k, _ in sides})
+        for r in db.query(f"""SELECT match_key, round_num, ct_won, map_name
+                                FROM rounds WHERE match_key IN
+                                ({",".join("?" * len(keys))})
+                            ORDER BY match_key, round_num""", *keys):
+            side = sides.get((r["match_key"], r["round_num"]))
+            if side and bool(r["ct_won"]) != (side == "ct"):
+                lost[(r["map_name"], side)].append(
+                    f"{(r['map_name'] or '').replace('de_', '')} {r['round_num']}")
     for mp, m in sorted(st["maps"].items()):
         name = mp.replace("de_", "")
         for side, key in (("ct", "you_ct"), ("t", "you_t")):
@@ -111,7 +127,7 @@ def evidence(team_id: int) -> dict | None:
                  f"{name} {side.upper()}: won {w} of {n} rounds "
                  f"({pc(w, n)}%)" + (f"; college teams win {ref[0]:.0f}% "
                                      f"on {name} {side.upper()}" if ref else "")
-                 + ".", verdict=v)
+                 + ".", verdict=v, rounds=lost.get((mp, side), []))
 
     for p in report.recurring_patterns(team_id):
         ref = p.get("ref")
@@ -196,6 +212,9 @@ RULES = f"""- Use ONLY the facts provided. Every number you write must appear in
 - Never call a habit "working" unless a fact shows the rounds are won: a
   high trade rate is a habit, and if the rounds after it are still lost,
   say the habit is good and the rounds are not.
+- rounds_to_watch: when a cited fact lists rounds, pick up to five of them,
+  written exactly as the fact has them ("nuke 6"); otherwise leave it empty.
+  They are the rounds a coach opens first.
 - If the team lost a map, the note mentions it, even in one clause of the
   summary, when no fact makes it a fix or a check.
 - Comparisons are with other college teams, never with professionals."""
