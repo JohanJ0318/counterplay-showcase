@@ -86,6 +86,61 @@ def load(rebuild: bool = False) -> Snapshots:
     return snap
 
 
+# ---- more moments per round (2026-10-23)
+#
+# The rows above are taken only when something happens, a kill or a plant:
+# five to eight moments a round. The network also trains on one every
+# TIMED_STEP seconds in between, each a copy of the last event's state with
+# the clock moved on and its own snapshot, up to the round's LAST event
+# (after it nobody can say the round is still live). Training only: every
+# arm is still tested on the event rows, so it compares with the trees on
+# the same moments.
+TIMED_STEP = 2.0
+TIMED_VERSION = 1
+
+
+def timed_states(states: pd.DataFrame, step: float = TIMED_STEP) -> pd.DataFrame:
+    from counterplay.schema import PLANT_SECONDS, ROUND_SECONDS
+    out = []
+    cols = list(states.columns)
+    for (_mk, _rn), g in states.groupby(["match_id", "round_num"], sort=False):
+        g = g.sort_values("seconds")
+        secs = g["seconds"].to_numpy(dtype=float)
+        vals = g.to_numpy()
+        events = set(np.round(secs, 3))
+        for t in np.arange(step, secs[-1], step):
+            if round(float(t), 3) in events:
+                continue
+            k = int(np.searchsorted(secs, t, side="right")) - 1
+            row = dict(zip(cols, vals[k]))
+            row["seconds"] = float(t)
+            row["event_type"] = "tick"
+            row["victim_side"] = None
+            if row["bomb_planted"]:
+                plant_at = float(secs[k]) - float(row["time_since_plant"])
+                row["time_since_plant"] = float(t) - plant_at
+                row["time_left"] = max(0.0, PLANT_SECONDS - row["time_since_plant"])
+            else:
+                row["time_left"] = max(0.0, ROUND_SECONDS - float(t))
+            out.append(row)
+    return pd.DataFrame(out, columns=cols).astype(states.dtypes.to_dict(), errors="ignore")
+
+
+def load_timed(base: Snapshots, rebuild: bool = False) -> Snapshots:
+    path = CACHE / f"snapshots_timed_v{CACHE_VERSION}_{TIMED_VERSION}.npz"
+    sp = CACHE / f"states_timed_v{CACHE_VERSION}_{TIMED_VERSION}.pkl"
+    if path.exists() and sp.exists() and not rebuild:
+        z = np.load(path)
+        return Snapshots(pd.read_pickle(sp), z["players"], z["posfeat"], z["has"])
+    st = timed_states(base.states)
+    players, posfeat, has = PF.snapshots(st, with_players=True)
+    snap = Snapshots(st, players, posfeat, has)
+    CACHE.mkdir(parents=True, exist_ok=True)
+    np.savez_compressed(path, players=players, posfeat=posfeat, has=has)
+    st.to_pickle(sp)
+    return snap
+
+
 if __name__ == "__main__":
     os.environ.setdefault("COUNTERPLAY_DB", str(ROOT / "data" / "counterplay.db"))
     s = load(rebuild=True)

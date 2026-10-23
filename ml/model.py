@@ -62,9 +62,28 @@ def global_features(states) -> np.ndarray:
 class WinNet(nn.Module):
     def __init__(self, d: int = 48, heads: int = 4, dropout: float = 0.1,
                  use_players: bool = True, use_levels: bool = False,
-                 use_kit: bool = False):
+                 use_kit: bool = False, use_callouts: bool = False,
+                 use_vision: bool = False, aux: bool = False,
+                 use_regions: bool = False, more_lessons: bool = False):
         super().__init__()
         self.use_players = use_players
+        # 2026-10-23 (ml/extras.py), all off by default so every earlier arm
+        # is the same network: which callout each player stands in, as an
+        # embedding per (map, callout); what the enemy can see of each
+        # player; and `aux`, heads that learn who dies next and whether the
+        # bomb goes down, from the same rounds, beside the win.
+        # Later the same day: `use_regions`, each callout as one of a few
+        # regions every map shares (ml/extras.REGIONS); `more_lessons`, who
+        # gets the next kill, how soon, and how the round ends.
+        from .extras import END_KINDS, N_CALLOUT_IDS, N_GAP, N_VIS, REGIONS
+        self.use_callouts, self.use_vision, self.aux = use_callouts, use_vision, aux
+        self.use_regions, self.more_lessons = use_regions, more_lessons and aux
+        if use_callouts:
+            self.callout_emb = nn.Embedding(N_CALLOUT_IDS, 8)
+        if use_regions:
+            self.region_emb = nn.Embedding(len(REGIONS), 4)
+        n_extra = ((8 if use_callouts else 0) + (N_VIS if use_vision else 0)
+                   + (4 if use_regions else 0))
         self.map_emb = nn.Embedding(len(MAPS) + 1, 8)      # + UNKNOWN_MAP_ID
         self.type_emb = nn.Embedding(len(ROUND_TYPES), 4)
         self.site_emb = nn.Embedding(3, 4)                 # none, site 1, site 2
@@ -84,7 +103,7 @@ class WinNet(nn.Module):
         pooled = 0
         if use_players:
             self.encode = nn.Sequential(
-                nn.Linear(self.n_player + 8, d), nn.GELU(),
+                nn.Linear(self.n_player + 8 + n_extra, d), nn.GELU(),
                 nn.Linear(d, d))
             self.side = nn.Parameter(torch.zeros(2, d))
             self.attn = nn.MultiheadAttention(d, heads, dropout=dropout,
@@ -95,8 +114,19 @@ class WinNet(nn.Module):
             nn.Linear(pooled + len(GLOBAL) + 8 + 4 + 4 + 4
                       + (8 if use_levels else 0), 64), nn.GELU(),
             nn.Dropout(dropout), nn.Linear(64, 1))
+        if aux:
+            self.side_head = nn.Linear(64, 3)          # CT dies next, T, nobody
+            self.plant_head = nn.Linear(64, 1)         # bomb down within 10 s
+            self.none_head = nn.Linear(64, 1)          # "nobody" beside 10 slots
+            self.slot_head = nn.Linear(d, 1) if use_players else None
+            if self.more_lessons:
+                self.gap_head = nn.Linear(64, N_GAP)
+                self.end_head = nn.Linear(64, len(END_KINDS))
+                self.killer_none = nn.Linear(64, 1)
+                self.killer_head = nn.Linear(d, 1) if use_players else None
 
-    def forward(self, players, glob, map_id, type_id, site, tier, levels=None):
+    def forward(self, players, glob, map_id, type_id, site, tier, levels=None,
+                cid=None, vis=None, reg=None, with_aux: bool = False):
         m = self.map_emb(map_id)
         parts = [glob, m, self.type_emb(type_id), self.site_emb(site),
                  self.tier_emb(tier)]
@@ -109,7 +139,14 @@ class WinNet(nn.Module):
             # they died is information.
             empty = players.abs().sum(-1) == 0                       # (B, 10)
             mm = m.unsqueeze(1).expand(-1, players.shape[1], -1)
-            h = self.encode(torch.cat([players, mm], -1))
+            per = [players, mm]
+            if self.use_callouts:
+                per.append(self.callout_emb(cid))
+            if self.use_vision:
+                per.append(vis)
+            if self.use_regions:
+                per.append(self.region_emb(reg))
+            h = self.encode(torch.cat(per, -1))
             h = h + torch.repeat_interleave(self.side, 5, dim=0)    # CT x5, T x5
             # Guard: a row with every slot empty would make attention NaN.
             safe = empty.clone()
@@ -123,7 +160,25 @@ class WinNet(nn.Module):
                 parts.append((hs * ks).sum(1) / n)                    # mean
                 parts.append((hs * ks - (1 - ks) * 1e4).max(1).values  # max
                              .clamp(min=-1e3))
-        return self.head(torch.cat(parts, -1)).squeeze(-1)
+        trunk = self.head[:-1](torch.cat(parts, -1))
+        win = self.head[-1](trunk).squeeze(-1)
+        if not with_aux:
+            return win
+        out = {"win": win}
+        if self.aux:
+            out["side"] = self.side_head(trunk)
+            out["plant"] = self.plant_head(trunk).squeeze(-1)
+            none = self.none_head(trunk)
+            if self.use_players:
+                slots = self.slot_head(h).squeeze(-1).masked_fill(empty, -1e4)
+                out["slot"] = torch.cat([slots, none], -1)        # (B, 11)
+            if self.more_lessons:
+                out["gap"] = self.gap_head(trunk)
+                out["end"] = self.end_head(trunk)
+                if self.use_players:
+                    k = self.killer_head(h).squeeze(-1).masked_fill(empty, -1e4)
+                    out["killer"] = torch.cat([k, self.killer_none(trunk)], -1)
+        return out
 
 
 def n_params(model: nn.Module) -> int:

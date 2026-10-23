@@ -35,17 +35,68 @@ PATIENCE = 4
 MAX_EPOCHS = 40
 
 
+LESSONS = ("next_side", "next_slot", "plant10", "plant_ok", "next_killer",
+           "next_gap", "round_end")
+
+
 def tensors(snap, idx):
-    """The model's inputs and the label for rows `idx`."""
+    """(inputs, label, lessons) for rows `idx`. Inputs are in WinNet.forward's
+    order; lessons are ml/extras.py's next_side, next_slot, plant10 and
+    plant_ok, zeros when the snapshot carries no extras."""
     st = snap.states.iloc[idx]
-    return (torch.from_numpy(snap.players[idx]),
-            torch.from_numpy(global_features(st)),
-            torch.from_numpy(st["map_id"].to_numpy(dtype=np.int64, copy=True)),
-            torch.from_numpy(st["round_type_id"].to_numpy(dtype=np.int64, copy=True)),
-            torch.from_numpy(st["plant_site"].clip(0, 2).to_numpy(dtype=np.int64, copy=True)),
-            torch.from_numpy(st["tier_id"].to_numpy(dtype=np.int64, copy=True)),
-            torch.from_numpy(st[["level_ct_id", "level_t_id"]].to_numpy(dtype=np.int64, copy=True)),
-            torch.from_numpy(st[LABEL].to_numpy(dtype=np.float32, copy=True)))
+    ex = getattr(snap, "extras", None)
+    n = len(idx)
+    if ex is not None:
+        cid, vis = torch.from_numpy(ex.cid[idx]), torch.from_numpy(ex.vis[idx])
+        reg = torch.from_numpy(ex.reg[idx])
+        lessons = [torch.from_numpy(getattr(ex, f)[idx]) for f in LESSONS]
+    else:
+        from .extras import N_GAP, N_VIS
+        cid = torch.zeros((n, 10), dtype=torch.int64)
+        reg = torch.zeros((n, 10), dtype=torch.int64)
+        vis = torch.zeros((n, 10, N_VIS))
+        lessons = [torch.full((n,), 2), torch.full((n,), 10), torch.zeros(n),
+                   torch.zeros(n, dtype=torch.bool), torch.full((n,), 10),
+                   torch.full((n,), N_GAP - 1), torch.zeros(n, dtype=torch.int64)]
+    inputs = [torch.from_numpy(snap.players[idx]),
+              torch.from_numpy(global_features(st)),
+              torch.from_numpy(st["map_id"].to_numpy(dtype=np.int64, copy=True)),
+              torch.from_numpy(st["round_type_id"].to_numpy(dtype=np.int64, copy=True)),
+              torch.from_numpy(st["plant_site"].clip(0, 2).to_numpy(dtype=np.int64, copy=True)),
+              torch.from_numpy(st["tier_id"].to_numpy(dtype=np.int64, copy=True)),
+              torch.from_numpy(st[["level_ct_id", "level_t_id"]].to_numpy(dtype=np.int64, copy=True)),
+              cid, vis, reg]
+    return inputs, torch.from_numpy(st[LABEL].to_numpy(dtype=np.float32, copy=True)), lessons
+
+
+def _take(data, b):
+    x, y, a = data
+    return [t[b] for t in x], y[b], [t[b] for t in a]
+
+
+# Weight of each extra lesson beside the win (ml/extras.py). The win is what
+# is measured; the lessons are there to teach the game, so they count less.
+AUX_WEIGHT = 0.3
+
+
+def _objective(model, x, y, a, aux_weight=None):
+    if not getattr(model, "aux", False):
+        return nn.functional.binary_cross_entropy_with_logits(model(*x), y)
+    out = model(*x, with_aux=True)
+    side, slot, plant, plant_ok, killer, gap, end = a
+    loss = nn.functional.binary_cross_entropy_with_logits(out["win"], y)
+    extra = nn.functional.cross_entropy(out["side"], side)
+    if "slot" in out:
+        extra = extra + nn.functional.cross_entropy(out["slot"], slot)
+    if plant_ok.any():
+        extra = extra + nn.functional.binary_cross_entropy_with_logits(
+            out["plant"][plant_ok], plant[plant_ok])
+    if "gap" in out:
+        extra = extra + nn.functional.cross_entropy(out["gap"], gap)
+        extra = extra + nn.functional.cross_entropy(out["end"], end)
+    if "killer" in out:
+        extra = extra + nn.functional.cross_entropy(out["killer"], killer)
+    return loss + (AUX_WEIGHT if aux_weight is None else aux_weight) * extra
 
 
 def _split_matches(snap, idx, frac, seed):
@@ -60,25 +111,26 @@ def _split_matches(snap, idx, frac, seed):
 
 @torch.no_grad()
 def _loss(model, data):
+    """Validation is judged on the win alone, the thing that is measured."""
     model.eval()
-    *x, y = data
+    x, y, _a = data
     return float(nn.functional.binary_cross_entropy_with_logits(model(*x), y))
 
 
 def _run(model, train_data, val_data, lr, seed, max_epochs=MAX_EPOCHS,
-         patience=PATIENCE):
+         patience=PATIENCE, aux_weight=None):
     """One training run with early stopping. Returns the best val loss."""
     opt = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-3)
     gen = torch.Generator().manual_seed(seed)
-    n = len(train_data[-1])
+    n = len(train_data[1])
     best, best_state, stale = float("inf"), None, 0
     for _epoch in range(max_epochs):
         model.train()
         order = torch.randperm(n, generator=gen)
         for start in range(0, n, BATCH):
             b = order[start:start + BATCH]
-            *x, y = (t[b] for t in train_data)
-            loss = nn.functional.binary_cross_entropy_with_logits(model(*x), y)
+            x, y, a = _take(train_data, b)
+            loss = _objective(model, x, y, a, aux_weight)
             opt.zero_grad()
             loss.backward()
             nn.utils.clip_grad_norm_(model.parameters(), 1.0)
@@ -103,7 +155,7 @@ class Fit:
     @torch.no_grad()
     def predict(self, snap, idx) -> np.ndarray:
         self.model.eval()
-        *x, _y = tensors(snap, idx)
+        x, _y, _a = tensors(snap, idx)
         out = []
         for s in range(0, len(idx), 4096):
             out.append(torch.sigmoid(self.model(*(t[s:s + 4096] for t in x))))
@@ -113,14 +165,19 @@ class Fit:
 def train(snap, train_idx, seed: int = 7, use_players: bool = True,
           pretrain_idx=None, use_levels: bool = False,
           pretrain_patience: int = PATIENCE, pretrain_epochs: int = MAX_EPOCHS,
-          keep_mix: float = 0.0) -> Fit:
+          keep_mix: float = 0.0, use_kit: bool = False,
+          use_callouts: bool = False, use_vision: bool = False,
+          aux: bool = False, use_regions: bool = False,
+          more_lessons: bool = False, aux_weight: float | None = None) -> Fit:
     """`pretrain_patience` and `pretrain_epochs` let the pretraining stage
     run longer before it gives up; `keep_mix` keeps that share of
     pretraining rows (relative to the college rows) in the fine-tuning
     stage, so the college stage adjusts what pretraining learned instead
     of overwriting it. Both measured in ml/evaluate.py (NETLONG)."""
     torch.manual_seed(seed)
-    model = WinNet(use_players=use_players, use_levels=use_levels)
+    model = WinNet(use_players=use_players, use_levels=use_levels, use_kit=use_kit,
+                   use_callouts=use_callouts, use_vision=use_vision, aux=aux,
+                   use_regions=use_regions, more_lessons=more_lessons)
     fit_idx, val_idx = _split_matches(snap, np.asarray(train_idx), 0.1, seed)
     val = tensors(snap, val_idx)
     lr = 2e-3
@@ -130,7 +187,8 @@ def train(snap, train_idx, seed: int = 7, use_players: bool = True,
         # rather than forgotten.
         both = np.concatenate([fit_idx, np.asarray(pretrain_idx)])
         _run(model, tensors(snap, both), val, lr, seed,
-             max_epochs=pretrain_epochs, patience=pretrain_patience)
+             max_epochs=pretrain_epochs, patience=pretrain_patience,
+             aux_weight=aux_weight)
         lr = 5e-4
     tune_idx = fit_idx
     if pretrain_idx is not None and keep_mix > 0:
@@ -139,5 +197,5 @@ def train(snap, train_idx, seed: int = 7, use_players: bool = True,
                                                int(keep_mix * len(fit_idx))),
             replace=False)
         tune_idx = np.concatenate([fit_idx, extra])
-    best = _run(model, tensors(snap, tune_idx), val, lr, seed + 1)
+    best = _run(model, tensors(snap, tune_idx), val, lr, seed + 1, aux_weight=aux_weight)
     return Fit(model, best)

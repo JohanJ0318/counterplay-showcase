@@ -59,6 +59,8 @@ SEEDS = (7, 1, 2, 3, 4, 5, 11, 23,
 
 db.init()
 snap = data.load()
+from . import extras  # noqa: E402
+snap.extras = extras.load(snap)
 st = snap.states
 LEAGUE = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["league"])
 PRO = np.flatnonzero(st["tier_id"].to_numpy() == TIER_IDS["pro"])
@@ -123,10 +125,50 @@ def small_tree(tr, seed, with_pos, with_lvl=False):
     return lambda idx: b.predict_proba(tree_frame(idx, with_pos, with_lvl))[:, 1]
 
 
-def net(tr, seed, use_players, extra=None, **kw):
-    fit = train.train(snap, tr, seed=seed, use_players=use_players,
-                      pretrain_idx=EXTRA[extra], **kw)
-    return lambda idx: fit.predict(snap, idx)
+_TIMED: dict = {}
+
+
+def _timed():
+    """The event snapshot with the timed moments (ml/data.load_timed)
+    appended AFTER it, so every event row keeps its index, and per match
+    the indices of its timed rows. Built once, on first use."""
+    if not _TIMED:
+        import pandas as pd
+        t = data.load_timed(snap)
+        t.extras = extras.load(t, name="_timed")
+        n = len(snap.states)
+        merged = data.Snapshots(
+            pd.concat([snap.states, t.states], ignore_index=True),
+            np.concatenate([snap.players, t.players]),
+            np.concatenate([snap.posfeat, t.posfeat]),
+            np.concatenate([snap.has_positions, t.has_positions]))
+        merged.extras = extras.Extras(*(np.concatenate([getattr(snap.extras, f),
+                                                        getattr(t.extras, f)])
+                                        for f in extras.Extras.__dataclass_fields__))
+        by_match: dict = {}
+        for i, m in enumerate(t.states["match_id"].to_numpy()):
+            by_match.setdefault(m, []).append(n + i)
+        _TIMED.update(snap=merged, by_match=by_match)
+    return _TIMED
+
+
+def _plus_timed(idx):
+    if idx is None:
+        return None
+    by = _timed()["by_match"]
+    more = [j for m in np.unique(st["match_id"].to_numpy()[idx]) for j in by.get(m, ())]
+    return np.concatenate([np.asarray(idx), np.asarray(more, dtype=np.int64)])
+
+
+def net(tr, seed, use_players, extra=None, timed=False, copies=1, **kw):
+    """`timed` trains on the 2-second moments too (tested on events only);
+    `copies` averages that many networks trained from different seeds."""
+    S = _timed()["snap"] if timed else snap
+    tr_ = _plus_timed(tr) if timed else tr
+    pre = _plus_timed(EXTRA[extra]) if timed else EXTRA[extra]
+    fits = [train.train(S, tr_, seed=seed * 100 + j, use_players=use_players,
+                        pretrain_idx=pre, **kw) for j in range(copies)]
+    return lambda idx: np.mean([f.predict(S, idx) for f in fits], axis=0)
 
 
 ARMS = {
@@ -153,7 +195,48 @@ ARMS = {
                                  pretrain_epochs=80, keep_mix=0.5),
     # Per-player movement, weapon and grenades on top of NETESEA.
     "NETKIT": lambda tr, s: net(tr, s, True, "esea", use_kit=True),
+    # 2026-10-23 (ml/extras.py). VIEW: which callout each player stands in
+    # and what the enemy can see of them. LESSONS: also learn who dies next
+    # and whether the bomb goes down. PLUS: both.
+    "NETVIEW": lambda tr, s: net(tr, s, True, "esea", use_callouts=True, use_vision=True),
+    "NETLESSONS": lambda tr, s: net(tr, s, True, "esea", aux=True),
+    "NETPLUS": lambda tr, s: net(tr, s, True, "esea", use_callouts=True,
+                                 use_vision=True, aux=True),
+    # The trees and a network averaged before calibration: they err
+    # differently, so the average can beat both.
+    "ENS": lambda tr, s: _average(ARMS["SMALLPOS+ESEA"](tr, s), ARMS["NETESEA"](tr, s)),
+    "ENSPLUS": lambda tr, s: _average(ARMS["SMALLPOS+ESEA"](tr, s), ARMS["NETPLUS"](tr, s)),
+    "ENSLESSONS": lambda tr, s: _average(ARMS["SMALLPOS+ESEA"](tr, s),
+                                         ARMS["NETLESSONS"](tr, s)),
+    # Later on 2026-10-23, each on top of NETLESSONS: T the 2-second moments,
+    # M more lessons (who kills next, how soon, how the round ends), W the
+    # lessons weighted 0.6 instead of 0.3, LONG the longer pretraining,
+    # REG callouts grouped into regions every map shares.
+    "NETT": lambda tr, s: net(tr, s, True, "esea", aux=True, timed=True),
+    "NETTM": lambda tr, s: net(tr, s, True, "esea", aux=True, timed=True,
+                               more_lessons=True),
+    "NETTMW": lambda tr, s: net(tr, s, True, "esea", aux=True, timed=True,
+                                more_lessons=True, aux_weight=0.6),
+    "NETTMLONG": lambda tr, s: net(tr, s, True, "esea", aux=True, timed=True,
+                                   more_lessons=True, pretrain_patience=10,
+                                   pretrain_epochs=80, keep_mix=0.5),
+    "NETTMREG": lambda tr, s: net(tr, s, True, "esea", aux=True, timed=True,
+                                  more_lessons=True, use_regions=True),
+    # The timed moments cost ranking on both tests (screen of 2026-10-23,
+    # ml/README.md), so the rest are retested on event rows only.
+    "NETM": lambda tr, s: net(tr, s, True, "esea", aux=True, more_lessons=True),
+    "NETMW": lambda tr, s: net(tr, s, True, "esea", aux=True, more_lessons=True,
+                               aux_weight=0.6),
+    "NETMREG": lambda tr, s: net(tr, s, True, "esea", aux=True, more_lessons=True,
+                                 use_regions=True),
+    "NETLESSONSx5": lambda tr, s: net(tr, s, True, "esea", aux=True, copies=5),
+    "NETMx5": lambda tr, s: net(tr, s, True, "esea", aux=True, more_lessons=True,
+                                copies=5),
 }
+
+
+def _average(a, b):
+    return lambda idx: (a(idx) + b(idx)) / 2.0
 
 
 def split_cal(pool, seed):

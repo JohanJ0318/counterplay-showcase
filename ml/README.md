@@ -194,3 +194,96 @@ Then each idea against the same model without it (332 ESEA maps, 20 seeds):
   scored are kills and plants, where most players stand in or react to a
   fight; movement may matter more between events. Off by default
   (WinNet use_kit); NETKIT reruns it.
+
+## 2026-10-23: with NECC weeks 3-4 (313 college maps)
+
+NEW is the fair test: train on every college map parsed before 2026-10-23,
+test on the 148 weeks 3-4 maps no model had seen. ECE is printed beside the
+floor ratio because the ratio grows with test size (NEW's test is 26,299
+rows), so "passed" is not comparable across protocols; ECE is.
+
+| arm | NEW AUC | NEW ECE | RAND AUC | RAND ECE |
+|---|---|---|---|---|
+| SMALLPOS+ESEA (shipped scorer) | 0.8960 | 0.0156 | 0.8997 | 0.0154 |
+| SMALLPOS+ESEA+LVL | 0.8960 | 0.0151 | 0.8998 | 0.0157 |
+| NETESEA | 0.8938 | 0.0147 | 0.8973 | 0.0150 |
+| NETLONG | 0.8934 | 0.0143 | 0.8970 | 0.0163 |
+| NETMATCH | 0.8928 | 0.0151 | 0.8958 | 0.0163 |
+| NETKIT | 0.8913 | 0.0147 | 0.8964 | 0.0170 |
+| NET | 0.8879 | 0.0164 | 0.8942 | 0.0185 |
+| MLP | 0.8874 | 0.0136 | 0.8899 | 0.0163 |
+| LGB (old shipped trees) | 0.8686 | 0.0187 | 0.8830 | 0.0186 |
+
+Trees 20 seeds, networks 10. The trees still rank best on both tests (by
+0.002 to 0.003 AUC). The networks' small ECE edge on NEW does not hold on
+RAND, so it is not a real difference. The scorer stays SMALLPOS+ESEA.
+NETKIT had never actually run with its kit: train() dropped `use_kit`
+until this date; with it, it is no better than NETESEA.
+
+## 2026-10-23: lessons, callouts and vision, and a blend (ml/extras.py)
+
+Same 10 seeds for every arm. LESSONS: the network also learns which side
+loses the next player, which slot dies next and whether the bomb goes down
+within 10 s (AUX_WEIGHT 0.3 each). VIEW: each player's callout as a
+(map, callout) embedding, and what the enemy can see of them (seen now,
+sees now, seconds since last seen; the game's spotting fires on 1.7% of
+samples, "seen within 10 s" on 20% of living players). ENS averages the
+trees and a network before calibration.
+
+| arm | NEW AUC | NEW logloss | NEW ECE | RAND AUC | RAND logloss | RAND ECE |
+|---|---|---|---|---|---|---|
+| SMALLPOS+ESEA (shipped) | 0.8958 | 0.4047 | 0.0134 | 0.8979 | 0.3946 | 0.0143 |
+| NETESEA | 0.8938 | 0.4111 | 0.0147 | 0.8973 | 0.3986 | 0.0150 |
+| NETVIEW | 0.8919 | 0.4122 | 0.0137 | 0.8959 | 0.4012 | 0.0164 |
+| NETLESSONS | 0.8952 | 0.4060 | 0.0155 | 0.8978 | 0.3958 | 0.0154 |
+| NETPLUS | 0.8946 | 0.4068 | 0.0166 | 0.8974 | 0.3962 | 0.0173 |
+| ENS (trees + NETESEA) | 0.8965 | 0.4047 | 0.0149 | 0.8995 | 0.3934 | 0.0158 |
+| ENSPLUS (trees + NETPLUS) | 0.8974 | 0.4022 | 0.0133 | 0.9002 | 0.3917 | 0.0158 |
+
+Lessons are the lever: they close the network's gap to the trees on ranking
+(0.0006 and 0.0001 behind) and most of it on log loss. Callouts and vision
+cost a little on both tests (too many embedding ids for the rounds there
+are; the spotting signal is thin). The blend is the only arm ahead of the
+trees on both tests, on AUC and log loss; calibration is level on NEW and
+0.0015 worse on RAND. Next to test: trees + NETLESSONS, without the view.
+
+## 2026-10-23: improving NETLESSONS (more moments, lessons, copies, regions)
+
+Screen 1 (5 seeds) added each change on top of NETLESSONS together with
+TIMED moments (a state every 2 s between events, training only; 550,287
+rows). The timed moments cost ranking on both tests (NEW 0.8937 -> 0.8899,
+RAND 0.9005 -> 0.8982): near-copies of one another, so the network learns
+rounds rather than the game. Longer pretraining added nothing. Screen 2
+(10 seeds, event rows only; net seeds are seed*100+copy, so not the same
+draws as the tables above):
+
+| arm | NEW AUC | NEW logloss | NEW ECE | RAND AUC | RAND logloss | RAND ECE |
+|---|---|---|---|---|---|---|
+| NETLESSONS | 0.8940 | 0.4077 | 0.0160 | 0.8990 | 0.3960 | 0.0157 |
+| NETM (+ next killer, time to next death, how the round ends) | 0.8952 | 0.4043 | 0.0159 | 0.9001 | 0.3926 | 0.0173 |
+| NETMW (lessons weighted 0.6) | 0.8953 | 0.4051 | 0.0150 | 0.8995 | 0.3941 | 0.0188 |
+| NETMREG (+ regions every map shares) | 0.8950 | 0.4069 | 0.0133 | 0.8987 | 0.3952 | 0.0159 |
+| NETLESSONSx5 (five copies averaged) | 0.8960 | 0.4037 | 0.0145 | 0.9007 | 0.3909 | 0.0175 |
+| **NETMx5 (more lessons, five copies)** | **0.8969** | **0.4020** | 0.0148 | **0.9009** | **0.3911** | 0.0165 |
+| SMALLPOS+ESEA (shipped trees, earlier table) | 0.8958 | 0.4047 | 0.0134 | 0.8979 | 0.3946 | 0.0143 |
+| ENSLESSONS (trees + NETLESSONS) | 0.8973 | 0.4017 | 0.0146 | 0.8999 | 0.3913 | 0.0158 |
+
+NETMx5 is the first network alone ahead of the trees on both tests, on
+ranking and log loss; it matches the trees+network blend. The trees still
+have the lower ECE (0.0014 and 0.0022). Not shipped.
+
+## 2026-10-23: NETMx5 against the trees, 20 seeds, three tests
+
+| proto | arm | passed | ratio med | ECE | AUC | logloss |
+|---|---|---|---|---|---|---|
+| NEW | SMALLPOS+ESEA | 4/20 | 3.28 | 0.0156 | 0.8960 | 0.4045 |
+| NEW | NETMx5 | 2/20 | 3.40 | 0.0169 | 0.8969 | 0.4029 |
+| RAND | SMALLPOS+ESEA | 17/20 | 1.32 | 0.0154 | 0.8997 | 0.3940 |
+| RAND | NETMx5 | 18/20 | 1.36 | 0.0161 | 0.9009 | 0.3914 |
+| DIV | SMALLPOS+ESEA | 19/20 | 1.43 | 0.0170 | 0.9097 | 0.3751 |
+| DIV | NETMx5 | 19/20 | 1.79 | 0.0215 | 0.9105 | 0.3746 |
+
+The 10-seed lead holds on ranking and log loss on all three tests, and it
+is small (AUC +0.0008 to +0.0012, log loss -0.0005 to -0.0026). The trees
+are better calibrated on all three, by the most on DIV (0.0170 vs 0.0215).
+The network takes about 300 times as long to train. Not shipped.
