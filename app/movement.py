@@ -26,7 +26,7 @@ import numpy as np
 from . import db, memo
 from .report import (MIN_PATTERN_CHANCES, _side_by_round, _team_match_keys,
                      team_anchors)
-from counterplay import zonemodel as ZM
+from counterplay import callouts as CO, zonemodel as ZM
 from counterplay.schema import classify_round
 from counterplay.positions import FLAG_ALIVE, FLAG_CT, sample_seconds, unpack_round
 
@@ -80,7 +80,24 @@ def _centres(map_name):
     The first element is a ZM.Zones, not a bare array: it carries the walked
     ground as well as the centres, and `_assign` is the only thing that reads
     it.
+
+    THE GAME'S OWN CALLOUTS COME FIRST (counterplay/callouts.py, since
+    2026-10-23): one group per callout, spawns dropped as before, numbered
+    1..n with no gaps because scan() sizes its tables by the count. The
+    k-means zones below only serve a map that has no callout files.
     """
+    co = CO.load(map_name)
+    if co is not None:
+        kept = [k for k in sorted(co.callouts)
+                if not _is_spawn(co.callouts[k]["label"])]
+        group_of = np.zeros(max(co.callouts, default=0) + 1, dtype=int)
+        g_names: dict[int, str] = {}
+        g_centres = np.zeros((len(kept) + 1, 3), dtype=np.float64)
+        for g, k in enumerate(kept, start=1):
+            group_of[k] = g
+            g_names[g] = co.callouts[k]["label"]
+            g_centres[g] = co.callouts[k]["centre"]
+        return co, group_of, g_names, g_centres
     zs = ZM.load(map_name)
     if not zs:
         return None
@@ -154,9 +171,12 @@ def groups_of_samples(map_name, x, y, z, chunk: int = 200_000):
     return out, group_of
 
 
-def _rounds_with_positions(team_id):
-    """Every round of this team's that has position samples, with its outcome."""
+def _rounds_with_positions(team_id, only_match: str | None = None):
+    """Every round of this team's that has position samples, with its outcome.
+    `only_match` narrows it to one of the team's matches."""
     keys = _team_match_keys(team_id)
+    if only_match is not None:
+        keys = [k for k in keys if k == only_match]
     if not keys:
         return []
     marks = ",".join("?" * len(keys))
@@ -326,9 +346,23 @@ def scan(team_id: int) -> dict:
     One pass: unpacking a round and assigning its samples to zones is the
     expensive part, and there is no reason to pay it once per pattern.
     """
+    return _scan(team_id)
+
+
+def match_places(team_id: int, match_key: str) -> dict:
+    """scan()'s place readings for one match: {"map", "places", "names"},
+    counted exactly as the season counts them, so the match report can
+    colour its places the way the Positions tab does."""
+    got = _scan(team_id, match_key)
+    mp = next(iter(got.get("places", {})), None)
+    return {"map": mp, "places": got["places"].get(mp, {}) if mp else {},
+            "names": got.get("names", {}).get(mp, {}) if mp else {}}
+
+
+def _scan(team_id: int, only_match: str | None = None) -> dict:
     anchors = team_anchors(team_id)
     sides = _side_by_round(team_id, anchors.get("anchors", {}))
-    rows = _rounds_with_positions(team_id)
+    rows = _rounds_with_positions(team_id, only_match)
     traded = _traded_lookup(_team_match_keys(team_id))
     plants = _plant_lookup(_team_match_keys(team_id))
     opening: dict = {}

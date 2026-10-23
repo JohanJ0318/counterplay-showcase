@@ -120,6 +120,15 @@ def _txt(v):
     return None if v is None or v != v else str(v)
 
 
+def _flag(v):
+    """A boolean field as 0/1, or None when the demo did not say."""
+    return None if v is None or v != v else int(bool(v))
+
+
+def _num(v, cast):
+    return None if v is None or v != v else cast(v)
+
+
 def inspect(path: str) -> None:
     """Print what this demo actually contains. Run before trusting anything."""
     from demoparser2 import DemoParser
@@ -684,7 +693,11 @@ def parse_demo(path: str, tier: str = "premier"):
              attacker_steamid=_sid(att),
              attacker_name=_txt(getattr(d, "attacker_name", None)),
              headshot=int(bool(getattr(d, "headshot", False))),
-             weapon=_txt(getattr(d, "weapon", None)))
+             weapon=_txt(getattr(d, "weapon", None)),
+             thrusmoke=_flag(getattr(d, "thrusmoke", None)),
+             penetrated=_num(getattr(d, "penetrated", None), int),
+             distance=_num(getattr(d, "distance", None), float),
+             attacker_blind=_flag(getattr(d, "attackerblind", None)))
 
     for rn, tick in _plant_ticks(parser, bounds).items():
         emit(tick, "plant")

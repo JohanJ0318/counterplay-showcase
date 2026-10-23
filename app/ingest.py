@@ -76,6 +76,33 @@ def path2url(path: Path) -> str:
     return "file:///" + str(Path(path).resolve()).replace("\\", "/").lstrip("/")
 
 
+# A local demo can live inside an archive: "file:///.../series.rar#map.dem"
+# (tools/prorar.py; the pro corpus since 2026-10-14). It is extracted into
+# the job's own temp folder with 7-Zip, which only Johan's PC has.
+SEVEN_ZIP = Path(r"C:\Program Files\7-Zip\7z.exe")
+
+
+def in_archive(url: str) -> tuple[Path, str] | None:
+    """(archive, member) for an archived local demo, else None."""
+    if not url.startswith("file://") or ".rar#" not in url:
+        return None
+    path, member = url2path(url).split("#", 1)
+    return Path(path), member
+
+
+def extract_member(archive: Path, member: str, work: Path) -> Path:
+    """One file out of an archive into `work`, wherever it sat inside."""
+    import subprocess
+    if not SEVEN_ZIP.exists():
+        raise IngestError(f"7-Zip not found at {SEVEN_ZIP}")
+    r = subprocess.run([str(SEVEN_ZIP), "e", "-y", f"-o{work}", str(archive),
+                        f"*{member}", "-r"], capture_output=True, text=True)
+    out = work / member
+    if r.returncode != 0 or not out.exists():
+        raise IngestError(f"could not extract {member} from {archive.name}")
+    return out
+
+
 def url2path(url: str) -> str:
     """The inverse. Handles the %20 that any path with a space arrives carrying."""
     return _urlparse.unquote(url[len("file:///"):])
@@ -319,12 +346,16 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
         if events is not None and len(events):
             def txt(v):
                 return None if v is None or v != v else str(v)
+
+            def opt(v, cast):
+                return None if v is None or v != v else cast(v)
             conn.executemany(
                 """INSERT INTO events (match_key, round_num, seconds, type,
                                        victim_side, victim_steamid, victim_name,
                                        attacker_steamid, attacker_name,
-                                       headshot, weapon)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+                                       headshot, weapon, thrusmoke, penetrated,
+                                       distance, attacker_blind)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
                 [(match_key, int(e.round_num), float(e.seconds), str(e.type),
                   txt(e.victim_side),
                   txt(getattr(e, "victim_steamid", None)),
@@ -332,7 +363,11 @@ def store(demo_id: int, match_key: str, rounds, events, players=None,
                   txt(getattr(e, "attacker_steamid", None)),
                   txt(getattr(e, "attacker_name", None)),
                   int(getattr(e, "headshot", 0) or 0),
-                  txt(getattr(e, "weapon", None)))
+                  txt(getattr(e, "weapon", None)),
+                  opt(getattr(e, "thrusmoke", None), int),
+                  opt(getattr(e, "penetrated", None), int),
+                  opt(getattr(e, "distance", None), float),
+                  opt(getattr(e, "attacker_blind", None), int))
                  for e in events.itertuples(index=False)])
 
         if players is not None and len(players):
@@ -499,7 +534,13 @@ def process(demo_row) -> tuple[bool, str]:
         # WHERE IT SITS rather than copied in first. 36GB of demos does not fit
         # twice on a disk with 32GB free, and the compressed archive written
         # after a successful parse is a third of the size anyway.
-        if archive is None and source_url.startswith("file://"):
+        packed = in_archive(source_url) if archive is None else None
+        if packed is not None:
+            rar, member = packed
+            if not rar.exists():
+                raise IngestError(f"archive is gone: {rar}")
+            external = extract_member(rar, member, work)
+        elif archive is None and source_url.startswith("file://"):
             external = Path(url2path(source_url))
             if not external.exists():
                 raise IngestError(f"file is gone: {external}")
@@ -701,7 +742,10 @@ def reparse_all(tier: str | None = None) -> int:
         # still sitting where it was queued from. Checking only the store
         # silently skipped every demo read in place.
         reachable = stored_path(r["sha256"]) is not None
-        if not reachable and str(r["source_url"]).startswith("file://"):
+        packed = in_archive(str(r["source_url"]))
+        if not reachable and packed is not None:
+            reachable = packed[0].exists()
+        elif not reachable and str(r["source_url"]).startswith("file://"):
             reachable = Path(url2path(r["source_url"])).exists()
         if not reachable:
             continue

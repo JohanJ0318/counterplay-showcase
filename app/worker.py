@@ -37,6 +37,7 @@ def drain(limit: int | None = None, verbose: bool = True) -> tuple[int, int]:
         if row is None:
             break
         seen.add(row["id"])
+        db.beat()
         label = row["filename"] or row["faceit_match_id"] or row["sha256"][:12]
         if verbose:
             print(f"  parsing {label} ...", flush=True)
@@ -88,6 +89,7 @@ def main() -> int:
 
     print("watching for demos (ctrl-c to stop)")
     while True:
+        db.beat()
         done, failed = drain()
         if done or failed:
             print(f"  {done} parsed, {failed} failed", flush=True)

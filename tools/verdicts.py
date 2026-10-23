@@ -32,7 +32,7 @@ DASH = f" {chr(8212)} "
 
 
 def moments(steamids: list[str], n: int = 10, demos=None,
-            config: str | None = None) -> list[dict]:
+            config: str | None = None, fit=None) -> list[dict]:
     """The n costliest moments for the team these players form, or [] when
     none of their maps are in the corpus here. `demos` (file hashes) limits
     them to those games, so a note never cites a match its page lacks."""
@@ -71,8 +71,12 @@ def moments(steamids: list[str], n: int = 10, demos=None,
     # "smallpos" since 2026-10-14): attach the position summaries once, for
     # training and for scoring.
     states = posfeat.attach(state_mod.build_states(rounds, events))
-    model, _report, _ = M.train(states[~states["match_id"].isin(theirs)].reset_index(drop=True),
-                                seed=7, config=config or M.DEFAULT_CONFIG)
+    train_states = states[~states["match_id"].isin(theirs)].reset_index(drop=True)
+    # `fit` swaps in another model (anything with .predict(states)), so a
+    # second model's verdicts come out of the same scoring and ranking code:
+    # ml/verdicts_net.py uses it for the PyTorch network.
+    model = (fit(train_states) if fit else
+             M.train(train_states, seed=7, config=config or M.DEFAULT_CONFIG)[0])
 
     picked = []
     for side in ("ct", "t"):
@@ -83,9 +87,18 @@ def moments(steamids: list[str], n: int = 10, demos=None,
         picked += [(r.excess_cost, side, r) for r in costly.itertuples(index=False)]
     picked.sort(key=lambda x: x[0])
 
+    from counterplay import decisions
     out = []
     for _excess, side, r in picked[:n]:
+        # What the team could have done differently, in plain words, from
+        # only what it could see (counterplay/decisions.py). Our deaths only:
+        # a plant against us has no one of ours to describe.
+        findings = (decisions.explain(r.match_id, int(r.round_num), float(r.seconds), side)
+                    if r.event_type == "death" and r.victim_side == side else [])
         out.append({
+            "match_key": r.match_id,
+            "findings": [{"code": x.code, "sentence": x.sentence,
+                          "checked": x.checked} for x in findings],
             "map": maps[r.match_id], "round": int(r.round_num), "side": side,
             "seconds": int(r.seconds),
             "situation": rank.describe(r, side).replace(DASH, ", "),
@@ -108,6 +121,9 @@ def main() -> int:
         print(f"    win chance {m['before']}% -> {m['after']}% (cost "
               f"{m['before'] - m['after']} points; this situation usually costs "
               f"{m['usual']}, compared over {m['baseline_n']} moments)")
+        for x in m["findings"]:
+            print(f"    - {x['sentence']}" + ("" if x["checked"] else
+                                              "  [not yet checked against college rounds]"))
     return 0
 
 

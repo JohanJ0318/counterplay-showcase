@@ -1,0 +1,39 @@
+{
+ "ct": {
+  "money": 0.00566,
+  "from_behind": -0.01982,
+  "lost_duel": -0.162,
+  "no_trade": -0.15075,
+  "plant": -0.03673,
+  "our_kills": 0.52675,
+  "round_end": 0.00808,
+  "wallbang": -0.01489,
+  "crosshair": -0.03434,
+  "through_smoke": -0.03322,
+  "from_side": -0.02768,
+  "known_angle": -0.02042,
+  "fought_blind": -0.01835,
+  "utility_unused": -0.01602
+ },
+ "t": {
+  "money": -0.00566,
+  "our_kills": 0.49747,
+  "plant": 0.03673,
+  "lost_duel": -0.19688,
+  "round_end": -0.00808,
+  "no_trade": -0.09445,
+  "from_side": -0.03748,
+  "from_behind": -0.03056,
+  "fought_blind": -0.01488,
+  "wallbang": -0.01463,
+  "through_smoke": -0.03812,
+  "crosshair": -0.04042,
+  "utility_unused": -0.03664,
+  "known_angle": -0.02061,
+  "entry_alone": -0.00208
+ },
+ "_rounds": {
+  "ct": 6362,
+  "t": 6362
+ }
+}

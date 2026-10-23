@@ -156,6 +156,30 @@ def evidence(team_id: int) -> dict | None:
         fact("finding", scope, f"{it['do']}: {'; '.join(it['evidence'])}.",
              verdict=1 if it["good"] else -1)
 
+    # Mistakes this team makes more than college teams (app/coaching.py,
+    # counterplay/decisions.py): proven, and a habit by the binomial test,
+    # so a fix may rest on them.
+    from . import coaching
+    habits = coaching.season_habits(team_id) or {}
+    for h in habits.get("habits", []):
+        fact("habit", "all maps",
+             f"{h['sentence']} It happened on {h['n']} of {h['of']} deaths, more "
+             f"often than on college teams' deaths.", verdict=-1,
+             rounds=[w.split(",")[0].replace(" round", "") for w in h["watch"]])
+    # Each lost match, what cost it most against a typical college team. Not
+    # tested like a habit (one match is small), so it can be a check, not a fix.
+    for m in report.team_matches(team_id):
+        if m["status"] != "parsed" or m["result"] != "L" or not m["match_key"]:
+            continue
+        loss = coaching.match_loss(m["match_key"], team_id)
+        for c in (loss or {}).get("causes", [])[:2]:
+            fact("match_cause", m["map"],
+                 f"{m['map']} (lost {m['us']} to {m['them']}): {c['label'].lower()} "
+                 f"cost {c['rounds_text']} more than a typical college team over "
+                 f"the same rounds. Practice: {c['practice']}", verdict=0,
+                 rounds=[f"{m['map']} {w.split(',')[0].replace('round ', '')}"
+                         for w in c["watch"]])
+
     anchors = list(report.team_anchors(team_id).get("anchors", {}))
     # The demos behind every fact, by file hash, so facts added elsewhere
     # (the scorer, on the PC) can be limited to the same games: a UCF note

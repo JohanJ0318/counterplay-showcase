@@ -1,0 +1,154 @@
+{
+ "_meta": {
+  "deaths": 45269,
+  "trade_value_points": {
+   "t": 13.610410524239672,
+   "ct": 17.301522127040453
+  },
+  "trade_far": 900.0
+ },
+ "no_trade": {
+  "rate": 0.3729,
+  "fired": 16883,
+  "proof": "trade",
+  "gap_points": -24.3,
+  "p": 0.0,
+  "proven": true,
+  "why": "traded less often than other deaths on the same side"
+ },
+ "entry_alone": {
+  "rate": 0.0043,
+  "fired": 193,
+  "proof": "trade",
+  "gap_points": -22.4,
+  "p": 0.0,
+  "proven": true,
+  "why": "traded less often than other deaths on the same side"
+ },
+ "repeek": {
+  "rate": 0.163,
+  "fired": 7379,
+  "proof": "round",
+  "gap_points": -0.7,
+  "p": 0.7265,
+  "compared_with": 322,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "from_behind": {
+  "rate": 0.0467,
+  "fired": 2116,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "from_side": {
+  "rate": 0.06,
+  "fired": 2716,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "through_smoke": {
+  "rate": 0.0671,
+  "fired": 3038,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "wallbang": {
+  "rate": 0.0309,
+  "fired": 1397,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "known_angle": {
+  "rate": 0.0528,
+  "fired": 2392,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "outnumbered": {
+  "rate": 0.027,
+  "fired": 1224,
+  "proof": "round",
+  "gap_points": 0.8,
+  "p": 0.3782,
+  "compared_with": 20581,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "crosshair": {
+  "rate": 0.0743,
+  "fired": 3364,
+  "proof": "duel",
+  "duels": 39469,
+  "loser_had_worse_crosshair": 0.651,
+  "p": 0.0,
+  "proven": true,
+  "why": "in face-to-face duels the dead player had the worse crosshair"
+ },
+ "utility_unused": {
+  "rate": 0.1045,
+  "fired": 4729,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "fought_blind": {
+  "rate": 0.0494,
+  "fired": 2238,
+  "proof": "death",
+  "proven": true,
+  "why": "describes how the player died"
+ },
+ "no_site_utility": {
+  "rate": 0.0281,
+  "fired": 1273,
+  "proof": "round",
+  "gap_points": -2.2,
+  "p": 0.1257,
+  "compared_with": 3339,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "no_site_utility_retake": {
+  "rate": 0.0825,
+  "fired": 3735,
+  "proof": "round",
+  "gap_points": 2.1,
+  "p": 0.0085,
+  "compared_with": 1994,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "staggered_retake": {
+  "rate": 0.009,
+  "fired": 409,
+  "proof": "round",
+  "gap_points": -2.0,
+  "p": 0.5112,
+  "compared_with": 373,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "stacked": {
+  "rate": 0.0015,
+  "fired": 66,
+  "proof": "round",
+  "gap_points": -1.4,
+  "p": 0.7156,
+  "compared_with": 5663,
+  "proven": false,
+  "why": "from the same win chance, lost more rounds than the same kind of moment"
+ },
+ "missed_save": {
+  "rate": 0.0232,
+  "fired": 1050,
+  "proof": "economy",
+  "proven": false,
+  "why": "its proof is not measured yet"
+ }
+}

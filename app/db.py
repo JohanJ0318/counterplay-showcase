@@ -20,6 +20,29 @@ DB_PATH = Path(os.environ.get("COUNTERPLAY_DB", ROOT / "data" / "counterplay.db"
 DEMO_DIR = Path(os.environ.get("COUNTERPLAY_DEMOS", ROOT / "data" / "demos"))
 
 
+# The worker's heartbeat: a file it touches every loop and before every demo,
+# read by /health. A file, not a row, so a beat is no write transaction and
+# needs no migration. Next to the database because both services can write
+# there (ReadWritePaths in the units) and nowhere else.
+HEARTBEAT = DB_PATH.parent / "worker.heartbeat"
+
+
+def beat() -> None:
+    """Mark the worker alive. Never raises: a failed beat shows as stale."""
+    try:
+        HEARTBEAT.parent.mkdir(parents=True, exist_ok=True)
+        HEARTBEAT.touch()
+    except OSError:
+        pass
+
+
+def last_beat() -> datetime | None:
+    try:
+        return datetime.fromtimestamp(HEARTBEAT.stat().st_mtime, timezone.utc)
+    except OSError:
+        return None
+
+
 def utcnow() -> str:
     """ISO-8601 UTC to the second. Sorts as text, reads as English."""
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat()
@@ -128,7 +151,7 @@ def team_by_share_token(token: str) -> sqlite3.Row | None:
 def is_admin(user_id: int) -> bool:
     """The master account flag.
 
-    Set by tools/grantadmin.py and deliberately not by anything a web page can
+    Set by grantadmin.py and deliberately not by anything a web page can
     reach, which is the same rule /admin/traffic already relies on.
     """
     row = one("SELECT is_admin FROM users WHERE id = ?", user_id)

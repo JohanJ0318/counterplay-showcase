@@ -371,8 +371,8 @@ def render(user=None, pictures=None, read_block=None) -> str:
         pos_blocks.append(
             f'<section><div class="sec-head"><span class="label">From position '
             f'data</span><h2>The maps you play</h2></div>'
-            f'<p class="lede">The places named below, drawn from your own '
-            f'rounds.</p>'
+            f'<p class="lede">Every place on each map is one of the game&rsquo;s '
+            f'own callouts. Point at one, or tap it, for its name.</p>'
             f'<div class="zonerow">{"".join(figs)}</div></section>')
 
     # One block per place, went there against didn't, as /stats draws it.

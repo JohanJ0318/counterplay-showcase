@@ -3,565 +3,890 @@
  "maps": {
   "de_ancient": {
    "Alley": {
-    "t_share": 0.033,
-    "seconds": 10611,
+    "t_share": 0.03,
+    "seconds": 31198,
     "neutral": false
    },
-   "Connector": {
-    "t_share": 0.062,
-    "seconds": 9629,
+   "House": {
+    "t_share": 0.108,
+    "seconds": 21636,
     "neutral": false
    },
-   "B Long": {
-    "t_share": 0.07,
-    "seconds": 12000,
+   "A Site": {
+    "t_share": 0.152,
+    "seconds": 35950,
     "neutral": false
    },
-   "CT lane": {
-    "t_share": 0.09,
-    "seconds": 6540,
+   "B Site": {
+    "t_share": 0.177,
+    "seconds": 29332,
     "neutral": false
    },
-   "Big Box": {
-    "t_share": 0.158,
-    "seconds": 10256,
+   "Side Hall": {
+    "t_share": 0.185,
+    "seconds": 20060,
     "neutral": false
    },
-   "Red room": {
-    "t_share": 0.168,
-    "seconds": 9683,
+   "Side Entrance": {
+    "t_share": 0.231,
+    "seconds": 26253,
     "neutral": false
    },
-   "Donut": {
-    "t_share": 0.176,
-    "seconds": 11274,
+   "Top of Mid": {
+    "t_share": 0.274,
+    "seconds": 5330,
     "neutral": false
    },
-   "B site": {
-    "t_share": 0.206,
-    "seconds": 16634,
-    "neutral": false
-   },
-   "A site": {
-    "t_share": 0.286,
-    "seconds": 7306,
-    "neutral": false
-   },
-   "Mid": {
-    "t_share": 0.42,
-    "seconds": 16611,
+   "Middle": {
+    "t_share": 0.383,
+    "seconds": 31445,
     "neutral": true
    },
-   "Cave": {
-    "t_share": 0.499,
-    "seconds": 14150,
+   "T Side Upper": {
+    "t_share": 0.601,
+    "seconds": 19900,
     "neutral": true
    },
-   "A main": {
-    "t_share": 0.589,
-    "seconds": 7417,
-    "neutral": true
-   },
-   "A stairs": {
-    "t_share": 0.868,
-    "seconds": 6316,
+   "Ramp": {
+    "t_share": 0.704,
+    "seconds": 11996,
     "neutral": false
    },
-   "B main": {
-    "t_share": 0.886,
-    "seconds": 16650,
+   "Main Hall": {
+    "t_share": 0.763,
+    "seconds": 14151,
     "neutral": false
    },
-   "Elbow": {
-    "t_share": 0.95,
-    "seconds": 14002,
+   "T Side Lower": {
+    "t_share": 0.875,
+    "seconds": 16885,
+    "neutral": false
+   },
+   "Outside": {
+    "t_share": 0.936,
+    "seconds": 29838,
+    "neutral": false
+   },
+   "Water": {
+    "t_share": 0.955,
+    "seconds": 3110,
+    "neutral": false
+   },
+   "Ruins": {
+    "t_share": 0.964,
+    "seconds": 17308,
     "neutral": false
    },
    "Tunnel": {
-    "t_share": 0.96,
-    "seconds": 4275,
+    "t_share": 0.97,
+    "seconds": 6219,
     "neutral": false
    }
   },
   "de_anubis": {
-   "Street": {
-    "t_share": 0.017,
-    "seconds": 1768,
-    "neutral": false
-   },
-   "Palace": {
-    "t_share": 0.073,
-    "seconds": 2022,
-    "neutral": false
-   },
-   "CT mid": {
-    "t_share": 0.086,
-    "seconds": 5874,
-    "neutral": false
-   },
-   "A heaven": {
-    "t_share": 0.091,
-    "seconds": 1987,
-    "neutral": false
-   },
-   "B site": {
-    "t_share": 0.094,
-    "seconds": 6891,
-    "neutral": false
-   },
-   "A approach": {
-    "t_share": 0.097,
-    "seconds": 3888,
-    "neutral": false
-   },
-   "E box": {
-    "t_share": 0.174,
-    "seconds": 5561,
-    "neutral": false
-   },
-   "A site": {
-    "t_share": 0.185,
-    "seconds": 4684,
-    "neutral": false
-   },
-   "Mid": {
-    "t_share": 0.254,
-    "seconds": 6431,
-    "neutral": false
-   },
-   "A main": {
-    "t_share": 0.38,
-    "seconds": 2889,
-    "neutral": true
-   },
-   "Water": {
-    "t_share": 0.725,
-    "seconds": 7169,
-    "neutral": false
-   },
-   "B main": {
-    "t_share": 0.83,
-    "seconds": 7563,
-    "neutral": false
-   },
-   "T mid": {
-    "t_share": 0.904,
-    "seconds": 4370,
+   "Lower Tunnel": {
+    "t_share": 0.021,
+    "seconds": 1489,
     "neutral": false
    },
    "Alley": {
-    "t_share": 0.917,
+    "t_share": 0.022,
+    "seconds": 3664,
+    "neutral": false
+   },
+   "CT Side Upper": {
+    "t_share": 0.025,
+    "seconds": 2310,
+    "neutral": false
+   },
+   "Snipers Nest": {
+    "t_share": 0.026,
+    "seconds": 824,
+    "neutral": false
+   },
+   "Palace Interior": {
+    "t_share": 0.045,
+    "seconds": 8092,
+    "neutral": false
+   },
+   "Heaven": {
+    "t_share": 0.062,
+    "seconds": 4396,
+    "neutral": false
+   },
+   "Back of B": {
+    "t_share": 0.075,
     "seconds": 4161,
     "neutral": false
    },
-   "Carpet": {
-    "t_share": 0.957,
-    "seconds": 2083,
+   "Bricks": {
+    "t_share": 0.076,
+    "seconds": 2114,
+    "neutral": false
+   },
+   "Tunnel": {
+    "t_share": 0.079,
+    "seconds": 434,
+    "neutral": false
+   },
+   "Walkway": {
+    "t_share": 0.103,
+    "seconds": 6589,
+    "neutral": false
+   },
+   "Middle": {
+    "t_share": 0.137,
+    "seconds": 17838,
+    "neutral": false
+   },
+   "B Site": {
+    "t_share": 0.14,
+    "seconds": 16151,
+    "neutral": false
+   },
+   "Connector": {
+    "t_share": 0.142,
+    "seconds": 9255,
+    "neutral": false
+   },
+   "A Site": {
+    "t_share": 0.204,
+    "seconds": 8229,
+    "neutral": false
+   },
+   "Tunnel Stairs": {
+    "t_share": 0.222,
+    "seconds": 478,
+    "neutral": false
+   },
+   "Mid Doors": {
+    "t_share": 0.287,
+    "seconds": 5562,
+    "neutral": false
+   },
+   "Main": {
+    "t_share": 0.403,
+    "seconds": 8660,
+    "neutral": true
+   },
+   "Fountain": {
+    "t_share": 0.448,
+    "seconds": 1967,
+    "neutral": true
+   },
+   "Canal": {
+    "t_share": 0.703,
+    "seconds": 14092,
+    "neutral": false
+   },
+   "Bridge": {
+    "t_share": 0.877,
+    "seconds": 10232,
+    "neutral": false
+   },
+   "Outside Long": {
+    "t_share": 0.896,
+    "seconds": 10620,
+    "neutral": false
+   },
+   "Street": {
+    "t_share": 0.913,
+    "seconds": 7368,
+    "neutral": false
+   },
+   "T Stairs": {
+    "t_share": 0.917,
+    "seconds": 4062,
+    "neutral": false
+   },
+   "Ruins": {
+    "t_share": 0.937,
+    "seconds": 9485,
+    "neutral": false
+   },
+   "T Side Upper": {
+    "t_share": 0.95,
+    "seconds": 3832,
     "neutral": false
    }
   },
   "de_cache": {
-   "B Heaven": {
+   "Heaven": {
+    "t_share": 0.012,
+    "seconds": 3034,
+    "neutral": false
+   },
+   "A Boost": {
+    "t_share": 0.018,
+    "seconds": 245,
+    "neutral": false
+   },
+   "CT Lane": {
+    "t_share": 0.025,
+    "seconds": 5676,
+    "neutral": false
+   },
+   "Bear": {
     "t_share": 0.032,
-    "seconds": 2713,
+    "seconds": 727,
+    "neutral": false
+   },
+   "Bus Stop": {
+    "t_share": 0.032,
+    "seconds": 1375,
+    "neutral": false
+   },
+   "Rafters": {
+    "t_share": 0.037,
+    "seconds": 1619,
     "neutral": false
    },
    "Truck": {
-    "t_share": 0.039,
-    "seconds": 1435,
+    "t_share": 0.038,
+    "seconds": 5868,
     "neutral": false
    },
-   "Electro": {
-    "t_share": 0.126,
-    "seconds": 2871,
+   "Tree Room": {
+    "t_share": 0.041,
+    "seconds": 4152,
     "neutral": false
    },
-   "B site": {
-    "t_share": 0.157,
-    "seconds": 1726,
+   "Connector": {
+    "t_share": 0.042,
+    "seconds": 4811,
     "neutral": false
    },
-   "A site": {
-    "t_share": 0.169,
-    "seconds": 2462,
+   "Sandbags": {
+    "t_share": 0.048,
+    "seconds": 2276,
     "neutral": false
    },
-   "White box": {
-    "t_share": 0.183,
-    "seconds": 3604,
+   "Catwalk": {
+    "t_share": 0.065,
+    "seconds": 2015,
     "neutral": false
    },
-   "Mid": {
-    "t_share": 0.407,
-    "seconds": 3772,
-    "neutral": true
+   "Headshot": {
+    "t_share": 0.068,
+    "seconds": 2637,
+    "neutral": false
    },
-   "B main": {
-    "t_share": 0.446,
-    "seconds": 3350,
-    "neutral": true
+   "Back Hall": {
+    "t_share": 0.101,
+    "seconds": 452,
+    "neutral": false
+   },
+   "Electrical Box": {
+    "t_share": 0.124,
+    "seconds": 1305,
+    "neutral": false
+   },
+   "Corner": {
+    "t_share": 0.131,
+    "seconds": 1623,
+    "neutral": false
+   },
+   "Highway": {
+    "t_share": 0.153,
+    "seconds": 4736,
+    "neutral": false
+   },
+   "B Site": {
+    "t_share": 0.163,
+    "seconds": 10033,
+    "neutral": false
+   },
+   "Quad": {
+    "t_share": 0.174,
+    "seconds": 1798,
+    "neutral": false
+   },
+   "Toxic": {
+    "t_share": 0.179,
+    "seconds": 1023,
+    "neutral": false
+   },
+   "A Site": {
+    "t_share": 0.22,
+    "seconds": 8415,
+    "neutral": false
+   },
+   "Ladder": {
+    "t_share": 0.223,
+    "seconds": 601,
+    "neutral": false
+   },
+   "Fork Lift": {
+    "t_share": 0.257,
+    "seconds": 3040,
+    "neutral": false
+   },
+   "Checkers": {
+    "t_share": 0.298,
+    "seconds": 4330,
+    "neutral": false
    },
    "Vents": {
-    "t_share": 0.501,
-    "seconds": 1375,
+    "t_share": 0.36,
+    "seconds": 1258,
     "neutral": true
    },
-   "Forklift": {
-    "t_share": 0.533,
-    "seconds": 2187,
+   "Mid": {
+    "t_share": 0.363,
+    "seconds": 10197,
     "neutral": true
+   },
+   "Lockers": {
+    "t_share": 0.526,
+    "seconds": 508,
+    "neutral": true
+   },
+   "B Main": {
+    "t_share": 0.674,
+    "seconds": 4252,
+    "neutral": true
+   },
+   "Mid Roof": {
+    "t_share": 0.726,
+    "seconds": 949,
+    "neutral": false
    },
    "Squeaky": {
-    "t_share": 0.726,
-    "seconds": 1472,
+    "t_share": 0.771,
+    "seconds": 2223,
+    "neutral": false
+   },
+   "Useless": {
+    "t_share": 0.783,
+    "seconds": 1768,
+    "neutral": false
+   },
+   "T Truck": {
+    "t_share": 0.807,
+    "seconds": 400,
+    "neutral": false
+   },
+   "Cubby": {
+    "t_share": 0.818,
+    "seconds": 515,
     "neutral": false
    },
    "A Main": {
-    "t_share": 0.74,
-    "seconds": 803,
+    "t_share": 0.839,
+    "seconds": 6530,
+    "neutral": false
+   },
+   "A Halls": {
+    "t_share": 0.856,
+    "seconds": 2037,
+    "neutral": false
+   },
+   "B Halls": {
+    "t_share": 0.866,
+    "seconds": 5402,
+    "neutral": false
+   },
+   "Garage": {
+    "t_share": 0.885,
+    "seconds": 7735,
+    "neutral": false
+   },
+   "A Stairs": {
+    "t_share": 0.91,
+    "seconds": 2343,
+    "neutral": false
+   },
+   "Sun Room": {
+    "t_share": 0.923,
+    "seconds": 2192,
+    "neutral": false
+   },
+   "Long A": {
+    "t_share": 0.93,
+    "seconds": 1625,
     "neutral": false
    },
    "Boost": {
-    "t_share": 0.881,
-    "seconds": 2146,
+    "t_share": 0.931,
+    "seconds": 1788,
     "neutral": false
    },
    "Outside A": {
-    "t_share": 0.883,
-    "seconds": 2085,
+    "t_share": 0.937,
+    "seconds": 5364,
     "neutral": false
    },
-   "A Long": {
-    "t_share": 0.892,
-    "seconds": 975,
+   "Outside B": {
+    "t_share": 0.946,
+    "seconds": 1424,
+    "neutral": false
+   },
+   "T Yard": {
+    "t_share": 0.946,
+    "seconds": 2401,
+    "neutral": false
+   },
+   "Red": {
+    "t_share": 1.0,
+    "seconds": 200,
     "neutral": false
    }
   },
   "de_dust2": {
-   "B doors": {
-    "t_share": 0.058,
-    "seconds": 8695,
+   "Under A": {
+    "t_share": 0.029,
+    "seconds": 24135,
+    "neutral": false
+   },
+   "B Doors": {
+    "t_share": 0.056,
+    "seconds": 16020,
+    "neutral": false
+   },
+   "Hole": {
+    "t_share": 0.077,
+    "seconds": 5058,
+    "neutral": false
+   },
+   "B Site": {
+    "t_share": 0.106,
+    "seconds": 36632,
     "neutral": false
    },
    "Mid Doors": {
-    "t_share": 0.062,
-    "seconds": 16079,
+    "t_share": 0.123,
+    "seconds": 36553,
     "neutral": false
    },
-   "B site": {
-    "t_share": 0.117,
-    "seconds": 10327,
+   "A Site": {
+    "t_share": 0.201,
+    "seconds": 15376,
     "neutral": false
    },
-   "Cross": {
-    "t_share": 0.144,
-    "seconds": 11818,
-    "neutral": false
-   },
-   "A site": {
-    "t_share": 0.173,
-    "seconds": 10040,
-    "neutral": false
-   },
-   "A short": {
-    "t_share": 0.213,
-    "seconds": 10386,
-    "neutral": false
-   },
-   "B boost": {
-    "t_share": 0.221,
-    "seconds": 8490,
-    "neutral": false
-   },
-   "A long": {
-    "t_share": 0.254,
-    "seconds": 9742,
+   "Long A": {
+    "t_share": 0.201,
+    "seconds": 32354,
     "neutral": false
    },
    "Pit": {
-    "t_share": 0.286,
-    "seconds": 4561,
+    "t_share": 0.231,
+    "seconds": 4457,
     "neutral": false
    },
-   "Cat": {
-    "t_share": 0.393,
-    "seconds": 10429,
-    "neutral": true
-   },
-   "Long doors": {
-    "t_share": 0.57,
-    "seconds": 7925,
-    "neutral": true
-   },
-   "X box": {
-    "t_share": 0.608,
-    "seconds": 9533,
-    "neutral": true
-   },
-   "Lower tuns": {
-    "t_share": 0.765,
-    "seconds": 5345,
+   "A Ramp": {
+    "t_share": 0.255,
+    "seconds": 9412,
     "neutral": false
    },
-   "Top mid": {
-    "t_share": 0.8,
-    "seconds": 8436,
+   "Extended A": {
+    "t_share": 0.261,
+    "seconds": 13424,
     "neutral": false
    },
-   "Upper tuns": {
-    "t_share": 0.881,
-    "seconds": 7532,
+   "Short Stairs": {
+    "t_share": 0.302,
+    "seconds": 17614,
+    "neutral": true
+   },
+   "Side": {
+    "t_share": 0.513,
+    "seconds": 1471,
+    "neutral": true
+   },
+   "Long Doors": {
+    "t_share": 0.538,
+    "seconds": 23882,
+    "neutral": true
+   },
+   "Catwalk": {
+    "t_share": 0.593,
+    "seconds": 18480,
+    "neutral": true
+   },
+   "Lower Tunnel": {
+    "t_share": 0.709,
+    "seconds": 14654,
+    "neutral": false
+   },
+   "Middle": {
+    "t_share": 0.718,
+    "seconds": 13638,
+    "neutral": false
+   },
+   "T Ramp": {
+    "t_share": 0.77,
+    "seconds": 580,
+    "neutral": false
+   },
+   "Tunnel Stairs": {
+    "t_share": 0.775,
+    "seconds": 5492,
+    "neutral": false
+   },
+   "Upper Tunnel": {
+    "t_share": 0.86,
+    "seconds": 21093,
+    "neutral": false
+   },
+   "Top of Mid": {
+    "t_share": 0.88,
+    "seconds": 23083,
     "neutral": false
    },
    "Outside Long": {
-    "t_share": 0.887,
-    "seconds": 9382,
+    "t_share": 0.919,
+    "seconds": 21768,
     "neutral": false
    },
-   "T plat": {
-    "t_share": 0.958,
-    "seconds": 3390,
-    "neutral": false
-   },
-   "Outside Tuns": {
-    "t_share": 0.959,
-    "seconds": 3217,
-    "neutral": false
-   },
-   "Suicide": {
-    "t_share": 0.961,
-    "seconds": 6967,
+   "Outside Tunnel": {
+    "t_share": 0.962,
+    "seconds": 7533,
     "neutral": false
    }
   },
   "de_inferno": {
-   "CT": {
-    "t_share": 0.02,
-    "seconds": 4553,
-    "neutral": false
-   },
-   "Arches": {
-    "t_share": 0.061,
-    "seconds": 8983,
+   "Ruins": {
+    "t_share": 0.039,
+    "seconds": 9267,
     "neutral": false
    },
    "Library": {
-    "t_share": 0.067,
-    "seconds": 4531,
+    "t_share": 0.041,
+    "seconds": 4527,
     "neutral": false
    },
-   "Church": {
-    "t_share": 0.082,
-    "seconds": 2320,
+   "Arch": {
+    "t_share": 0.059,
+    "seconds": 15800,
+    "neutral": false
+   },
+   "Quad": {
+    "t_share": 0.077,
+    "seconds": 2943,
     "neutral": false
    },
    "Pit": {
-    "t_share": 0.097,
-    "seconds": 3479,
+    "t_share": 0.09,
+    "seconds": 9648,
     "neutral": false
    },
-   "CT boost": {
-    "t_share": 0.102,
-    "seconds": 7944,
+   "B Site": {
+    "t_share": 0.092,
+    "seconds": 27869,
     "neutral": false
    },
-   "B site": {
-    "t_share": 0.14,
-    "seconds": 6808,
+   "A Site": {
+    "t_share": 0.116,
+    "seconds": 22797,
     "neutral": false
    },
-   "A site": {
-    "t_share": 0.151,
-    "seconds": 8049,
+   "Top of Mid": {
+    "t_share": 0.209,
+    "seconds": 18677,
     "neutral": false
    },
    "Balcony": {
-    "t_share": 0.236,
-    "seconds": 4965,
+    "t_share": 0.264,
+    "seconds": 3367,
     "neutral": false
    },
-   "Top mid": {
-    "t_share": 0.381,
-    "seconds": 7209,
+   "Apartments": {
+    "t_share": 0.59,
+    "seconds": 17417,
     "neutral": true
-   },
-   "Car": {
-    "t_share": 0.512,
-    "seconds": 9076,
-    "neutral": true
-   },
-   "Apps": {
-    "t_share": 0.645,
-    "seconds": 4549,
-    "neutral": true
-   },
-   "Mid": {
-    "t_share": 0.837,
-    "seconds": 4440,
-    "neutral": false
    },
    "Banana": {
-    "t_share": 0.85,
-    "seconds": 6088,
+    "t_share": 0.704,
+    "seconds": 22830,
     "neutral": false
    },
-   "2nd mid": {
-    "t_share": 0.891,
-    "seconds": 5437,
+   "Middle": {
+    "t_share": 0.852,
+    "seconds": 19504,
     "neutral": false
    },
-   "T ramp": {
-    "t_share": 0.902,
-    "seconds": 9669,
+   "Upstairs": {
+    "t_share": 0.886,
+    "seconds": 552,
+    "neutral": false
+   },
+   "Back Alley": {
+    "t_share": 0.888,
+    "seconds": 4568,
+    "neutral": false
+   },
+   "Underpass": {
+    "t_share": 0.931,
+    "seconds": 2666,
+    "neutral": false
+   },
+   "Bridge": {
+    "t_share": 0.933,
+    "seconds": 990,
+    "neutral": false
+   },
+   "Second Mid": {
+    "t_share": 0.934,
+    "seconds": 11678,
+    "neutral": false
+   },
+   "Lower Mid": {
+    "t_share": 0.965,
+    "seconds": 5488,
+    "neutral": false
+   },
+   "T Ramp": {
+    "t_share": 0.97,
+    "seconds": 10359,
+    "neutral": false
+   },
+   "Deck": {
+    "t_share": 0.993,
+    "seconds": 257,
     "neutral": false
    }
   },
   "de_mirage": {
-   "B window": {
-    "t_share": 0.041,
-    "seconds": 14207,
+   "Shop": {
+    "t_share": 0.032,
+    "seconds": 14595,
     "neutral": false
    },
-   "Mid Window": {
-    "t_share": 0.05,
-    "seconds": 25301,
+   "Truck": {
+    "t_share": 0.055,
+    "seconds": 16294,
     "neutral": false
    },
-   "Ticket": {
-    "t_share": 0.052,
-    "seconds": 13089,
+   "Snipers Nest": {
+    "t_share": 0.065,
+    "seconds": 14280,
     "neutral": false
    },
-   "B site": {
-    "t_share": 0.104,
-    "seconds": 20497,
+   "B Site": {
+    "t_share": 0.098,
+    "seconds": 38984,
     "neutral": false
    },
    "Stairs": {
-    "t_share": 0.118,
-    "seconds": 22020,
+    "t_share": 0.111,
+    "seconds": 7361,
     "neutral": false
    },
-   "A site": {
+   "Jungle": {
+    "t_share": 0.126,
+    "seconds": 9560,
+    "neutral": false
+   },
+   "A Site": {
+    "t_share": 0.156,
+    "seconds": 53652,
+    "neutral": false
+   },
+   "Connector": {
     "t_share": 0.183,
-    "seconds": 20358,
+    "seconds": 16876,
     "neutral": false
    },
-   "Apps": {
-    "t_share": 0.247,
-    "seconds": 18199,
+   "Catwalk": {
+    "t_share": 0.228,
+    "seconds": 31446,
     "neutral": false
    },
-   "Cat": {
-    "t_share": 0.289,
-    "seconds": 13876,
+   "Ladder": {
+    "t_share": 0.298,
+    "seconds": 2880,
     "neutral": false
    },
-   "Con": {
-    "t_share": 0.504,
-    "seconds": 15384,
+   "Scaffolding": {
+    "t_share": 0.403,
+    "seconds": 729,
     "neutral": true
    },
-   "Palace": {
-    "t_share": 0.686,
-    "seconds": 13100,
+   "Middle": {
+    "t_share": 0.612,
+    "seconds": 26027,
     "neutral": true
+   },
+   "Apartments": {
+    "t_share": 0.65,
+    "seconds": 17457,
+    "neutral": true
+   },
+   "Palace Interior": {
+    "t_share": 0.703,
+    "seconds": 27675,
+    "neutral": false
    },
    "Underpass": {
-    "t_share": 0.745,
-    "seconds": 6974,
+    "t_share": 0.708,
+    "seconds": 15423,
     "neutral": false
    },
-   "A main": {
-    "t_share": 0.78,
-    "seconds": 23696,
+   "T Ramp": {
+    "t_share": 0.868,
+    "seconds": 11627,
     "neutral": false
    },
-   "Top mid": {
-    "t_share": 0.857,
-    "seconds": 16034,
+   "Top of Mid": {
+    "t_share": 0.887,
+    "seconds": 22670,
+    "neutral": false
+   },
+   "House": {
+    "t_share": 0.905,
+    "seconds": 10548,
     "neutral": false
    },
    "Back Alley": {
-    "t_share": 0.905,
-    "seconds": 12319,
+    "t_share": 0.917,
+    "seconds": 16455,
     "neutral": false
    },
    "Side Alley": {
-    "t_share": 0.909,
-    "seconds": 10996,
+    "t_share": 0.922,
+    "seconds": 17122,
+    "neutral": false
+   },
+   "Palace Alley": {
+    "t_share": 0.94,
+    "seconds": 21990,
     "neutral": false
    }
   },
   "de_nuke": {
-   "A Heaven": {
-    "t_share": 0.059,
-    "seconds": 4895,
+   "Crane": {
+    "t_share": 0.017,
+    "seconds": 2449,
     "neutral": false
    },
-   "Ramp": {
-    "t_share": 0.114,
-    "seconds": 6842,
+   "Rafters": {
+    "t_share": 0.037,
+    "seconds": 7179,
     "neutral": false
    },
-   "Mini": {
-    "t_share": 0.176,
-    "seconds": 6131,
+   "Heaven": {
+    "t_share": 0.063,
+    "seconds": 7721,
     "neutral": false
    },
-   "Vent": {
-    "t_share": 0.207,
-    "seconds": 1698,
+   "Hell": {
+    "t_share": 0.082,
+    "seconds": 7592,
+    "neutral": false
+   },
+   "Admin": {
+    "t_share": 0.083,
+    "seconds": 6858,
+    "neutral": false
+   },
+   "Hut Roof": {
+    "t_share": 0.085,
+    "seconds": 4617,
+    "neutral": false
+   },
+   "Catwalk": {
+    "t_share": 0.086,
+    "seconds": 3656,
     "neutral": false
    },
    "Garage": {
-    "t_share": 0.226,
-    "seconds": 4243,
+    "t_share": 0.107,
+    "seconds": 8171,
     "neutral": false
    },
-   "Double door": {
-    "t_share": 0.245,
-    "seconds": 707,
+   "Ramp": {
+    "t_share": 0.124,
+    "seconds": 26235,
     "neutral": false
    },
-   "Single Door": {
-    "t_share": 0.3,
-    "seconds": 853,
+   "Locker Room": {
+    "t_share": 0.147,
+    "seconds": 824,
     "neutral": false
    },
-   "Control room": {
-    "t_share": 0.403,
-    "seconds": 581,
+   "Mini": {
+    "t_share": 0.151,
+    "seconds": 9818,
+    "neutral": false
+   },
+   "A Site": {
+    "t_share": 0.17,
+    "seconds": 23559,
+    "neutral": false
+   },
+   "Vents": {
+    "t_share": 0.254,
+    "seconds": 3892,
+    "neutral": false
+   },
+   "Decon": {
+    "t_share": 0.315,
+    "seconds": 1762,
     "neutral": true
    },
-   "B site": {
-    "t_share": 0.416,
-    "seconds": 1029,
+   "Tunnels": {
+    "t_share": 0.357,
+    "seconds": 9521,
+    "neutral": true
+   },
+   "Hut": {
+    "t_share": 0.365,
+    "seconds": 5363,
+    "neutral": true
+   },
+   "B Site": {
+    "t_share": 0.37,
+    "seconds": 7270,
     "neutral": false
+   },
+   "Control": {
+    "t_share": 0.494,
+    "seconds": 5346,
+    "neutral": true
+   },
+   "Outside": {
+    "t_share": 0.513,
+    "seconds": 20338,
+    "neutral": true
    },
    "Secret": {
-    "t_share": 0.463,
-    "seconds": 1440,
+    "t_share": 0.587,
+    "seconds": 5330,
     "neutral": true
    },
-   "A site": {
-    "t_share": 0.526,
-    "seconds": 4329,
+   "Observation": {
+    "t_share": 0.631,
+    "seconds": 1030,
+    "neutral": true
+   },
+   "Trophy": {
+    "t_share": 0.768,
+    "seconds": 5915,
+    "neutral": false
+   },
+   "Squeaky": {
+    "t_share": 0.77,
+    "seconds": 7417,
+    "neutral": false
+   },
+   "Vending": {
+    "t_share": 0.827,
+    "seconds": 7362,
     "neutral": false
    },
    "Lobby": {
-    "t_share": 0.875,
-    "seconds": 5449,
+    "t_share": 0.854,
+    "seconds": 20473,
     "neutral": false
    },
-   "Outside": {
-    "t_share": 0.875,
-    "seconds": 3686,
+   "Silo": {
+    "t_share": 0.877,
+    "seconds": 6479,
     "neutral": false
    },
-   "Hut": {
-    "t_share": 0.948,
-    "seconds": 2368,
+   "Roof": {
+    "t_share": 0.901,
+    "seconds": 6764,
     "neutral": false
    }
   }

@@ -639,6 +639,19 @@ MIGRATIONS: list[tuple[int, str, str]] = [
         CREATE INDEX IF NOT EXISTS idx_coach_notes_team
             ON coach_notes(team_id, status);
     """),
+    (27, "how each kill happened: through smoke, through a wall, range, blind", """
+        -- The game's player_death event says whether the bullet went through
+        -- a smoke (thrusmoke) or a wall (penetrated, the number of surfaces),
+        -- how far apart the two were (distance, in metres) and whether the
+        -- killer was blinded. "Killed by someone nobody had spotted" means
+        -- four different things until these are known: a peek, a shot from
+        -- behind, a smoke, a wallbang (counterplay/decisions.py). NULL on
+        -- kills parsed before this; tools/kill_details.py fills them in.
+        ALTER TABLE events ADD COLUMN thrusmoke INTEGER;
+        ALTER TABLE events ADD COLUMN penetrated INTEGER;
+        ALTER TABLE events ADD COLUMN distance REAL;
+        ALTER TABLE events ADD COLUMN attacker_blind INTEGER;
+    """),
 ]
 
 

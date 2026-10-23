@@ -12,6 +12,8 @@ rows compare with that table directly:
 Calibration is the shipped isotonic layer, fitted on 25% of the training
 matches that the model never trained on. Test maps are always collegiate.
 
+  NEW   train on every college map parsed before 2026-10-23, test on the
+        NECC weeks 3-4 maps parsed that day: maps no model has seen.
   SWEEP tools/seedsweep.py's split: 25% of all 164 college maps as test.
         DIV is tools/holdout.py's protocol, whose rule is 18 of 20.
 
@@ -68,11 +70,21 @@ _lvl = st["level_ct"].to_numpy()
 ESEA_MATCHED = ESEA[np.isin(_lvl[ESEA], ["esea_open", "esea_intermediate"])]
 EXTRA = {None: None, "pro": PRO, "esea": ESEA,
          "both": np.concatenate([PRO, ESEA]), "matched": ESEA_MATCHED}
-division = {r["match_key"] for r in db.query(
-    """SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id
-        WHERE m.tier = 'league' AND d.created_at >= '2026-10-13'""")}
-is_div = st["match_id"].isin(division).to_numpy()
-PLACE, DIV = LEAGUE[~is_div[LEAGUE]], LEAGUE[is_div[LEAGUE]]
+def _league_since(start, end="9999"):
+    return {r["match_key"] for r in db.query(
+        """SELECT m.match_key FROM corpus_matches m JOIN demos d ON d.id = m.demo_id
+            WHERE m.tier = 'league' AND d.created_at >= ? AND d.created_at < ?""",
+        start, end)}
+
+
+# Weeks 1-2 of the NECC divisions arrived 2026-10-13, weeks 3-4 on
+# 2026-10-23. NEW is the fair test: every college map parsed before weeks
+# 3-4 trains, and the weeks 3-4 maps, which no model has seen, are the test.
+is_div = st["match_id"].isin(_league_since("2026-10-13", "2026-10-23")).to_numpy()
+is_new = st["match_id"].isin(_league_since("2026-10-23")).to_numpy()
+OLD = LEAGUE[~is_new[LEAGUE]]
+PLACE, DIV = OLD[~is_div[OLD]], OLD[is_div[OLD]]
+NEW = LEAGUE[is_new[LEAGUE]]
 Y = st[LABEL].astype(int).to_numpy()
 
 
@@ -165,7 +177,8 @@ def sweep_protocol(seed):
     return LEAGUE[rest], LEAGUE[test]
 
 
-PROTOCOLS = {"DIV": lambda seed: (PLACE, DIV), "RAND": rand_protocol,
+PROTOCOLS = {"DIV": lambda seed: (PLACE, DIV), "NEW": lambda seed: (OLD, NEW),
+             "RAND": rand_protocol,
              "SWEEP": sweep_protocol}
 
 
@@ -178,14 +191,18 @@ def main():
     args = ap.parse_args()
     seeds = SEEDS[:args.seeds]
     print(f"{len(PLACE)} placement rows, {len(DIV)} division rows, "
+          f"{len(NEW)} weeks 3-4 rows, "
           f"{len(PRO)} pro rows, {len(ESEA)} ESEA rows; {len(seeds)} seeds\n")
-    print("%-5s %-13s %8s %10s %10s %8s %8s %7s" % (
-        "proto", "arm", "passed", "ratio med", "range", "AUC", "logloss", "secs"))
+    # ECE itself beside the ratio: the floor shrinks as the test grows, so
+    # the ratio (and "passed") is stricter on a big test like NEW's 148
+    # maps; ECE compares across protocols, the ratio does not.
+    print("%-5s %-17s %8s %10s %10s %8s %8s %8s %7s" % (
+        "proto", "arm", "passed", "ratio med", "range", "ECE", "AUC", "logloss", "secs"))
     for pname in args.protocols.split(","):
         protocol = PROTOCOLS[pname]
         for aname in args.arms:
             t0 = time.time()
-            ratios, aucs, losses = [], [], []
+            ratios, aucs, losses, eces = [], [], [], []
             for seed in seeds:
                 pool, test = protocol(seed)
                 tr, cal = split_cal(pool, seed)
@@ -193,14 +210,15 @@ def main():
                 iso = M._make_calibrator("isotonic")
                 iso.fit(raw(cal), Y[cal])
                 p = np.clip(iso.predict(raw(test)), 1e-6, 1 - 1e-6)
-                ratios.append(M.expected_calibration_error(Y[test], p)
-                              / M.null_calibration_floor(p))
+                eces.append(M.expected_calibration_error(Y[test], p))
+                ratios.append(eces[-1] / M.null_calibration_floor(p))
                 aucs.append(roc_auc_score(Y[test], p))
                 losses.append(log_loss(Y[test], p))
             ok = sum(r < M.ECE_FLOOR_MULTIPLE for r in ratios)
-            print("%-5s %-13s %5d/%-2d %10.2f %4.1f-%-5.1f %8.4f %8.4f %7.0f" % (
+            print("%-5s %-17s %5d/%-2d %10.2f %4.1f-%-5.1f %8.4f %8.4f %8.4f %7.0f" % (
                 pname, aname, ok, len(seeds), statistics.median(ratios),
-                min(ratios), max(ratios), statistics.median(aucs),
+                min(ratios), max(ratios), statistics.median(eces),
+                statistics.median(aucs),
                 statistics.median(losses), time.time() - t0), flush=True)
 
 

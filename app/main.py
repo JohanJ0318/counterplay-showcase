@@ -35,7 +35,7 @@ from counterplay import economy
 from . import (advice, alert, auth, buys, charts, db, ingest, legal, mail,
                movement, traffic,
                report as report_mod, resets, sample as sample_page,
-               utility, why, coach, resources as resources_mod)
+               utility, why, coach, coaching, resources as resources_mod)
 from .plans import (DEFAULT_TEAM_PLAN, DEFAULT_USER_PLAN, FEATURE_ORDER,
                     FEATURES, Level, access)
 from .theme import banner, esc, map_chip, page
@@ -774,6 +774,58 @@ def why_block(team_id: int) -> str:
 
 COACH_PILL = {"fix": ("work on this", "t"), "keep": ("keep doing this", "on"),
               "check": ("worth checking", "")}
+
+
+def match_loss_block(loss) -> str:
+    """What cost this match, against a typical college team (app/coaching.py).
+    Coaching, not statistics: a cause, about how many rounds, one thing to
+    practice, the rounds to watch. Nothing at all when no cause cost half a
+    round more than normal, which is the common case for a match you won."""
+    if not loss or not loss.get("causes"):
+        return ""
+    cards = []
+    for c in loss["causes"]:
+        watch = (f'<p class="den">Rounds to watch: {esc(", ".join(c["watch"]))}</p>'
+                 if c["watch"] else "")
+        cards.append(
+            f'<div class="card advice"><h3>{esc(c["label"])}</h3>'
+            f'<p class="lede">This cost you {esc(c["rounds_text"])} more than it '
+            f'costs a typical college team over the same rounds.</p>'
+            f'<p><strong>Practice:</strong> {esc(c["practice"])}</p>{watch}</div>')
+    title = ("What still cost you rounds" if loss["won"] > loss["lost"]
+             else "What cost you this match")
+    return f"""
+  <section class="lead" data-tab="Rounds">
+    <div class="sec-head"><span class="label">Read this one first</span>
+      <h2>{title}</h2></div>
+    <p class="lede">Every change in your chance of winning each round, sorted by
+      what caused it, against a typical college team over the same rounds.</p>
+    <div class="grid2">{"".join(cards)}</div>
+  </section>"""
+
+
+def habits_block(h) -> str:
+    """Mistakes this team makes more than college teams (app/coaching.py).
+    Shown only when there is one: a season with no habit gets no section."""
+    if not h or not h.get("habits"):
+        return ""
+    cards = []
+    for x in h["habits"]:
+        watch = (f'<p class="den">Rounds to watch: {esc(", ".join(x["watch"]))}</p>'
+                 if x["watch"] else "")
+        cards.append(
+            f'<div class="card advice"><span class="pill t">a habit</span>'
+            f'<h3>{esc(x["sentence"])}</h3>'
+            f'<p class="den">On {x["n"]} of your {x["of"]} deaths, more often '
+            f'than college teams.</p>{watch}</div>')
+    return f"""
+  <section>
+    <div class="sec-head"><span class="label">Across your season</span>
+      <h2>What keeps happening</h2></div>
+    <p class="lede">Mistakes your team makes more often than college teams do,
+      using only what your team could see at the time.</p>
+    <div class="grid2">{"".join(cards)}</div>
+  </section>"""
 
 
 def coach_read_block(read: dict) -> str:
@@ -1647,13 +1699,37 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
             blocks.append(zone_table(where["death"], "The first of you to fall",
                                      "Where it went wrong", trades=True))
 
-        named = {z["zone"] for z in where["commit"] + where["death"]}
-        figs = "".join(
-            f'<figure class="zonefig">{q["svg"]}<figcaption class="den">'
-            f'{esc((where["map"] or "").replace("de_", ""))}'
-            + (f' &middot; {esc(q["level"])} floor' if q["level"] else "")
-            + '</figcaption></figure>'
-            for q in zone_pictures(where["map"], show=named))
+        # Coloured green and red off this match's own fights, as the
+        # Positions tab colours a season, at a lower bar (Johan, 2026-10-23:
+        # "a single match is not too small ... if you just lower the
+        # threshold"): MATCH_ZONE_P and MATCH_ZONE_FIGHTS below.
+        figs, zone_script = "", ""
+        try:
+            mp_ = where["map"]
+            got = movement.match_places(team["id"], match_key) if mp_ else {}
+            rows = {str(z): [[sd, ph, by, *[round(v, 1) if isinstance(v, float)
+                                            else v for v in vals]]
+                             for (sd, ph, by), vals in sorted(b.items())]
+                    for z, b in got.get("places", {}).items()}
+            pics = zone_pictures(mp_, show=set(), width=420, stat_zones=True) if rows else []
+            figs = "".join(
+                f'<figure class="zonefig reading" data-map="{esc(mp_)}">{q["svg"]}'
+                f'<figcaption class="den">{esc(mp_.replace("de_", ""))}'
+                + (f' &middot; {esc(q["level"])} floor' if q["level"] else "")
+                + '</figcaption><div class="ztip" role="status" hidden></div></figure>'
+                for q in pics)
+            if figs:
+                js = ZONE_JS.replace("P=0.40,MIN_FIGHTS=4",
+                                     f"P={MATCH_ZONE_P},MIN_FIGHTS={MATCH_ZONE_FIGHTS}")
+                assert js != ZONE_JS
+                zone_script = (
+                    f'<script>(function(){{var D={json.dumps({mp_: rows}, separators=(",", ":"))},'
+                    f'N={json.dumps({mp_: {str(k): v for k, v in got["names"].items()}}, separators=(",", ":"))},'
+                    f'G={json.dumps(_neutral_ground(), separators=(",", ":"))},'
+                    f'B={json.dumps({mp_: _benchmark().get(mp_, {})}, separators=(",", ":"))};'
+                    + js + '})();</script>')
+        except Exception:
+            figs, zone_script = "", ""      # a missing picture never breaks the page
 
         rr = []
         for x in where["rounds"]:
@@ -1678,7 +1754,12 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
     <p class="lede">Your season's position readings, for this match
       only.</p>
     <div class="grid2">{"".join(blocks)}</div>
-    <div class="zonerow">{figs}</div>
+    <p class="lede">On the map, <strong>green means you won more of your fights
+      in that place than a typical collegiate team does there, red fewer</strong>;
+      grey is no real difference, clear is too few fights. One match is a
+      handful of fights, so the bar is lower than on the season page: point at
+      a place for its fight count, and check the demo.</p>
+    <div class="zonerow">{figs}</div>{zone_script}
     <details><summary>Round by round</summary>
       <div class="tbl-wrap"><table><thead><tr><th class="num">#</th><th>Side</th>
         <th>Result</th><th>Group reached</th><th class="num">At</th>
@@ -1787,6 +1868,8 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   </section>"""
     match_nav = (f'<nav class="pager"><span>{nav_prev}</span>'
                  f'{back}<span>{nav_next}</span></nav>')
+    cost_block = (match_loss_block(coaching.match_loss(match_key, owner["team_id"]))
+                  if owner["team_id"] is not None else "")
 
     body = f"""
   {match_nav}
@@ -1803,6 +1886,8 @@ def _match_body(match_key: str, user=None, share: str = "", share_team=None):
   </section>
 
   {PAGE_TABS}
+
+  {cost_block}
 
   <section data-tab="Rounds">
     <div class="sec-head"><span class="label">Every round</span><h2>Timeline</h2></div>
@@ -2050,9 +2135,12 @@ _ZONE_PIC_LOCKS: dict[tuple, threading.Lock] = {}
 _ZONE_PIC_GUARD = threading.Lock()
 
 
-def _zone_title(map_name: str, level) -> str:
+def _zone_title(map_name: str, level, callouts: bool = False) -> str:
     """What the drawing is, said once, for the people who cannot see it."""
     where = f", {level} floor" if level else ""
+    if callouts:
+        return (f"Map of {map_name.replace('de_', '')}{where}, divided into "
+                f"the game's own callouts; a place's name shows when it is pointed at")
     return (f"Map of {map_name.replace('de_', '')}{where}, with your team's "
             f"positions drawn as a density field and the named places numbered")
 
@@ -2133,11 +2221,28 @@ def _draw_zones(map_name: str, show, width: int, key,
     try:
         import numpy as np
 
-        from counterplay import (mapwalk as MW, radar as RD,
+        from counterplay import (callouts as CO, mapwalk as MW, radar as RD,
                                   zonemodel as ZM, zones as Z)
 
-        zs = ZM.load(map_name)
-        names = ZM.names(map_name)
+        # The game's own callouts, drawn with straight borders and every
+        # place named, keyed by the group scan() counted them under.
+        co = CO.load(map_name)
+        if co is not None:
+            got = movement._centres(map_name)
+            groups = got[1] if got else None
+            for fl in co.draw["floors"]:
+                level = fl["level"]
+                out.append({"level": level,
+                            "credit": (RD.available(map_name, level) or {}).get("credit"),
+                            "svg": CO.svg(map_name, fl, RD.available(map_name, level),
+                                          height=460 if stat_zones else 250,
+                                          width=max(width, 620) if stat_zones else width,
+                                          title=_zone_title(map_name, level, True),
+                                          stat_zones=stat_zones, groups=groups)})
+            zs = None
+        else:
+            zs = ZM.load(map_name)
+        names = ZM.names(map_name) if zs else None
         if zs and names:
             rows = db.query("""SELECT rp.data FROM round_positions rp
                                  JOIN corpus_matches m ON m.match_key = rp.match_key
@@ -2644,6 +2749,13 @@ def matches_page(request: Request):
 # ONLY ON NEUTRAL GROUND (Johan): anywhere else it says which side's ground
 # a place is, not how a team played. "Across the map" is every place on the
 # map under the same filters, this one included.
+# The match report's bar for a green or red place: one match is a handful
+# of fights, so it colours on less than the season's P = 0.40 over 4 fights.
+# At 0.50 over 3, three of three won where a typical team wins half is green;
+# two of three is not.
+MATCH_ZONE_P = 0.50
+MATCH_ZONE_FIGHTS = 3
+
 ZONE_JS = r"""
 var F={map:"",side:"all",phase:"all",buy:"all"},P=0.40,MIN_FIGHTS=4,LF=[0];
 var M={
@@ -2757,7 +2869,7 @@ function paint(){
       el.setAttribute("fill",jd.c===1?"var(--good)":jd.c===-1?"var(--bad)":
         "var(--zone-even)");
       el.setAttribute("opacity",jd.c===1||jd.c===-1?
-        String(0.35+Math.min(0.37,1.5*jd.g)):jd.c===2?"0.6":"0");}
+        String(0.35+Math.min(0.37,1.5*jd.g)):jd.c===2?"0.38":"0");}
     if(fig._hot){show(fig,fig._hot);}}}
 var figs=document.querySelectorAll(".zonefig.reading");
 for(var i=0;i<figs.length;i++){(function(fig){
@@ -2913,6 +3025,8 @@ def _stats_body(team, user=None, share: str = ""):
     </details>
   </section>"""
         monday_block = coach_read_block(read) + monday_block
+    # ---- habits (app/coaching.py): only when there is one.
+    monday_block = monday_block + habits_block(coaching.season_habits(team["id"]))
 
     # ---- recent form
     #
@@ -4056,7 +4170,7 @@ async def api_zones(request: Request):
     from anyone signed in, which meant the first coach with an account could
     rename Mirage for everybody by trying the naming page out.
 
-    Shared knowledge, yes. Shared write access, no. `tools/grantadmin.py` is how the
+    Shared knowledge, yes. Shared write access, no. `grantadmin.py` is how the
     flag is given, and it is deliberately not something a web page can do.
     """
     user = current(request)
@@ -4218,7 +4332,7 @@ for _p, (_n, _k) in ICONS.items():
 
 # ---- who visited
 #
-# Admin only, and the flag is given by tools/grantadmin.py, which is deliberately
+# Admin only, and the flag is given by grantadmin.py, which is deliberately
 # not something a web page can do. Everyone else gets the 404 they would get
 # for any address that is not theirs, rather than a 403: a page you may not
 # see should not confirm it exists.
@@ -4411,6 +4525,27 @@ def robots_txt():
                     headers={"Cache-Control": "public, max-age=86400"})
 
 
+# The uptime monitor's one question (infra/monitor/). The worker can die while
+# every page still loads, so this reports when it last looped. Public, so it
+# says ok or stale and when, nothing else: no queue size, no error text.
+# STALE_AFTER matches requeue_stuck(): a parse longer than that is a fault too.
+STALE_AFTER = 30 * 60
+
+
+@app.get("/health", include_in_schema=False)
+def health():
+    from datetime import datetime, timezone
+    db.one("SELECT 1")
+    seen = db.last_beat()
+    age = (datetime.now(timezone.utc) - seen).total_seconds() if seen else None
+    ok = age is not None and age < STALE_AFTER
+    return JSONResponse(
+        {"status": "ok" if ok else "stale",
+         "worker_seen": seen.replace(microsecond=0).isoformat() if seen else None},
+        status_code=200 if ok else 503,
+        headers={"Cache-Control": "no-store"})
+
+
 @app.get("/sitemap.xml", include_in_schema=False)
 def sitemap_xml():
     urls = "".join(
@@ -4428,7 +4563,7 @@ def sitemap_xml():
 if (SITE / "radars").is_dir():
     app.mount("/radars", StaticFiles(directory=SITE / "radars"), name="radars")
 
-# The map silhouettes the chips are masked with, built by tools/mapicons.py. Mounted
+# The map silhouettes the chips are masked with, built by mapicons.py. Mounted
 # the same way and equally optional: without them map_chip falls back to the
 # radar image it used before.
 if (SITE / "icons").is_dir():

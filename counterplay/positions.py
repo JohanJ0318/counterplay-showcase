@@ -45,14 +45,28 @@ import numpy as np
 SAMPLE_STEP = 8
 TICK_RATE = 64.0
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2
 
-# Per player per sample: x, y, z (int16), yaw (uint8), health (uint8),
-# flags (uint8). 9 bytes.
-SAMPLE_DTYPE = np.dtype([
+# Version 1, per player per sample: x, y, z (int16), yaw (uint8), health
+# (uint8), flags (uint8). 9 bytes. Every round parsed before 2026-10-14.
+SAMPLE_DTYPE_V1 = np.dtype([
     ("x", "<i2"), ("y", "<i2"), ("z", "<i2"),
     ("yaw", "u1"), ("health", "u1"), ("flags", "u1"),
 ])
+# Version 2 adds what is needed to say what a team could SEE: view pitch
+# (int8, 90 degrees = 127) beside the yaw, so aim can be measured in both
+# axes, and `seen_by`, one bit per roster index (up to 16) for every player
+# the game's own `approximate_spotted_by` says can see this one. With it a
+# moment can be rebuilt as the team knew it: each enemy visible now, or last
+# seen somewhere so many seconds ago. 12 bytes.
+SAMPLE_DTYPE_V2 = np.dtype([
+    ("x", "<i2"), ("y", "<i2"), ("z", "<i2"),
+    ("yaw", "u1"), ("pitch", "i1"), ("health", "u1"), ("flags", "u1"),
+    ("seen_by", "<u2"),
+])
+SAMPLE_DTYPE = SAMPLE_DTYPE_V2
+_DTYPES = {1: SAMPLE_DTYPE_V1, 2: SAMPLE_DTYPE_V2}
+MAX_SEEN_BY = 16
 
 FLAG_ALIVE = 0b0001
 FLAG_CT = 0b0010
@@ -64,6 +78,8 @@ FLAG_CT = 0b0010
 # of 1 and 2 is called A is a naming question, not a data one.
 ZONE_SHIFT = 2
 ZONE_MASK = 0b1100
+# Bit 4 (version 2): the game's `spotted` flag, seen by at least one enemy.
+FLAG_SPOTTED = 0b10000
 
 # version, tick_start, tick_step, n_samples, n_players
 HEADER = struct.Struct("<BIHHB")
@@ -81,6 +97,12 @@ def _quantise_yaw(yaw: np.ndarray) -> np.ndarray:
     return np.clip(((y + 180.0) / 360.0 * 255.0).round(), 0, 255).astype(np.uint8)
 
 
+def _quantise_pitch(pitch: np.ndarray) -> np.ndarray:
+    """-90..90 degrees into a signed byte, about 0.7 degrees per step."""
+    p = np.nan_to_num(np.asarray(pitch, dtype=np.float64), nan=0.0)
+    return np.clip((p / 90.0 * 127.0).round(), -127, 127).astype(np.int8)
+
+
 def pack_round(ticks: list[int], steamids: list[int], frame) -> bytes | None:
     """Pack one round's samples.
 
@@ -93,7 +115,10 @@ def pack_round(ticks: list[int], steamids: list[int], frame) -> bytes | None:
         return None
 
     n_s, n_p = len(ticks), len(steamids)
-    grid = np.zeros((n_s, n_p), dtype=SAMPLE_DTYPE)
+    # Version 2 only when the demo gave the vision columns; a frame without
+    # them (an older parse path, a test) still writes version 1.
+    version = 2 if "spotted" in frame.columns else 1
+    grid = np.zeros((n_s, n_p), dtype=_DTYPES[version])
 
     tick_pos = {t: i for i, t in enumerate(ticks)}
     sid_pos = {int(s): i for i, s in enumerate(steamids)}
@@ -118,10 +143,27 @@ def pack_round(ticks: list[int], steamids: list[int], frame) -> bytes | None:
     is_ct = (f["team_num"].fillna(0).to_numpy().astype(int) == TEAM_CT)
     zone = np.clip(np.nan_to_num(f["which_bomb_zone"].to_numpy() if
                                  "which_bomb_zone" in f.columns else 0), 0, 3).astype(np.uint8)
-    grid["flags"][ti, si] = (alive * FLAG_ALIVE + is_ct * FLAG_CT
-                             + (zone << ZONE_SHIFT)).astype(np.uint8)
+    flags = alive * FLAG_ALIVE + is_ct * FLAG_CT + (zone << ZONE_SHIFT)
+    if version == 2:
+        spotted = f["spotted"].fillna(False).to_numpy().astype(bool)
+        flags = flags + spotted * FLAG_SPOTTED
+        grid["pitch"][ti, si] = _quantise_pitch(f["pitch"].to_numpy()
+                                                if "pitch" in f.columns else 0)
+        if "approximate_spotted_by" in f.columns:
+            masks = np.zeros(len(f), dtype=np.uint16)
+            for j, seers in enumerate(f["approximate_spotted_by"].to_numpy()):
+                if seers is None or not len(seers):
+                    continue
+                m = 0
+                for sid in seers:
+                    k = sid_pos.get(int(sid))
+                    if k is not None and k < MAX_SEEN_BY:
+                        m |= 1 << k
+                masks[j] = m
+            grid["seen_by"][ti, si] = masks
+    grid["flags"][ti, si] = flags.astype(np.uint8)
 
-    head = HEADER.pack(FORMAT_VERSION, int(ticks[0]), SAMPLE_STEP, n_s, n_p)
+    head = HEADER.pack(version, int(ticks[0]), SAMPLE_STEP, n_s, n_p)
     roster = np.asarray(steamids, dtype="<u8").tobytes()
     return head + roster + grid.tobytes()
 
@@ -135,15 +177,20 @@ def unpack_round(blob: bytes):
     if not blob or len(blob) < HEADER.size:
         return None
     version, tick_start, tick_step, n_s, n_p = HEADER.unpack_from(blob, 0)
-    if version != FORMAT_VERSION:
-        raise ValueError(f"position blob version {version}, expected {FORMAT_VERSION}")
+    if version not in _DTYPES:
+        raise ValueError(f"position blob version {version}, expected one of "
+                         f"{sorted(_DTYPES)}")
     off = HEADER.size
     steamids = np.frombuffer(blob, dtype="<u8", count=n_p, offset=off)
     off += n_p * 8
-    samples = np.frombuffer(blob, dtype=SAMPLE_DTYPE, count=n_s * n_p,
+    # Each version is read as itself, still a view: x, y, z, yaw, health and
+    # flags exist in both, so every reader of those works on either. Only a
+    # reader of pitch or seen_by checks meta["vision"] first.
+    samples = np.frombuffer(blob, dtype=_DTYPES[version], count=n_s * n_p,
                             offset=off).reshape(n_s, n_p)
     meta = {"tick_start": tick_start, "tick_step": tick_step,
-            "n_samples": n_s, "n_players": n_p,
+            "n_samples": n_s, "n_players": n_p, "version": version,
+            "vision": version >= 2,
             "seconds": [(tick_start + i * tick_step - tick_start) / TICK_RATE
                         for i in range(0, 1)]}
     return meta, steamids, samples
@@ -222,8 +269,8 @@ def extract(parser, bounds, sample_step: int = SAMPLE_STEP) -> dict[int, bytes]:
         return {}
 
     frame = parser.parse_ticks(
-        ["X", "Y", "Z", "yaw", "health", "is_alive", "team_num",
-         "which_bomb_zone"], ticks=scan)
+        ["X", "Y", "Z", "yaw", "pitch", "health", "is_alive", "team_num",
+         "which_bomb_zone", "spotted", "approximate_spotted_by"], ticks=scan)
     if not hasattr(frame, "columns") or "steamid" not in getattr(frame, "columns", ()):
         return {}
 

@@ -135,7 +135,12 @@ def privacy_body() -> str:
       <p>Everything sits on one server rented from Hetzner Online GmbH in
         Nuremberg, Germany, and in backups of that server. There is no
         analytics provider, no advertising network and no third-party
-        database.</p>
+        database service.</p>
+      <p>A live copy of the database is kept in Amazon Web Services' S3
+        storage in Ohio, USA, private and encrypted, so a failed server
+        cannot lose it. It keeps a week of history: anything we delete at
+        your request is gone from it within eight days, and from the nightly
+        backups within thirty.</p>
       <p>One other company handles some of it. To write the coach's read on
         a team's Overview, we send that team's name and the statistics worked
         out from its matches (counts and rates, compared with other college
